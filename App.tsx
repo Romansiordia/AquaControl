@@ -62,8 +62,46 @@ const App: React.FC = () => {
   });
 
   const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[] }) => {
+    const fixNumberFromDate = (val: any) => {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') {
+        if (!isNaN(Number(val)) && val.trim() !== '') return Number(val);
+        // Catch 1899 or 1900 dates which are likely numbers formatted as dates
+        if (val.startsWith('1899-') || val.startsWith('1900-')) {
+          const d = new Date(val);
+          const base = new Date('1899-12-30T00:00:00.000Z');
+          // Approximating the number since timezones might shift it slightly
+          const diffDays = (d.getTime() - base.getTime()) / (1000 * 3600 * 24);
+          // If it's close to an integer, round it
+          if (Math.abs(diffDays - Math.round(diffDays)) < 0.05) return Math.round(diffDays);
+          return Number(diffDays.toFixed(2));
+        }
+      }
+      return val || 0;
+    };
+
     if (importedData.production && importedData.production.length > 0) {
-      setRecords(importedData.production);
+      const fixedProd = importedData.production.map(p => ({
+        ...p,
+        orgMt2: fixNumberFromDate(p.orgMt2),
+        // Fix other numeric fields just in case they suffer from the same issue
+        pesoAnterior: fixNumberFromDate(p.pesoAnterior),
+        pesoActual: fixNumberFromDate(p.pesoActual),
+        incrementoSemanal: fixNumberFromDate(p.incrementoSemanal),
+        diasCultivo: fixNumberFromDate(p.diasCultivo),
+        sobrevivencia: fixNumberFromDate(p.sobrevivencia),
+        densidadInicial: fixNumberFromDate(p.densidadInicial),
+        densidadActual: fixNumberFromDate(p.densidadActual),
+        biomasaHa: fixNumberFromDate(p.biomasaHa),
+        biomasaTotal: fixNumberFromDate(p.biomasaTotal),
+        alimentoAcumulado: fixNumberFromDate(p.alimentoAcumulado),
+        fca: fixNumberFromDate(p.fca),
+        camM2Inicial: fixNumberFromDate(p.camM2Inicial),
+        camM2Actual: fixNumberFromDate(p.camM2Actual),
+        alimentoProyectadoDia: fixNumberFromDate(p.alimentoProyectadoDia),
+        alimentoProyectadoSemana: fixNumberFromDate(p.alimentoProyectadoSemana)
+      }));
+      setRecords(fixedProd);
     }
     if (importedData.evaluations && importedData.evaluations.length > 0) {
       setEvaluations(importedData.evaluations);
