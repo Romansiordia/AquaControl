@@ -101,10 +101,10 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         {latestRecordsByPond.length > 0 && (
           <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
             <label className="block text-sm font-medium text-indigo-800 mb-2">Cargar datos desde estanque activo (Autocompletar)</label>
-            <select onChange={handleLoadFromExisting} className="block w-full max-w-md rounded-lg border-[#1B66B0] shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-[#072C52] text-white">
-              <option value="">-- Seleccionar Granja - Estanque --</option>
+            <select onChange={handleLoadFromExisting} className="block w-full max-w-md rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white text-slate-900">
+              <option value="" className="text-slate-500">-- Seleccionar Granja - Estanque --</option>
               {latestRecordsByPond.map(r => (
-                <option key={`${r.granja}-${r.estanque}`} value={`${r.granja}|${r.estanque}`}>
+                <option key={`${r.granja}-${r.estanque}`} value={`${r.granja}|${r.estanque}`} className="text-slate-900">
                   {r.granja} - Estanque {r.estanque} (Último muestreo: {r.fecha})
                 </option>
               ))}
@@ -116,20 +116,20 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
           <div className="space-y-4">
             <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Identificación</h3>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Granja</label>
-              <input type="text" name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              <label className="block text-sm font-medium text-slate-300">Granja</label>
+              <input type="text" name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Estanque #</label>
-              <input type="text" name="estanque" value={form.estanque} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              <label className="block text-sm font-medium text-slate-300">Estanque #</label>
+              <input type="text" name="estanque" value={form.estanque} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Hectáreas (HAS)</label>
-              <input type="number" step="0.01" name="hectareas" value={form.hectareas} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              <label className="block text-sm font-medium text-slate-300">Hectáreas (HAS)</label>
+              <input type="number" step="0.01" name="hectareas" value={form.hectareas} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Especie</label>
-              <input type="text" name="especie" value={form.especie} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+              <label className="block text-sm font-medium text-slate-300">Especie</label>
+              <input type="text" name="especie" value={form.especie} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
             </div>
           </div>
 
@@ -137,64 +137,64 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
             <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Biometría y Fechas</h3>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Fecha Muestreo</label>
-                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+                <label className="block text-sm font-medium text-slate-300">Fecha Muestreo</label>
+                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">Siembra</label>
-                <input type="date" name="fechaSiembra" value={form.fechaSiembra} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+                <label className="block text-sm font-medium text-slate-300">Siembra</label>
+                <input type="date" name="fechaSiembra" value={form.fechaSiembra} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700">P.Anterior (g)</label>
-                <input type="number" step="0.01" name="pesoAnterior" value={form.pesoAnterior} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+                <label className="block text-sm font-medium text-slate-300">P.Anterior (g)</label>
+                <input type="number" step="0.01" name="pesoAnterior" value={form.pesoAnterior} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">P.Actual (g)</label>
-                <input type="number" step="0.01" name="pesoActual" value={form.pesoActual} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+                <label className="block text-sm font-medium text-slate-300">P.Actual (g)</label>
+                <input type="number" step="0.01" name="pesoActual" value={form.pesoActual} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Sobrevivencia %</label>
-              <input type="number" name="sobrevivencia" value={form.sobrevivencia} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              <label className="block text-sm font-medium text-slate-300">Sobrevivencia %</label>
+              <input type="number" name="sobrevivencia" value={form.sobrevivencia} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
             </div>
           </div>
 
           <div className="space-y-4">
             <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Densidad y Alimento</h3>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Densidad Inicial (Org. Sembrados)</label>
-              <input type="number" name="densidadInicial" value={form.densidadInicial} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              <label className="block text-sm font-medium text-slate-300">Densidad Inicial (Org. Sembrados)</label>
+              <input type="number" name="densidadInicial" value={form.densidadInicial} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Alimento Acumu.</label>
-                <input type="number" name="alimentoAcumulado" value={form.alimentoAcumulado} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+                <label className="block text-sm font-medium text-slate-300">Alimento Acumu.</label>
+                <input type="number" name="alimentoAcumulado" value={form.alimentoAcumulado} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">Proy. Día (kg)</label>
-                <input type="number" name="alimentoProyectadoDia" value={form.alimentoProyectadoDia} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Alim. Proy. Semanal</label>
-                <input type="number" name="alimentoProyectadoSemana" value={form.alimentoProyectadoSemana} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Laboratorio</label>
-                <input type="text" name="laboratorio" value={form.laboratorio} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                <label className="block text-sm font-medium text-slate-300">Proy. Día (kg)</label>
+                <input type="number" name="alimentoProyectadoDia" value={form.alimentoProyectadoDia} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Alimentadores</label>
-                <input type="text" name="alimentadores" value={form.alimentadores} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                <label className="block text-sm font-medium text-slate-300">Alim. Proy. Semanal</label>
+                <input type="number" name="alimentoProyectadoSemana" value={form.alimentoProyectadoSemana} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700">Aditivos</label>
-                <input type="text" name="aditivos" value={form.aditivos} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                <label className="block text-sm font-medium text-slate-300">Laboratorio</label>
+                <input type="text" name="laboratorio" value={form.laboratorio} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-300">Alimentadores</label>
+                <input type="text" name="alimentadores" value={form.alimentadores} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300">Aditivos</label>
+                <input type="text" name="aditivos" value={form.aditivos} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
               </div>
             </div>
           </div>

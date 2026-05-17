@@ -177,7 +177,7 @@ const App: React.FC = () => {
 
     // Title
     doc.setFontSize(20);
-    doc.text('Reporte de Producción - CamaroneraPro', 14, yPos);
+    doc.text('Reporte de Producción - AquaControl', 14, yPos);
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generado el: ${today}`, 14, yPos + 8);
@@ -207,28 +207,61 @@ const App: React.FC = () => {
       yPos += pdfHeight + 10;
     }
 
-    // Statistics Table
+    // Statistics Table built from filteredRecords
+    const statKeys = [
+      { label: 'Peso Actual', key: 'pesoActual', unit: 'g' },
+      { label: 'Incremento Semanal', key: 'incrementoSemanal', unit: 'g' },
+      { label: 'Supervivencia', key: 'sobrevivencia', unit: '%' },
+      { label: 'Biomasa Total', key: 'biomasaTotal', unit: 'kg' },
+      { label: 'FCA', key: 'fca', unit: '' },
+      { label: 'Densidad Actual', key: 'densidadActual', unit: 'ind' },
+    ];
+    
+    const calculateStats = (key: string) => {
+      const values = filteredRecords.map(r => r[key as keyof PondRecord] as number).filter(v => typeof v === 'number');
+      if (values.length === 0) return { avg: 0, max: 0, min: 0, std: 0 };
+      const sum = values.reduce((a, b) => a + b, 0);
+      const avg = sum / values.length;
+      const max = Math.max(...values);
+      const min = Math.min(...values);
+      const squareDiffs = values.map(v => Math.pow(v - avg, 2));
+      const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / values.length;
+      const std = Math.sqrt(avgSquareDiff);
+      return { avg, max, min, std };
+    };
+
+    const statsBody = statKeys.map(row => {
+      const s = calculateStats(row.key);
+      return [row.label, `${formatNumber(s.avg)} ${row.unit}`, `${formatNumber(s.max)} ${row.unit}`, `${formatNumber(s.min)} ${row.unit}`, `± ${formatNumber(s.std)}`];
+    });
+
     autoTable(doc, {
       startY: yPos,
-      html: '#stats-table',
-      didParseCell: function (data) {
-        if (data.section === 'head') {
-          data.cell.styles.fillColor = '#475569';
-        }
-      },
+      head: [['Variable', 'Promedio', 'Máximo', 'Mínimo', 'Desv. Estándar']],
+      body: statsBody,
+      headStyles: { fillColor: '#475569' }
     });
 
     yPos = ((doc as any).lastAutoTable?.finalY || yPos) + 10;
 
-    // Pond Records Table
+    // Pond Records Table built from filteredRecords
+    const pondBody = filteredRecords.map(record => [
+      record.granja?.toString() || '',
+      record.estanque?.toString() || '',
+      (record.pesoActual || 0).toString() + 'g',
+      (record.incrementoSemanal || 0).toString() + 'g',
+      (record.diasCultivo || 0).toString(),
+      (record.sobrevivencia || 0).toString() + '%',
+      formatNumber(record.densidadActual || 0),
+      formatNumber(record.biomasaTotal || 0),
+      (record.fca || 0).toString()
+    ]);
+
     autoTable(doc, {
       startY: yPos,
-      html: '#pond-table',
-      didParseCell: function (data) {
-        if (data.section === 'head') {
-          data.cell.styles.fillColor = '#475569';
-        }
-      },
+      head: [['Granja', 'Est.', 'P.Act', 'Inc.S', 'Días', '% Sobr', 'Dens.A', 'Bio.Tot', 'FCA']],
+      body: pondBody,
+      headStyles: { fillColor: '#475569' }
     });
 
     doc.save(`reporte-produccion-${new Date().toISOString().split('T')[0]}.pdf`);
@@ -298,13 +331,21 @@ const App: React.FC = () => {
               </div>
               {activeView === 'dashboard' && (
                 <div className="flex items-center gap-4">
+                  <button 
+                    onClick={handleExportPDF} 
+                    disabled={isExporting}
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all"
+                  >
+                    {isExporting ? (
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    )}
+                    <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar a PDF'}</span>
+                  </button>
                   <button onClick={() => fileInputRef.current?.click()} className="bg-[#0B4075] border border-[#1B66B0] hover:bg-[#0F4C8A] text-blue-100 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                     <span className="hidden sm:inline">Cargar Archivo</span>
-                  </button>
-                  <button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                    <span className="hidden sm:inline">Nuevo Muestreo</span>
                   </button>
                 </div>
               )}
@@ -382,7 +423,7 @@ const App: React.FC = () => {
 
         <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-8 pt-8 border-t border-slate-200">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-slate-400 text-sm">
-            <p>© 2024 CamaroneraPro - Sistema de Gestión Acuícola</p>
+            <p>AquaControl ©RSS 2026</p>
             <div className="flex gap-6">
               <a href="#" className="hover:text-blue-600 transition-colors">Soporte</a>
               <a href="#" className="hover:text-blue-600 transition-colors">Privacidad</a>

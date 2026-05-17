@@ -190,7 +190,7 @@ function doGet(e) {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://script.google.com/macros/s/.../exec"
-                className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-green-500 outline-none"
               />
               <button 
                 onClick={handleSaveConfig}
