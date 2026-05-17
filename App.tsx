@@ -61,6 +61,15 @@ const App: React.FC = () => {
     };
   });
 
+  const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[] }) => {
+    if (importedData.production && importedData.production.length > 0) {
+      setRecords(importedData.production);
+    }
+    if (importedData.evaluations && importedData.evaluations.length > 0) {
+      setEvaluations(importedData.evaluations);
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem('camaronera_sheet_config', JSON.stringify(googleSheetsConfig));
   }, [googleSheetsConfig]);
@@ -409,6 +418,7 @@ const App: React.FC = () => {
             <GoogleSheetsSync 
               config={googleSheetsConfig} 
               onUpdateConfig={setGoogleSheetsConfig}
+              onImportData={handleImportData}
               data={{
                   production: records,
                   evaluations: evaluations

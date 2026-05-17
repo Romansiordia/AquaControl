@@ -6,16 +6,19 @@ import { Share2, Link as LinkIcon, CheckCircle2, AlertCircle, Copy, ExternalLink
 interface Props {
   config: GoogleSheetsConfig;
   onUpdateConfig: (config: GoogleSheetsConfig) => void;
+  onImportData?: (data: { production?: PondRecord[], evaluations?: any[] }) => void;
   data: {
-    stocking: StockingProgramRecord[];
+    stocking?: StockingProgramRecord[];
     production: PondRecord[];
+    evaluations?: any[];
   };
 }
 
-const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, data }) => {
+const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportData, data }) => {
   const [url, setUrl] = useState(config.webAppUrl || '');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [isImporting, setIsImporting] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'import_success'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleSaveConfig = () => {
@@ -30,20 +33,24 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, data }) => 
       return;
     }
 
+    if (!data.production || data.production.length === 0) {
+      if (!window.confirm("No hay registros de producción actualmente. Si sincronizas ahora, se borrarán los datos de tu Google Sheet. ¿Deseas continuar?")) {
+        return;
+      }
+    }
+
     setIsSyncing(true);
     setStatus('idle');
 
     try {
-      // Prepare data for Google Sheets
       const payload = {
         action: 'sync_data',
-        stocking: data.stocking,
+        stocking: data.stocking || [],
         production: data.production,
-        evaluations: data.evaluations,
+        evaluations: data.evaluations || [],
         timestamp: new Date().toISOString()
       };
 
-      // We send as text/plain to avoid CORS preflight (OPTIONS) which Apps Script doesn't support
       await fetch(url, {
         method: 'POST',
         mode: 'no-cors', 
@@ -64,23 +71,63 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, data }) => 
     }
   };
 
+  const parseOldArrayFormat = (dataArray: any[]) => {
+    if (!dataArray || dataArray.length < 2) return [];
+    const headers = dataArray[0];
+    const rows = dataArray.slice(1);
+    return rows.map(row => {
+        const obj: any = {};
+        headers.forEach((h: string, i: number) => {
+            let val = row[i];
+            if (val === "SI") val = true;
+            if (val === "NO") val = false;
+            obj[h] = val;
+        });
+        return obj;
+    });
+  };
+
   const handleImport = async () => {
-    if (!url) return;
-    setIsSyncing(true);
+    if (!url) {
+      setStatus('error');
+      setErrorMessage('Por favor, ingresa una URL de Web App válida.');
+      return;
+    }
+    setIsImporting(true);
+    setStatus('idle');
     try {
       const response = await fetch(`${url}?action=get_data`);
       const result = await response.json();
       if (result.status === 'success') {
-        // Here you would trigger a callback to update the main app state
-        alert('Datos cargados desde la hoja correctamente. Implementando carga...');
-        console.log('Datos importados:', result.data);
+        let importedProduction = [];
+        let importedEvaluations = [];
+
+        if (Array.isArray(result.data)) {
+           // Old Apps script format (only production elements as 2D array)
+           importedProduction = parseOldArrayFormat(result.data);
+        } else if (result.data) {
+           // New Apps script format
+           importedProduction = result.data.production || [];
+           importedEvaluations = result.data.evaluations || [];
+        }
+
+        if (onImportData) {
+          onImportData({ production: importedProduction, evaluations: importedEvaluations });
+        }
+        
+        setStatus('import_success');
+        onUpdateConfig({ ...config, lastSync: new Date().toLocaleTimeString() });
+        alert(`Se importaron ${importedProduction.length} registros de producción y ${importedEvaluations.length} evaluaciones.`);
+      } else {
+        setStatus('error');
+        setErrorMessage('Error del script: ' + result.message);
       }
     } catch (error) {
       console.error('Error al importar:', error);
       setStatus('error');
-      setErrorMessage('No se pudo leer de la hoja. Asegúrate de que el script esté publicado.');
+      setErrorMessage('No se pudo leer de la hoja. Asegúrate de que el script esté publicado y actualizado.');
     } finally {
-      setIsSyncing(false);
+      setIsImporting(false);
     }
   };
 
@@ -156,11 +203,34 @@ function doGet(e) {
   var action = e.parameter.action;
   if (action === 'get_data') {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Ejemplo de lectura:
-    var sheet = ss.getSheetByName('Produccion');
-    var data = sheet ? sheet.getDataRange().getValues() : [];
-    return ContentService.createTextOutput(JSON.stringify({status: 'success', data: data}))
-      .setMimeType(ContentService.MimeType.JSON);
+    
+    function sheetToObjects(sheetName) {
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return [];
+      var data = sheet.getDataRange().getValues();
+      if (data.length < 2) return [];
+      var headers = data[0];
+      var result = [];
+      for (var i = 1; i < data.length; i++) {
+        var obj = {};
+        for (var j = 0; j < headers.length; j++) {
+            var val = data[i][j];
+            if (val === "SI") val = true;
+            if (val === "NO") val = false;
+            obj[headers[j]] = val;
+        }
+        result.push(obj);
+      }
+      return result;
+    }
+
+    var production = sheetToObjects('Produccion');
+    var evaluations = sheetToObjects('Evaluacion Tecnica');
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'success', 
+      data: { production: production, evaluations: evaluations }
+    })).setMimeType(ContentService.MimeType.JSON);
   }
   return ContentService.createTextOutput("Servicio CamaroneraPro activo");
 }`;
@@ -174,7 +244,7 @@ function doGet(e) {
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-800">Conexión con Google Sheets</h2>
-            <p className="text-sm text-slate-500">Envía tus datos a una hoja de cálculo en tiempo real</p>
+            <p className="text-sm text-slate-500">Envía y recibe datos desde tu hoja de cálculo</p>
           </div>
         </div>
 
@@ -201,8 +271,8 @@ function doGet(e) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="space-y-1">
+          <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+            <div className="space-y-1 w-full sm:w-auto">
               <p className="text-sm font-medium text-slate-700">Estado de Sincronización</p>
               <div className="flex items-center gap-2">
                 {status === 'idle' && (
@@ -214,6 +284,12 @@ function doGet(e) {
                     <span className="text-xs text-green-600 font-medium">Sincronización Exitosa ({config.lastSync})</span>
                   </>
                 )}
+                {status === 'import_success' && (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="text-xs text-green-600 font-medium">Importación Exitosa</span>
+                  </>
+                )}
                 {status === 'error' && (
                   <>
                     <AlertCircle className="w-4 h-4 text-red-500" />
@@ -222,18 +298,34 @@ function doGet(e) {
                 )}
               </div>
             </div>
-            <button 
-              onClick={handleSync}
-              disabled={isSyncing || !url}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all shadow-sm ${
-                isSyncing || !url 
-                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar Ahora'}
-            </button>
+            
+            <div className="flex w-full sm:w-auto gap-2">
+              <button 
+                onClick={handleImport}
+                disabled={isImporting || !url}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold transition-all shadow-sm ${
+                  isImporting || !url 
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <RefreshCw className={`w-4 h-4 ${isImporting ? 'animate-spin' : ''}`} />
+                {isImporting ? 'Importando...' : 'Importar de Sheets'}
+              </button>
+              
+              <button 
+                onClick={handleSync}
+                disabled={isSyncing || !url}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold transition-all shadow-sm ${
+                  isSyncing || !url 
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                <Share2 className="w-4 h-4" />
+                {isSyncing ? 'Enviando...' : 'Enviar a Sheets'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
