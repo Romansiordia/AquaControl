@@ -77,11 +77,38 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
       <nav className="flex-1 space-y-2">
         <NavItem
           icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            <svg className="w-5 h-5 text-current" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="50" cy="50" r="48" fill="currentColor" opacity="0.1" stroke="currentColor" strokeWidth="4" />
+              <g stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="50" cy="30" rx="35" ry="8" />
+                <path d="M 15 30 L 25 85" />
+                <path d="M 85 30 L 75 85" />
+                <line x1="30" y1="36" x2="33" y2="87" />
+                <line x1="50" y1="38" x2="50" y2="88" />
+                <line x1="70" y1="36" x2="67" y2="87" />
+                <path d="M 18 45 Q 50 55 82 45" />
+                <path d="M 21 60 Q 50 70 79 60" />
+                <path d="M 23 75 Q 50 85 77 75" />
+              </g>
+              <g transform="translate(35, 45) scale(0.6) rotate(-20)" fill="currentColor" stroke="none">
+                <path d="M 5,10 C 15,-5 25,-5 35,5 C 38,8 39,12 37,16 C 30,22 20,25 10,20 C 5,17 3,13 5,10 Z" />
+                <path d="M 35,5 Q 45,0 50,5 M 34,7 Q 45,8 50,12" stroke="currentColor" strokeWidth="2" fill="none"/>
+                <path d="M 5,10 L -5,5 L 0,12 L -5,17 L 3,15 Z" />
+                <line x1="15" y1="23" x2="13" y2="30" stroke="currentColor" strokeWidth="2" />
+                <line x1="20" y1="24" x2="18" y2="31" stroke="currentColor" strokeWidth="2" />
+                <line x1="25" y1="22" x2="23" y2="29" stroke="currentColor" strokeWidth="2" />
+              </g>
+              <g transform="translate(55, 60) scale(0.5) rotate(10)" fill="currentColor" stroke="none">
+                <path d="M 5,10 C 15,-5 25,-5 35,5 C 38,8 39,12 37,16 C 30,22 20,25 10,20 C 5,17 3,13 5,10 Z" />
+                <path d="M 35,5 Q 45,0 50,5 M 34,7 Q 45,8 50,12" stroke="currentColor" strokeWidth="2" fill="none"/>
+                <path d="M 5,10 L -5,5 L 0,12 L -5,17 L 3,15 Z" />
+                <line x1="15" y1="23" x2="13" y2="30" stroke="currentColor" strokeWidth="2" />
+                <line x1="20" y1="24" x2="18" y2="31" stroke="currentColor" strokeWidth="2" />
+                <line x1="25" y1="22" x2="23" y2="29" stroke="currentColor" strokeWidth="2" />
+              </g>
             </svg>
           }
-          label="Evaluación Técnica"
+          label="Registro Granja"
           isActive={activeView === 'farmEvaluation'}
           onClick={() => onNavigate('farmEvaluation')}
         />
@@ -91,14 +118,25 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
           }
-          label="Historial Evaluaciones"
+          label="Historial"
           isActive={activeView === 'evaluationsList'}
           onClick={() => onNavigate('evaluationsList')}
         />
         <NavItem
           icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 2v20 M4 4h2 M4 9h4 M4 14h2 M4 19h4" />
+              <path d="M13 6.5 C 15 4 17 4 18 6.5 C 16.5 5.5 15 5.5 13 6.5" />
+              <path d="M18 6.5 L 20 5 V 8 Z" />
+              <path d="M13 6.5 Q 11.5 6 10.5 5" />
+              <path d="M11 11.5 C 14 8 17 8 19 11.5 C 17 10 14 10 11 11.5" />
+              <path d="M19 11.5 L 22 9.5 V 13.5 Z" />
+              <path d="M11 11.5 Q 9 10.5 7.5 8.5" />
+              <path d="M14 10.5 L 13.5 12" />
+              <path d="M9 16.5 C 13 11.5 18 11.5 20 16.5 C 17 13.5 13 13.5 9 16.5" />
+              <path d="M20 16.5 L 24 13.5 V 19.5 Z" />
+              <path d="M9 16.5 Q 7 14.5 5 12.5" />
+              <path d="M13 15 L 12 17 M16 14 L 15.5 16" />
             </svg>
           }
           label="Control de Producción"
