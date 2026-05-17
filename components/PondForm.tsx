@@ -1,0 +1,212 @@
+
+import React, { useState, useMemo } from 'react';
+import { PondRecord } from '../types';
+
+interface Props {
+  onAdd: (record: Partial<PondRecord>) => void;
+  onCancel: () => void;
+  initialData?: Partial<PondRecord>;
+  existingRecords?: PondRecord[];
+}
+
+const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecords = [] }) => {
+  const [form, setForm] = useState<Partial<PondRecord>>(initialData || {
+    granja: '',
+    especie: 'L. Vannamei',
+    fecha: new Date().toISOString().split('T')[0],
+    fechaSiembra: new Date().toISOString().split('T')[0],
+    fechaCosecha: '',
+    alimento: 'A.D.M.',
+    laboratorio: 'SAHIMAR',
+    estanque: '1',
+    hectareas: 10,
+    pesoAnterior: 0,
+    pesoActual: 0,
+    sobrevivencia: 100,
+    densidadInicial: 0,
+    alimentoSemanal: 0,
+    alimentoAcumulado: 0,
+    alimentadores: '',
+    aditivos: '',
+    alimentoProyectadoDia: 0,
+    alimentoProyectadoSemana: 0
+  });
+
+  const latestRecordsByPond = useMemo(() => {
+    const latest = new Map<string, PondRecord>();
+    existingRecords.forEach(record => {
+      const key = `${record.granja}-${record.estanque}`;
+      const current = latest.get(key);
+      if (!current || record.diasCultivo > current.diasCultivo) {
+        latest.set(key, record);
+      }
+    });
+    return Array.from(latest.values()).sort((a, b) => {
+      if (a.granja === b.granja) return a.estanque.toString().localeCompare(b.estanque.toString(), undefined, {numeric: true});
+      return a.granja.localeCompare(b.granja);
+    });
+  }, [existingRecords]);
+
+  const handleLoadFromExisting = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const key = e.target.value;
+    if (!key) return;
+    const [granja, estanque] = key.split('|');
+    const record = latestRecordsByPond.find(r => r.granja === granja && r.estanque.toString() === estanque);
+    
+    if (record) {
+      setForm(prev => ({
+        ...prev,
+        granja: record.granja,
+        estanque: record.estanque.toString(),
+        especie: record.especie || 'L. Vannamei',
+        hectareas: record.hectareas,
+        fechaSiembra: record.fechaSiembra,
+        laboratorio: record.laboratorio,
+        densidadInicial: record.densidadInicial,
+        sobrevivencia: record.sobrevivencia,
+        pesoAnterior: record.pesoActual,
+        pesoActual: record.pesoActual,
+        alimentoAcumulado: record.alimentoAcumulado,
+        alimentadores: record.alimentadores || '',
+        aditivos: record.aditivos || ''
+      }));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAdd(form);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: type === 'number' ? parseFloat(value) || 0 : value
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-[#072C52]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#0B4075] rounded-2xl border border-[#125699] shadow-2xl shadow-blue-900/20 max-w-4xl w-full max-h-[90vh] overflow-y-auto p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-white">Cargar Datos de Producción (Muestreo)</h2>
+          <button onClick={onCancel} className="text-blue-300 hover:text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {latestRecordsByPond.length > 0 && (
+          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
+            <label className="block text-sm font-medium text-indigo-800 mb-2">Cargar datos desde estanque activo (Autocompletar)</label>
+            <select onChange={handleLoadFromExisting} className="block w-full max-w-md rounded-lg border-[#1B66B0] shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-[#072C52] text-white">
+              <option value="">-- Seleccionar Granja - Estanque --</option>
+              {latestRecordsByPond.map(r => (
+                <option key={`${r.granja}-${r.estanque}`} value={`${r.granja}|${r.estanque}`}>
+                  {r.granja} - Estanque {r.estanque} (Último muestreo: {r.fecha})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-4">
+            <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Identificación</h3>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Granja</label>
+              <input type="text" name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Estanque #</label>
+              <input type="text" name="estanque" value={form.estanque} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Hectáreas (HAS)</label>
+              <input type="number" step="0.01" name="hectareas" value={form.hectareas} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Especie</label>
+              <input type="text" name="especie" value={form.especie} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Biometría y Fechas</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Fecha Muestreo</label>
+                <input type="date" name="fecha" value={form.fecha} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Siembra</label>
+                <input type="date" name="fechaSiembra" value={form.fechaSiembra} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">P.Anterior (g)</label>
+                <input type="number" step="0.01" name="pesoAnterior" value={form.pesoAnterior} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">P.Actual (g)</label>
+                <input type="number" step="0.01" name="pesoActual" value={form.pesoActual} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Sobrevivencia %</label>
+              <input type="number" name="sobrevivencia" value={form.sobrevivencia} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Densidad y Alimento</h3>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Densidad Inicial (Org. Sembrados)</label>
+              <input type="number" name="densidadInicial" value={form.densidadInicial} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Alimento Acumu.</label>
+                <input type="number" name="alimentoAcumulado" value={form.alimentoAcumulado} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Proy. Día (kg)</label>
+                <input type="number" name="alimentoProyectadoDia" value={form.alimentoProyectadoDia} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Alim. Proy. Semanal</label>
+                <input type="number" name="alimentoProyectadoSemana" value={form.alimentoProyectadoSemana} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Laboratorio</label>
+                <input type="text" name="laboratorio" value={form.laboratorio} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Alimentadores</label>
+                <input type="text" name="alimentadores" value={form.alimentadores} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Aditivos</label>
+                <input type="text" name="aditivos" value={form.aditivos} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+              </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-3 flex justify-end space-x-4 mt-8 pt-6 border-t border-[#125699]">
+            <button type="button" onClick={onCancel} className="px-6 py-2 text-blue-200 font-medium hover:bg-[#0F4C8A] rounded-lg transition-colors border border-transparent hover:border-[#1B66B0]">Cancelar</button>
+            <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all">Guardar en Producción</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default PondForm;
