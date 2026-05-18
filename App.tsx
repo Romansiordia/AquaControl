@@ -141,20 +141,55 @@ const App: React.FC = () => {
     setSelectedPond(null);
   };
 
+  const syncDataToSheets = async (
+    currentRecords: PondRecord[], 
+    currentEvaluations: EvaluationRecord[]
+  ) => {
+    if (!googleSheetsConfig.webAppUrl) return;
+
+    try {
+      const payload = {
+        action: 'sync_data',
+        stocking: [],
+        production: currentRecords,
+        evaluations: currentEvaluations,
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(googleSheetsConfig.webAppUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+
+      setGoogleSheetsConfig(prev => ({ ...prev, lastSync: new Date().toLocaleTimeString() }));
+    } catch (error) {
+      console.error('Error syncing to sheets:', error);
+    }
+  };
+
   const handleAddRecord = (newRecord: Partial<PondRecord>) => {
     const calculated = calculatePondMetrics(newRecord);
+    
+    let updatedRecords: PondRecord[];
     if (newRecord.id && records.some(r => r.id === newRecord.id)) {
-      setRecords(prev => prev.map(r => r.id === newRecord.id ? { ...calculated, id: newRecord.id as string } : r));
+      updatedRecords = records.map(r => r.id === newRecord.id ? { ...calculated, id: newRecord.id as string } : r);
     } else {
-      setRecords(prev => [calculated, ...prev]);
+      updatedRecords = [calculated, ...records];
     }
+    
+    setRecords(updatedRecords);
     setShowForm(false);
     setEditingRecord(null);
+    syncDataToSheets(updatedRecords, evaluations);
   };
 
   const handleDeleteRecord = (id: string) => {
     if (confirm('¿Estás seguro de que deseas eliminar este registro?')) {
-      setRecords(prev => prev.filter(r => r.id !== id));
+      const updatedRecords = records.filter(r => r.id !== id);
+      setRecords(updatedRecords);
+      syncDataToSheets(updatedRecords, evaluations);
     }
   };
 
@@ -164,9 +199,11 @@ const App: React.FC = () => {
       id: new Date().toISOString(),
       submissionDate: new Date().toISOString(),
     };
-    setEvaluations(prev => [newEvaluation, ...prev]);
+    const updatedEvaluations = [newEvaluation, ...evaluations];
+    setEvaluations(updatedEvaluations);
     alert('Evaluación guardada correctamente.');
     setActiveView('evaluationsList'); // Navigate to the list after saving
+    syncDataToSheets(records, updatedEvaluations);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,6 +251,44 @@ const App: React.FC = () => {
     };
     reader.readAsArrayBuffer(file);
     event.target.value = '';
+  };
+
+  const handleGlobalSync = async () => {
+    if (!googleSheetsConfig.webAppUrl) {
+      alert("Por favor, configura la URL de Google Sheets en la sección 'Sincronizar Google'.");
+      setActiveView('googleSync');
+      return;
+    }
+
+    if (records.length === 0 && !window.confirm("No hay registros actualmente. Si sincronizas, se pueden borrar datos en Google Sheets. ¿Deseas continuar?")) {
+      return;
+    }
+
+    setIsSyncingGlobal(true);
+    try {
+      const payload = {
+        action: 'sync_data',
+        stocking: [],
+        production: records,
+        evaluations: evaluations,
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(googleSheetsConfig.webAppUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+
+      setGoogleSheetsConfig(prev => ({ ...prev, lastSync: new Date().toLocaleTimeString() }));
+      alert("Datos enviados correctamente a Google Sheets.");
+    } catch (error) {
+      console.error('Error syncing:', error);
+      alert('Error de conexión con Google Sheets. Verifica la URL y tu conexión.');
+    } finally {
+      setIsSyncingGlobal(false);
+    }
   };
   
   const handleExportPDF = async () => {
@@ -373,29 +448,32 @@ const App: React.FC = () => {
                     {activeView === 'estadisticas' && 'Análisis Estadístico'}
                     {activeView === 'farmEvaluation' && 'Evaluación Técnica de Granja'}
                     {activeView === 'evaluationsList' && 'Historial de Evaluaciones'}
+                    {activeView === 'productionProgram' && 'Control de Producción'}
                     {activeView === 'googleSync' && 'Sincronización con Google Sheets'}
                  </h1>
               </div>
-              {activeView === 'dashboard' && (
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={handleExportPDF} 
-                    disabled={isExporting}
-                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all"
-                  >
-                    {isExporting ? (
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    )}
-                    <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar a PDF'}</span>
-                  </button>
-                  <button onClick={() => fileInputRef.current?.click()} className="bg-[#0B4075] border border-[#1B66B0] hover:bg-[#0F4C8A] text-blue-100 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    <span className="hidden sm:inline">Cargar Archivo</span>
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-4">
+                {activeView === 'dashboard' && (
+                  <>
+                    <button 
+                      onClick={handleExportPDF} 
+                      disabled={isExporting}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all"
+                    >
+                      {isExporting ? (
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      )}
+                      <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar a PDF'}</span>
+                    </button>
+                    <button onClick={() => fileInputRef.current?.click()} className="bg-[#0B4075] border border-[#1B66B0] hover:bg-[#0F4C8A] text-blue-100 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      <span className="hidden sm:inline">Cargar Archivo</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </nav>
