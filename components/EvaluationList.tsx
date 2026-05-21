@@ -5,9 +5,10 @@ import { formatDate } from '../utils';
 
 interface Props {
     evaluations: EvaluationRecord[];
+    onEdit: (evaluation: EvaluationRecord) => void;
 }
 
-const EvaluationList: React.FC<Props> = ({ evaluations }) => {
+const EvaluationList: React.FC<Props> = ({ evaluations, onEdit }) => {
     const [openId, setOpenId] = useState<string | null>(null);
 
     const toggleItem = (id: string) => {
@@ -58,6 +59,15 @@ const EvaluationList: React.FC<Props> = ({ evaluations }) => {
                                         </p>
                                     </div>
                                 ))}
+                            </div>
+                            <div className="mt-6 flex justify-end">
+                                <button 
+                                    onClick={() => onEdit(evaluation)}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    Editar Evaluación
+                                </button>
                             </div>
                         </div>
                     )}

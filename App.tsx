@@ -38,6 +38,7 @@ const App: React.FC = () => {
   });
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PondRecord | null>(null);
+  const [editingEvaluation, setEditingEvaluation] = useState<EvaluationRecord | null>(null);
   const [selectedPond, setSelectedPond] = useState<number | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [activeView, setActiveView] = useState<View>('dashboard');
@@ -194,14 +195,27 @@ const App: React.FC = () => {
   };
 
   const handleSaveEvaluation = (formData: EvaluationFormData) => {
-    const newEvaluation: EvaluationRecord = {
-      ...formData,
-      id: new Date().toISOString(),
-      submissionDate: new Date().toISOString(),
-    };
-    const updatedEvaluations = [newEvaluation, ...evaluations];
+    let updatedEvaluations: EvaluationRecord[];
+    
+    if (editingEvaluation) {
+      const updatedEvaluation = {
+        ...editingEvaluation,
+        ...formData
+      };
+      updatedEvaluations = evaluations.map(e => e.id === editingEvaluation.id ? updatedEvaluation : e);
+      setEditingEvaluation(null);
+      alert('Evaluación actualizada correctamente.');
+    } else {
+      const newEvaluation: EvaluationRecord = {
+        ...formData,
+        id: new Date().toISOString(),
+        submissionDate: new Date().toISOString(),
+      };
+      updatedEvaluations = [newEvaluation, ...evaluations];
+      alert('Evaluación guardada correctamente.');
+    }
+    
     setEvaluations(updatedEvaluations);
-    alert('Evaluación guardada correctamente.');
     setActiveView('evaluationsList'); // Navigate to the list after saving
     syncDataToSheets(records, updatedEvaluations);
   };
@@ -251,44 +265,6 @@ const App: React.FC = () => {
     };
     reader.readAsArrayBuffer(file);
     event.target.value = '';
-  };
-
-  const handleGlobalSync = async () => {
-    if (!googleSheetsConfig.webAppUrl) {
-      alert("Por favor, configura la URL de Google Sheets en la sección 'Sincronizar Google'.");
-      setActiveView('googleSync');
-      return;
-    }
-
-    if (records.length === 0 && !window.confirm("No hay registros actualmente. Si sincronizas, se pueden borrar datos en Google Sheets. ¿Deseas continuar?")) {
-      return;
-    }
-
-    setIsSyncingGlobal(true);
-    try {
-      const payload = {
-        action: 'sync_data',
-        stocking: [],
-        production: records,
-        evaluations: evaluations,
-        timestamp: new Date().toISOString()
-      };
-
-      await fetch(googleSheetsConfig.webAppUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-      });
-
-      setGoogleSheetsConfig(prev => ({ ...prev, lastSync: new Date().toLocaleTimeString() }));
-      alert("Datos enviados correctamente a Google Sheets.");
-    } catch (error) {
-      console.error('Error syncing:', error);
-      alert('Error de conexión con Google Sheets. Verifica la URL y tu conexión.');
-    } finally {
-      setIsSyncingGlobal(false);
-    }
   };
   
   const handleExportPDF = async () => {
@@ -432,7 +408,12 @@ const App: React.FC = () => {
     <div className="flex min-h-screen">
       <Sidebar 
         activeView={activeView} 
-        onNavigate={setActiveView}
+        onNavigate={(view) => {
+          setActiveView(view);
+          if (view === 'farmEvaluation') {
+            setEditingEvaluation(null);
+          }
+        }}
         onExportPDF={handleExportPDF}
         isExporting={isExporting}
       />
@@ -520,8 +501,8 @@ const App: React.FC = () => {
              </div>
           )}
 
-          {activeView === 'farmEvaluation' && <FarmEvaluationForm onSave={handleSaveEvaluation} />}
-          {activeView === 'evaluationsList' && <EvaluationList evaluations={evaluations} />}
+          {activeView === 'farmEvaluation' && <FarmEvaluationForm initialData={editingEvaluation || undefined} onSave={handleSaveEvaluation} />}
+          {activeView === 'evaluationsList' && <EvaluationList evaluations={evaluations} onEdit={(evalData) => { setEditingEvaluation(evalData); setActiveView('farmEvaluation'); }} />}
           {activeView === 'productionProgram' && (
             <ProductionProgram 
               records={records} 

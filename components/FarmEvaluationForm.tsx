@@ -4,6 +4,7 @@ import { EvaluationFormData } from '../types';
 
 interface Props {
     onSave: (data: EvaluationFormData) => void;
+    initialData?: EvaluationFormData;
 }
 
 const Section: React.FC<{ title: string; children: React.ReactNode; defaultOpen?: boolean }> = ({ title, children, defaultOpen = false }) => {
@@ -32,8 +33,16 @@ const Input: React.FC<{ label: string; name: string; value: string; onChange: (e
     </div>
 );
 
-const FarmEvaluationForm: React.FC<Props> = ({ onSave }) => {
-    const [formData, setFormData] = useState<EvaluationFormData>({});
+const FarmEvaluationForm: React.FC<Props> = ({ onSave, initialData }) => {
+    const [formData, setFormData] = useState<EvaluationFormData>(initialData || {});
+
+    React.useEffect(() => {
+        if (initialData) {
+            setFormData(initialData);
+        } else {
+            setFormData({});
+        }
+    }, [initialData]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
