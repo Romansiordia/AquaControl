@@ -153,10 +153,6 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
               <label className="block text-sm font-medium text-slate-300">Hectáreas (HAS)</label>
               <input type="number" step="0.01" name="hectareas" value={form.hectareas} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300">Especie</label>
-              <input type="text" name="especie" value={form.especie} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
-            </div>
           </div>
 
           <div className="space-y-4">
@@ -211,16 +207,6 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
               <div>
                 <label className="block text-sm font-medium text-slate-300">Laboratorio</label>
                 <input type="text" name="laboratorio" value={form.laboratorio} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-sm font-medium text-slate-300">Alimentadores</label>
-                <input type="text" name="alimentadores" value={form.alimentadores} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300">Aditivos</label>
-                <input type="text" name="aditivos" value={form.aditivos} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" />
               </div>
             </div>
           </div>
