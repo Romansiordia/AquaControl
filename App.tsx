@@ -530,7 +530,7 @@ const App: React.FC = () => {
           )}
         </main>
 
-        {showForm && <PondForm initialData={editingRecord || undefined} existingRecords={records} onAdd={handleAddRecord} onCancel={() => { setShowForm(false); setEditingRecord(null); }} />}
+        {showForm && <PondForm initialData={editingRecord || undefined} existingRecords={records} evaluations={evaluations} onAdd={handleAddRecord} onCancel={() => { setShowForm(false); setEditingRecord(null); }} />}
         
         {selectedPond && <PondDetailModal pondId={selectedPond} records={records} onClose={handleCloseModal} />}
 

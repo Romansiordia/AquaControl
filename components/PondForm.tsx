@@ -1,15 +1,16 @@
 
 import React, { useState, useMemo } from 'react';
-import { PondRecord } from '../types';
+import { PondRecord, EvaluationRecord } from '../types';
 
 interface Props {
   onAdd: (record: Partial<PondRecord>) => void;
   onCancel: () => void;
   initialData?: Partial<PondRecord>;
   existingRecords?: PondRecord[];
+  evaluations?: EvaluationRecord[];
 }
 
-const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecords = [] }) => {
+const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecords = [], evaluations = [] }) => {
   const [form, setForm] = useState<Partial<PondRecord>>(initialData || {
     granja: '',
     especie: 'L. Vannamei',
@@ -73,6 +74,11 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     }
   };
 
+  const uniqueGranjas = useMemo(() => {
+    const granjas = evaluations.map(e => String(e.granja)).filter(Boolean);
+    return Array.from(new Set(granjas)).sort();
+  }, [evaluations]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onAdd(form);
@@ -117,7 +123,13 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
             <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Identificación</h3>
             <div>
               <label className="block text-sm font-medium text-slate-300">Granja</label>
-              <input type="text" name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
+              <select name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required>
+                <option value="" disabled>-- Selecciona una Granja --</option>
+                {uniqueGranjas.map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+                {uniqueGranjas.length === 0 && <option value="" disabled>No hay granjas evaluadas aún</option>}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300">Estanque #</label>
