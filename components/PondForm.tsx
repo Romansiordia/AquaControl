@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { PondRecord, EvaluationRecord } from '../types';
+import { calculateFeedProjection } from '../utils/feedCalculator';
 
 interface Props {
   onAdd: (record: Partial<PondRecord>) => void;
@@ -110,6 +111,19 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         const evaluation = [...evaluations].sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime()).find(ev => ev.granja === value);
         if (evaluation && evaluation.fecha_siembra) {
           updates.fechaSiembra = String(evaluation.fecha_siembra).split('T')[0];
+        }
+      }
+      
+      // Auto-calcular proyecciones de alimento si los campos relevantes cambian
+      if (['pesoActual', 'densidadInicial', 'sobrevivencia'].includes(name)) {
+        const totalOrganisms = updates.densidadInicial || 0;
+        const survival = updates.sobrevivencia || 0;
+        const weight = updates.pesoActual || 0;
+        
+        if (totalOrganisms > 0 && weight > 0) {
+          const projection = calculateFeedProjection(totalOrganisms, survival, weight);
+          updates.alimentoProyectadoDia = projection.projectedDailyKg;
+          updates.alimentoProyectadoSemana = projection.projectedWeeklyKg;
         }
       }
       
