@@ -13,18 +13,20 @@ interface ProductionProgramProps {
 const ProductionProgram: React.FC<ProductionProgramProps> = ({ records, onAdd, onEdit, onDelete }) => {
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
-                <div>
-                    <h2 className="text-xl font-bold text-white">Control de Producción</h2>
-                    <p className="text-sm text-blue-300">Módulo de biometrías y métricas productivas sincronizado con Sheets.</p>
+            <div className="flex flex-col gap-4 bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
+                <div className="flex flex-col gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold text-white">Control de Producción</h2>
+                        <p className="text-sm text-blue-300">Módulo de biometrías y métricas productivas sincronizado con Sheets.</p>
+                    </div>
+                    <button 
+                        onClick={onAdd}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-fit"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Nuevo Muestreo
+                    </button>
                 </div>
-                <button 
-                    onClick={onAdd}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                    <Plus className="w-4 h-4" />
-                    Nuevo Muestreo
-                </button>
             </div>
 
             <div className="bg-[#0B4075] rounded-xl border border-[#125699] shadow-sm overflow-hidden">
