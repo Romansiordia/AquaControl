@@ -55,13 +55,15 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     const record = latestRecordsByPond.find(r => r.granja === granja && r.estanque.toString() === estanque);
     
     if (record) {
+      const evaluation = [...evaluations].sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime()).find(ev => ev.granja === record.granja);
+
       setForm(prev => ({
         ...prev,
         granja: record.granja,
         estanque: record.estanque.toString(),
         especie: record.especie || 'L. Vannamei',
         hectareas: record.hectareas,
-        fechaSiembra: record.fechaSiembra,
+        fechaSiembra: (evaluation && evaluation.fecha_siembra) ? String(evaluation.fecha_siembra) : record.fechaSiembra,
         laboratorio: record.laboratorio,
         densidadInicial: record.densidadInicial,
         sobrevivencia: record.sobrevivencia,
