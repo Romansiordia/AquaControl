@@ -11,27 +11,38 @@ interface Props {
 }
 
 const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecords = [], evaluations = [] }) => {
-  const [form, setForm] = useState<Partial<PondRecord>>(initialData || {
-    granja: '',
-    especie: 'L. Vannamei',
-    fecha: new Date().toISOString().split('T')[0],
-    fechaSiembra: new Date().toISOString().split('T')[0],
-    fechaCosecha: '',
-    alimento: 'A.D.M.',
-    laboratorio: 'SAHIMAR',
-    estanque: '1',
-    hectareas: 10,
-    pesoAnterior: 0,
-    pesoActual: 0,
-    sobrevivencia: 100,
-    densidadInicial: 0,
-    alimentoSemanal: 0,
-    alimentoAcumulado: 0,
-    alimentadores: '',
-    aditivos: '',
-    alimentoProyectadoDia: 0,
-    alimentoProyectadoSemana: 0
-  });
+  const getInitialState = () => {
+    if (initialData) {
+      return {
+        ...initialData,
+        fecha: initialData.fecha ? String(initialData.fecha).split('T')[0] : '',
+        fechaSiembra: initialData.fechaSiembra ? String(initialData.fechaSiembra).split('T')[0] : ''
+      };
+    }
+    return {
+      granja: '',
+      especie: 'L. Vannamei',
+      fecha: new Date().toISOString().split('T')[0],
+      fechaSiembra: new Date().toISOString().split('T')[0],
+      fechaCosecha: '',
+      alimento: 'A.D.M.',
+      laboratorio: 'SAHIMAR',
+      estanque: '1',
+      hectareas: 10,
+      pesoAnterior: 0,
+      pesoActual: 0,
+      sobrevivencia: 100,
+      densidadInicial: 0,
+      alimentoSemanal: 0,
+      alimentoAcumulado: 0,
+      alimentadores: '',
+      aditivos: '',
+      alimentoProyectadoDia: 0,
+      alimentoProyectadoSemana: 0
+    };
+  };
+
+  const [form, setForm] = useState<Partial<PondRecord>>(getInitialState());
 
   const latestRecordsByPond = useMemo(() => {
     const latest = new Map<string, PondRecord>();
@@ -63,7 +74,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         estanque: record.estanque.toString(),
         especie: record.especie || 'L. Vannamei',
         hectareas: record.hectareas,
-        fechaSiembra: (evaluation && evaluation.fecha_siembra) ? String(evaluation.fecha_siembra) : record.fechaSiembra,
+        fechaSiembra: (evaluation && evaluation.fecha_siembra) ? String(evaluation.fecha_siembra).split('T')[0] : (record.fechaSiembra ? String(record.fechaSiembra).split('T')[0] : prev.fechaSiembra),
         laboratorio: record.laboratorio,
         densidadInicial: record.densidadInicial,
         sobrevivencia: record.sobrevivencia,
@@ -98,7 +109,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         // Encontrar la evaluación más reciente de esta granja para obtener la fecha de siembra
         const evaluation = [...evaluations].sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime()).find(ev => ev.granja === value);
         if (evaluation && evaluation.fecha_siembra) {
-          updates.fechaSiembra = String(evaluation.fecha_siembra);
+          updates.fechaSiembra = String(evaluation.fecha_siembra).split('T')[0];
         }
       }
       

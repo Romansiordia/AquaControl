@@ -38,7 +38,7 @@ const EvaluationList: React.FC<Props> = ({ evaluations, onEdit, onDelete }) => {
                                 Granja: {String(evaluation.granja) || 'Sin Nombre'}
                             </p>
                             <p className="text-sm text-blue-300 mt-1">
-                                Fecha de Evaluación: {evaluation.fecha ? String(evaluation.fecha) : formatDate(evaluation.submissionDate)}
+                                Fecha de Evaluación: {evaluation.fecha ? String(evaluation.fecha).split('T')[0] : (evaluation.submissionDate ? evaluation.submissionDate.split('T')[0] : '')}
                             </p>
                         </div>
                         <svg className={`w-6 h-6 transform transition-transform ${openId === evaluation.id ? 'rotate-180 text-white' : 'text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +56,8 @@ const EvaluationList: React.FC<Props> = ({ evaluations, onEdit, onDelete }) => {
                                     <div key={key}>
                                         <p className="text-xs text-blue-300 capitalize mb-1">{key.replace(/_/g, ' ')}</p>
                                         <p className="text-white font-medium">
-                                            {typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value) || '-'}
+                                            {typeof value === 'boolean' ? (value ? 'Sí' : 'No') : 
+                                                (typeof value === 'string' && key.toLowerCase().includes('fecha')) ? value.split('T')[0] : String(value) || '-'}
                                         </p>
                                     </div>
                                 ))}
