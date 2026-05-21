@@ -220,6 +220,12 @@ const App: React.FC = () => {
     syncDataToSheets(records, updatedEvaluations);
   };
 
+  const handleDeleteEvaluation = (id: string) => {
+    const updatedEvaluations = evaluations.filter(e => e.id !== id);
+    setEvaluations(updatedEvaluations);
+    syncDataToSheets(records, updatedEvaluations);
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -502,7 +508,7 @@ const App: React.FC = () => {
           )}
 
           {activeView === 'farmEvaluation' && <FarmEvaluationForm initialData={editingEvaluation || undefined} onSave={handleSaveEvaluation} />}
-          {activeView === 'evaluationsList' && <EvaluationList evaluations={evaluations} onEdit={(evalData) => { setEditingEvaluation(evalData); setActiveView('farmEvaluation'); }} />}
+          {activeView === 'evaluationsList' && <EvaluationList evaluations={evaluations} onEdit={(evalData) => { setEditingEvaluation(evalData); setActiveView('farmEvaluation'); }} onDelete={handleDeleteEvaluation} />}
           {activeView === 'productionProgram' && (
             <ProductionProgram 
               records={records} 
