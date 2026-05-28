@@ -116,13 +116,13 @@ const DashboardStats: React.FC<Props> = ({ records }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 xl:gap-6 mb-8">
       {topStats.map((stat, i) => (
-        <div key={i} className="bg-[#0B4075] p-6 rounded-2xl shadow-sm border border-[#125699] flex flex-col justify-between items-start transition-all hover:shadow-md hover:-translate-y-1">
-          <div className={`p-4 rounded-xl ${stat.bgColor} border mb-6 flex items-center justify-center`}>
+        <div key={i} className="bg-[#0B4075] p-6 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-1">
+          <div className={`p-4 rounded-xl ${stat.bgColor} border mb-4 flex items-center justify-center`}>
             {stat.icon}
           </div>
-          <div>
+          <div className="flex flex-col items-center w-full">
             <p className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-2">{stat.label}</p>
-            <p className={`text-3xl xl:text-4xl font-extrabold ${stat.color} tracking-tight`}>{stat.value}</p>
+            <p className={`text-2xl xl:text-3xl font-extrabold ${stat.color} tracking-tight`}>{stat.value}</p>
           </div>
         </div>
       ))}
