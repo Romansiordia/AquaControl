@@ -21,11 +21,15 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
 
   // Calculate days of cultivation if possible
   let diasCultivo = record.diasCultivo || 0;
-  if (record.fechaSiembra && !record.diasCultivo) {
+  if (record.fechaSiembra) {
      const siembra = new Date(record.fechaSiembra);
      const hoy = record.fecha ? new Date(record.fecha) : new Date();
-     const diffTime = Math.abs(hoy.getTime() - siembra.getTime());
-     diasCultivo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+     
+     // Ignorar la parte del tiempo para un cálculo de días más exacto
+     const utc1 = Date.UTC(siembra.getFullYear(), siembra.getMonth(), siembra.getDate());
+     const utc2 = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+     
+     diasCultivo = Math.floor(Math.abs(utc2 - utc1) / (1000 * 60 * 60 * 24));
   }
 
   return {

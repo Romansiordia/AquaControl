@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { PondRecord } from '../types';
 import { formatNumber } from '../utils';
-import { Activity, TrendingUp, HeartPulse } from 'lucide-react';
+import { Activity, TrendingUp, HeartPulse, Package } from 'lucide-react';
 
 const ShrimpIcon = ({ className, strokeWidth = 5 }: { className?: string; strokeWidth?: number }) => (
   <svg className={className} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -73,6 +73,8 @@ const DashboardStats: React.FC<Props> = ({ records }) => {
   const avgIncrement = stats?.incSemanal || 0;
   const avgSurvival = stats?.sobrevivencia || 0;
 
+  const totalAlimentoAcum = stats?.alimentoAcum || 0;
+
   const topStats = [
     { 
       label: 'Biomasa Total', 
@@ -80,6 +82,13 @@ const DashboardStats: React.FC<Props> = ({ records }) => {
       color: 'text-white', 
       icon: <ShrimpIcon className="w-8 h-8 text-blue-400" strokeWidth={5} />,
       bgColor: 'bg-blue-900/30 border-blue-700/50'
+    },
+    { 
+      label: 'Alimento Acumulado', 
+      value: `${formatNumber(totalAlimentoAcum)} kg`, 
+      color: 'text-white', 
+      icon: <Package className="w-8 h-8 text-orange-400" strokeWidth={1.5} />,
+      bgColor: 'bg-orange-900/30 border-orange-700/50'
     },
     { 
       label: 'Promedio FCA', 
@@ -105,15 +114,15 @@ const DashboardStats: React.FC<Props> = ({ records }) => {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 xl:gap-6 mb-8">
       {topStats.map((stat, i) => (
-        <div key={i} className="bg-[#0B4075] p-8 rounded-2xl shadow-sm border border-[#125699] flex flex-col justify-between items-start transition-all hover:shadow-md hover:-translate-y-1">
+        <div key={i} className="bg-[#0B4075] p-6 rounded-2xl shadow-sm border border-[#125699] flex flex-col justify-between items-start transition-all hover:shadow-md hover:-translate-y-1">
           <div className={`p-4 rounded-xl ${stat.bgColor} border mb-6 flex items-center justify-center`}>
             {stat.icon}
           </div>
           <div>
             <p className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-2">{stat.label}</p>
-            <p className={`text-4xl font-extrabold ${stat.color} tracking-tight`}>{stat.value}</p>
+            <p className={`text-3xl xl:text-4xl font-extrabold ${stat.color} tracking-tight`}>{stat.value}</p>
           </div>
         </div>
       ))}

@@ -67,15 +67,13 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     const record = latestRecordsByPond.find(r => r.granja === granja && r.estanque.toString() === estanque);
     
     if (record) {
-      const evaluation = [...evaluations].sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime()).find(ev => ev.granja === record.granja);
-
       setForm(prev => ({
         ...prev,
         granja: record.granja,
         estanque: record.estanque.toString(),
         especie: record.especie || 'L. Vannamei',
         hectareas: record.hectareas,
-        fechaSiembra: (evaluation && evaluation.fecha_siembra) ? String(evaluation.fecha_siembra).split('T')[0] : (record.fechaSiembra ? String(record.fechaSiembra).split('T')[0] : prev.fechaSiembra),
+        fechaSiembra: record.fechaSiembra ? String(record.fechaSiembra).split('T')[0] : prev.fechaSiembra,
         laboratorio: record.laboratorio,
         densidadInicial: record.densidadInicial,
         sobrevivencia: record.sobrevivencia,
@@ -106,13 +104,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         [name]: type === 'number' ? parseFloat(value) || 0 : value
       };
       
-      if (name === 'granja') {
-        // Encontrar la evaluación más reciente de esta granja para obtener la fecha de siembra
-        const evaluation = [...evaluations].sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime()).find(ev => ev.granja === value);
-        if (evaluation && evaluation.fecha_siembra) {
-          updates.fechaSiembra = String(evaluation.fecha_siembra).split('T')[0];
-        }
-      }
+      // Removed automatic fetching of fechaSiembra from evaluation on granja change
       
       // Auto-calcular proyecciones de alimento si los campos relevantes cambian
       if (['pesoActual', 'densidadInicial', 'sobrevivencia'].includes(name)) {
@@ -189,7 +181,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-300">Siembra</label>
-                <input type="date" name="fechaSiembra" value={form.fechaSiembra} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-500 bg-slate-100 cursor-not-allowed" readOnly required />
+                <input type="date" name="fechaSiembra" value={form.fechaSiembra} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2 } from 'lucide-react';
 import { formatNumber, formatDate } from '../utils';
@@ -11,21 +11,54 @@ interface ProductionProgramProps {
 }
 
 const ProductionProgram: React.FC<ProductionProgramProps> = ({ records, onAdd, onEdit, onDelete }) => {
+    const [granjaFilter, setGranjaFilter] = useState('');
+    const [estanqueFilter, setEstanqueFilter] = useState('');
+
+    const uniqueGranjas = useMemo(() => Array.from(new Set(records.map(r => r.granja))).filter(Boolean).sort(), [records]);
+    const uniqueEstanques = useMemo(() => Array.from(new Set(records.map(r => r.estanque?.toString()))).filter(Boolean).sort((a, b) => Number(a) - Number(b)), [records]);
+
+    const filteredRecords = useMemo(() => {
+        return records.filter(record => {
+            const matchGranja = granjaFilter === '' || record.granja === granjaFilter;
+            const matchEstanque = estanqueFilter === '' || record.estanque?.toString() === estanqueFilter;
+            return matchGranja && matchEstanque;
+        });
+    }, [records, granjaFilter, estanqueFilter]);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4 bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                     <div>
                         <h2 className="text-xl font-bold text-white">Control de Producción</h2>
                         <p className="text-sm text-blue-300">Módulo de biometrías y métricas productivas sincronizado con Sheets.</p>
                     </div>
-                    <button 
-                        onClick={onAdd}
-                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-fit"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Nuevo Muestreo
-                    </button>
+                    
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <select 
+                            value={granjaFilter} 
+                            onChange={(e) => setGranjaFilter(e.target.value)}
+                            className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
+                        >
+                            <option value="">Todas las Granjas</option>
+                            {uniqueGranjas.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <select 
+                            value={estanqueFilter} 
+                            onChange={(e) => setEstanqueFilter(e.target.value)}
+                            className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
+                        >
+                            <option value="">Todos los Estanques</option>
+                            {uniqueEstanques.map(e => <option key={e} value={e}>Estanque {e}</option>)}
+                        </select>
+                        <button 
+                            onClick={onAdd}
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span className="hidden xs:inline">Nuevo Muestreo</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -65,12 +98,12 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({ records, onAdd, o
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#125699]">
-                            {records.length === 0 ? (
+                            {filteredRecords.length === 0 ? (
                                 <tr>
                                     <td colSpan={28} className="px-4 py-10 text-center text-slate-400 italic">No hay registros de producción.</td>
                                 </tr>
                             ) : (
-                                records.map((record) => (
+                                filteredRecords.map((record) => (
                                     <tr key={record.id} className="hover:bg-[#0E4680] transition-colors text-center text-[10px] whitespace-nowrap text-blue-100">
                                         <td className="px-3 py-3 border-r border-[#125699]">
                                             <div className="flex items-center gap-1">
@@ -82,11 +115,7 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({ records, onAdd, o
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button 
-                                                    onClick={() => {
-                                                        if(window.confirm('¿Estás seguro de que deseas eliminar este registro?')) {
-                                                            onDelete(record.id);
-                                                        }
-                                                    }}
+                                                    onClick={() => onDelete(record.id)}
                                                     className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors"
                                                     title="Eliminar Registro"
                                                 >

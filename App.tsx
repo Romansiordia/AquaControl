@@ -22,7 +22,9 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  Cell 
+  Cell,
+  LineChart,
+  Line
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -41,6 +43,7 @@ const App: React.FC = () => {
   const [editingEvaluation, setEditingEvaluation] = useState<EvaluationRecord | null>(null);
   const [selectedPond, setSelectedPond] = useState<number | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [chartView, setChartView] = useState<'actual' | 'tendencia'>('actual');
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [filters, setFilters] = useState<FilterState>({
     fechaDesde: '',
@@ -187,11 +190,9 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecord = (id: string) => {
-    if (confirm('¿Estás seguro de que deseas eliminar este registro?')) {
-      const updatedRecords = records.filter(r => r.id !== id);
-      setRecords(updatedRecords);
-      syncDataToSheets(updatedRecords, evaluations);
-    }
+    const updatedRecords = records.filter(r => r.id !== id);
+    setRecords(updatedRecords);
+    syncDataToSheets(updatedRecords, evaluations);
   };
 
   const handleSaveEvaluation = (formData: EvaluationFormData) => {
@@ -410,6 +411,58 @@ const App: React.FC = () => {
     [...filteredRecords].sort((a, b) => Number(a.estanque) - Number(b.estanque)),
   [filteredRecords]);
 
+  const historicalChartData = useMemo(() => {
+    const filtered = records.filter(record => {
+      const matchGranja = filters.granja === '' || record.granja === filters.granja;
+      const matchEstanque = filters.estanque === '' || record.estanque.toString() === filters.estanque;
+      const matchAlimento = filters.alimento === '' || record.alimento === filters.alimento;
+      const matchLab = filters.laboratorio === '' || record.laboratorio === filters.laboratorio;
+      const recordDate = new Date(record.fechaSiembra).getTime();
+      const matchDesde = filters.fechaDesde === '' || (recordDate >= new Date(filters.fechaDesde).getTime() || new Date(record.fecha).getTime() >= new Date(filters.fechaDesde).getTime());
+      const matchHasta = filters.fechaHasta === '' || (recordDate <= new Date(filters.fechaHasta).getTime() || new Date(record.fecha).getTime() <= new Date(filters.fechaHasta).getTime());
+      return matchGranja && matchEstanque && matchAlimento && matchLab && matchDesde && matchHasta;
+    });
+
+    const byDate = new Map<string, any>();
+    filtered.forEach(record => {
+      const dateStr = record.fecha;
+      if (!byDate.has(dateStr)) {
+         byDate.set(dateStr, { 
+             fechaRaw: dateStr, 
+             fecha: new Date(dateStr + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) 
+         });
+      }
+      const entry = byDate.get(dateStr);
+      const key = `Estanque ${record.estanque}`;
+      
+      entry[`${key}_peso`] = Number(record.pesoActual) || 0;
+      entry[`${key}_inc`] = Number(record.incrementoSemanal) || 0;
+      entry[`${key}_surv`] = Number(record.sobrevivencia) || 0;
+      entry[`${key}_biomasa`] = Number(record.biomasaTotal) || 0;
+    });
+
+    return Array.from(byDate.values())
+      .sort((a, b) => new Date(a.fechaRaw).getTime() - new Date(b.fechaRaw).getTime());
+  }, [records, filters]);
+
+  const uniqueEstanquesInHistory = useMemo(() => {
+      const estanques = new Set<string>();
+      historicalChartData.forEach(entry => {
+         Object.keys(entry).forEach(k => {
+            if (k.startsWith('Estanque ') && k.endsWith('_peso')) {
+                estanques.add(k.replace('_peso', ''));
+            }
+         });
+      });
+      return Array.from(estanques).sort((a, b) => {
+         const numA = Number(a.replace('Estanque ', ''));
+         const numB = Number(b.replace('Estanque ', ''));
+         return numA - numB;
+      });
+  }, [historicalChartData]);
+
+  const lineColors = ['#3b82f6', '#10b981', '#fb923c', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#eab308'];
+
   return (
     <div className="flex min-h-screen">
       <Sidebar 
@@ -471,31 +524,111 @@ const App: React.FC = () => {
               <FilterPanel filters={filters} onFilterChange={setFilters} uniqueAlimentos={uniqueAlimentos} uniqueLaboratorios={uniqueLaboratorios} uniqueEstanques={uniqueEstanques} uniqueGranjas={uniqueGranjas} />
               <div id="dashboard-stats"><DashboardStats records={filteredRecords} /></div>
               
-              <div id="charts-container" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="flex flex-col items-start gap-3 mb-4 mt-8">
+                <h2 className="text-lg font-bold text-white">Gráficos de Producción</h2>
+                <div className="flex bg-[#0B4075] rounded-lg p-1 border border-[#125699]">
+                  <button onClick={() => setChartView('actual')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${chartView === 'actual' ? 'bg-indigo-600 text-white' : 'text-blue-200 hover:text-white'}`}>Último por Estanque</button>
+                  <button onClick={() => setChartView('tendencia')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${chartView === 'tendencia' ? 'bg-indigo-600 text-white' : 'text-blue-200 hover:text-white'}`}>Tendencia Histórica</button>
+                </div>
+              </div>
+
+              <div id="charts-container" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Peso Actual */}
                 <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
                   <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-blue-500">⚖️</span> Peso Actual (g)</h2>
                   <div className="flex-1 min-h-0">
-                    {chartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} g`, 'Peso']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="pesoActual" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.pesoActual > 6 ? '#2563eb' : '#3b82f6'} />))}</Bar></BarChart></ResponsiveContainer>
+                    {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        {chartView === 'actual' ? (
+                          <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} g`, 'Peso']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="pesoActual" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.pesoActual > 6 ? '#2563eb' : '#3b82f6'} />))}</Bar></BarChart>
+                        ) : (
+                          <LineChart data={historicalChartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                            <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`${formatNumber(value)} g`, name.replace('_peso', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
+                            {uniqueEstanquesInHistory.map((est, idx) => (
+                               <Line key={est} type="monotone" dataKey={`${est}_peso`} name={`${est}_peso`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
+                            ))}
+                          </LineChart>
+                        )}
+                      </ResponsiveContainer>
                     ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
                   </div>
                 </div>
+                
+                {/* Incremento Semanal */}
                 <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
                   <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-indigo-500">📈</span> Incremento Semanal (g)</h2>
                   <div className="flex-1 min-h-0">
-                    {chartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`+${formatNumber(value)} g`, 'Incremento']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="incrementoSemanal" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-inc-${index}`} fill={entry.incrementoSemanal > 1.2 ? '#6366f1' : '#818cf8'} />))}</Bar></BarChart></ResponsiveContainer>
+                    {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                         {chartView === 'actual' ? (
+                           <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`+${formatNumber(value)} g`, 'Incremento']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="incrementoSemanal" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-inc-${index}`} fill={entry.incrementoSemanal > 1.2 ? '#6366f1' : '#818cf8'} />))}</Bar></BarChart>
+                         ) : (
+                           <LineChart data={historicalChartData}>
+                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                             <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                             <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`+${formatNumber(value)} g`, name.replace('_inc', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
+                             {uniqueEstanquesInHistory.map((est, idx) => (
+                                <Line key={est} type="monotone" dataKey={`${est}_inc`} name={`${est}_inc`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
+                             ))}
+                           </LineChart>
+                         )}
+                      </ResponsiveContainer>
                     ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
                   </div>
                 </div>
+
+                {/* Supervivencia */}
                 <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
                   <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-emerald-500">🛡️</span> Supervivencia (%)</h2>
                   <div className="flex-1 min-h-0">
-                    {chartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)}%`, 'Supervivencia']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="sobrevivencia" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-surv-${index}`} fill={entry.sobrevivencia > 75 ? '#10b981' : entry.sobrevivencia > 50 ? '#f59e0b' : '#ef4444'} />))}</Bar></BarChart></ResponsiveContainer>
+                    {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        {chartView === 'actual' ? (
+                          <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)}%`, 'Supervivencia']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="sobrevivencia" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-surv-${index}`} fill={entry.sobrevivencia > 75 ? '#10b981' : entry.sobrevivencia > 50 ? '#f59e0b' : '#ef4444'} />))}</Bar></BarChart>
+                        ) : (
+                          <LineChart data={historicalChartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                            <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                            <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`${formatNumber(value)}%`, name.replace('_surv', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
+                            {uniqueEstanquesInHistory.map((est, idx) => (
+                               <Line key={est} type="monotone" dataKey={`${est}_surv`} name={`${est}_surv`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
+                            ))}
+                          </LineChart>
+                        )}
+                      </ResponsiveContainer>
                     ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
                   </div>
                 </div>
+
+                {/* Biomasa Total */}
+                <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
+                  <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-orange-400">🦐</span> Biomasa Total (kg)</h2>
+                  <div className="flex-1 min-h-0">
+                    {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                         {chartView === 'actual' ? (
+                           <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} kg`, 'Biomasa']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="biomasaTotal" radius={[4, 4, 0, 0]} fill="#fb923c" /></BarChart>
+                         ) : (
+                           <LineChart data={historicalChartData}>
+                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                             <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                             <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                             <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`${formatNumber(value)} kg`, name.replace('_biomasa', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
+                             {uniqueEstanquesInHistory.map((est, idx) => (
+                                <Line key={est} type="monotone" dataKey={`${est}_biomasa`} name={`${est}_biomasa`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
+                             ))}
+                           </LineChart>
+                         )}
+                      </ResponsiveContainer>
+                    ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
+                  </div>
+                </div>
+
               </div>
             </>
           )}
