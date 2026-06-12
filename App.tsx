@@ -43,9 +43,13 @@ const App: React.FC = () => {
         if (Array.isArray(parsed)) {
           return parsed.map((r: any) => {
             let fecha = r.fecha;
+            if (fecha === 'Invalid Date' || !fecha || isNaN(new Date(fecha).getTime())) {
+              fecha = undefined;
+            }
             if (!fecha && r.fechaSiembra) {
               try {
-                const d = new Date(r.fechaSiembra + 'T12:00:00');
+                const siembraStr = (r.fechaSiembra === 'Invalid Date' || !r.fechaSiembra) ? '2025-04-13' : r.fechaSiembra;
+                const d = new Date(siembraStr + 'T12:00:00');
                 if (r.diasCultivo) {
                   d.setDate(d.getDate() + Number(r.diasCultivo));
                 }
@@ -187,9 +191,13 @@ const App: React.FC = () => {
         { ...INITIAL_DATA[0], id: '1b', diasCultivo: 40, pesoAnterior: 2.0, pesoActual: 3.1, incrementoSemanal: 1.1, fca: 0.60 },
       ].map(rec => {
         let fecha = rec.fecha;
+        if (fecha === 'Invalid Date' || !fecha || isNaN(new Date(fecha).getTime())) {
+          fecha = undefined;
+        }
         if (!fecha && rec.fechaSiembra) {
           try {
-            const d = new Date(rec.fechaSiembra + 'T12:00:00');
+            const siembraStr = (rec.fechaSiembra === 'Invalid Date' || !rec.fechaSiembra) ? '2025-04-13' : rec.fechaSiembra;
+            const d = new Date(siembraStr + 'T12:00:00');
             if (rec.diasCultivo) {
               d.setDate(d.getDate() + Number(rec.diasCultivo));
             }
@@ -326,6 +334,44 @@ const App: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const parseImportedDate = (val: any): string | undefined => {
+      if (!val) return undefined;
+      if (val === 'Invalid Date') return undefined;
+
+      if (typeof val === 'number') {
+        try {
+          const date = new Date((val - 25569) * 86400 * 1000);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (e) {}
+      }
+
+      const strVal = String(val).trim();
+      if (/^\d+(\.\d+)?$/.test(strVal)) {
+        try {
+          const num = Number(strVal);
+          const date = new Date((num - 25569) * 86400 * 1000);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (e) {}
+      }
+
+      try {
+        const d = new Date(strVal.includes('T') ? strVal : strVal + 'T12:00:00');
+        if (!isNaN(d.getTime())) {
+          return d.toISOString().split('T')[0];
+        }
+        const dAlt = new Date(strVal);
+        if (!isNaN(dAlt.getTime())) {
+          return dAlt.toISOString().split('T')[0];
+        }
+      } catch (e) {}
+
+      return undefined;
+    };
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -337,8 +383,8 @@ const App: React.FC = () => {
 
         const newRecords: PondRecord[] = json.map((row) => {
           const newRecord: NewPondRecord = {
-            fecha: row.fecha ? (typeof row.fecha === 'number' ? new Date((row.fecha - 25569) * 86400 * 1000).toISOString().split('T')[0] : String(row.fecha).split('T')[0]) : undefined as any,
-            fechaSiembra: row.fechaSiembra ? new Date((Number(row.fechaSiembra) - 25569) * 86400 * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            fecha: parseImportedDate(row.fecha) as any,
+            fechaSiembra: parseImportedDate(row.fechaSiembra) || new Date().toISOString().split('T')[0],
             alimento: String(row.alimento || ''),
             laboratorio: String(row.laboratorio || ''),
             estanque: Number(row.estanque || 0),
@@ -521,7 +567,14 @@ const App: React.FC = () => {
 
     const byDate = new Map<string, any>();
     filtered.forEach(record => {
-      const dateStr = record.fecha || '';
+      let dateStr = record.fecha || '';
+      if (dateStr === 'Invalid Date' || !dateStr || isNaN(new Date(dateStr).getTime())) {
+         dateStr = record.fechaSiembra || new Date().toISOString().split('T')[0];
+         if (dateStr === 'Invalid Date' || !dateStr || isNaN(new Date(dateStr).getTime())) {
+            dateStr = new Date().toISOString().split('T')[0];
+         }
+      }
+
       if (!byDate.has(dateStr)) {
          let formattedDate = 'S/F';
          if (dateStr) {

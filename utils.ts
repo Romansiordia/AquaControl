@@ -23,14 +23,20 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   let fecha = record.fecha;
   let diasCultivo = record.diasCultivo || 0;
 
-  if (record.fechaSiembra) {
+  // Clean invalid date strings
+  if (fecha === 'Invalid Date' || !fecha || isNaN(new Date(fecha).getTime())) {
+    fecha = undefined;
+  }
+
+  if (record.fechaSiembra && record.fechaSiembra !== 'Invalid Date' && !isNaN(new Date(record.fechaSiembra).getTime())) {
+    const cleanSiembra = record.fechaSiembra;
     if (!fecha && diasCultivo) {
       try {
-        const d = new Date(record.fechaSiembra + 'T12:00:00');
+        const d = new Date(cleanSiembra + 'T12:00:00');
         d.setDate(d.getDate() + Number(diasCultivo));
         fecha = d.toISOString().split('T')[0];
       } catch (e) {
-        fecha = record.fechaSiembra;
+        fecha = cleanSiembra;
       }
     } else if (fecha) {
       // standard YYYY-MM-DD parsing and cleanup
@@ -40,7 +46,7 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     }
 
     try {
-      const siembra = new Date(record.fechaSiembra + 'T12:00:00');
+      const siembra = new Date(cleanSiembra + 'T12:00:00');
       const hoy = new Date(fecha + 'T12:00:00');
       
       // Ignorar la parte del tiempo para un cálculo de días más exacto
@@ -52,6 +58,7 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
       // fallback
     }
   } else {
+    // If we have no seed date, try fallback options
     fecha = fecha ? String(fecha).split('T')[0] : new Date().toISOString().split('T')[0];
   }
 
@@ -94,9 +101,18 @@ export const formatNumber = (num: number) => {
 };
 
 export const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-MX', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+  if (!dateStr || dateStr === 'Invalid Date' || isNaN(new Date(dateStr).getTime())) {
+    return 'S/F';
+  }
+  try {
+    const cleanStr = dateStr.split('T')[0];
+    const d = new Date(cleanStr + 'T12:00:00');
+    return d.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return 'S/F';
+  }
 };

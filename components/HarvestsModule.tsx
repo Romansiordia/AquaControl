@@ -268,44 +268,9 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* KPI Stats Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6 mb-2">
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-indigo-900/40 border border-indigo-700/40 mb-3 flex items-center justify-center">
-            <Scale className="w-6 h-6 text-indigo-400" />
-          </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Total Kilos Cosechados</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalKilos)} kg</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-blue-900/40 border border-blue-700/40 mb-3 flex items-center justify-center">
-            <Hash className="w-6 h-6 text-blue-400" />
-          </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Total Organismos</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalOrganismos)}</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-orange-900/40 border border-orange-700/40 mb-3 flex items-center justify-center">
-            <BarChart2 className="w-6 h-6 text-orange-400" />
-          </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Peso Promedio de Venta</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.pesoPromedio)} g</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-emerald-900/40 border border-emerald-700/40 mb-3 flex items-center justify-center">
-            <Sparkles className="w-6 h-6 text-emerald-400" />
-          </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Cosechas Registradas</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{kpiStats.totalRegistros}</p>
-        </div>
-      </div>
-
       {/* Main Action Header & Filter Panel */}
-      <div className="flex flex-col gap-4 bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+      <div className="flex flex-col gap-4 bg-[#0B4075] p-5 rounded-2xl border border-[#125699] shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-xl font-bold text-white">Ciclo de Cosechas</h2>
             <p className="text-sm text-blue-300">Registro detallado de pre-cosechas y cosecha final por granja y estanque.</p>
@@ -336,6 +301,41 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               <span>Registrar Cosecha</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* KPI Stats Panel */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
+        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-3.5 rounded-xl bg-indigo-900/40 border border-indigo-700/40 mb-3 flex items-center justify-center">
+            <Scale className="w-6 h-6 text-indigo-400" />
+          </div>
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Total Kilos Cosechados</p>
+          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalKilos)} kg</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-3.5 rounded-xl bg-blue-900/40 border border-blue-700/40 mb-3 flex items-center justify-center">
+            <Hash className="w-6 h-6 text-blue-400" />
+          </div>
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Total Organismos</p>
+          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalOrganismos)}</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-3.5 rounded-xl bg-orange-900/40 border border-orange-700/40 mb-3 flex items-center justify-center">
+            <BarChart2 className="w-6 h-6 text-orange-400" />
+          </div>
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Peso Promedio de Venta</p>
+          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.pesoPromedio)} g</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-3.5 rounded-xl bg-emerald-900/40 border border-emerald-700/40 mb-3 flex items-center justify-center">
+            <Sparkles className="w-6 h-6 text-emerald-400" />
+          </div>
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Cosechas Registradas</p>
+          <p className="text-2xl font-extrabold text-white tracking-tight">{kpiStats.totalRegistros}</p>
         </div>
       </div>
 
