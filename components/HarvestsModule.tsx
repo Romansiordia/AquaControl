@@ -610,50 +610,56 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       {/* Harvest records Table */}
       <div className="bg-[#0B4075] rounded-xl border border-[#125699] shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-center border-collapse text-[11px]">
             <thead>
-              <tr className="bg-[#125699] text-white text-xs font-bold uppercase border-b border-[#0E4680] text-center">
-                <th className="px-3 py-3 border-r border-[#1B5699] text-left">Acciones</th>
-                <th className="px-3 py-3 border-r border-[#1B5699] text-left">Granja</th>
-                <th className="px-2 py-3 border-r border-[#1B5699]">Estaque</th>
-                <th className="px-3 py-3 border-r border-[#1B5699]">Fecha</th>
+              <tr className="bg-[#0A345C] text-slate-100 text-[10px] uppercase tracking-wider font-extrabold border-b border-[#125699]">
+                <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-left align-middle font-bold text-slate-200">Acciones</th>
+                <th rowSpan={2} className="px-3 py-3 border-r border-[#125699] text-left align-middle font-bold text-slate-200">Granja</th>
+                <th rowSpan={2} className="px-2 py-3 border-r border-[#125699] text-center align-middle font-bold text-slate-200">Estanque</th>
+                <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-center align-middle font-bold text-slate-200">Fecha</th>
                 
-                {/* 1ra Pre-cosecha Headers */}
-                <th className="px-2 py-3 border-r border-[#1B5699] bg-[#0E4680]/50 text-[10px]">1ra Pre-C (Kg)</th>
-                <th className="px-2 py-3 border-r border-[#1B5699] bg-[#0E4680]/50 text-[10px]">1ra Pre-C (gr)</th>
-                <th className="px-2 py-3 border-r border-[#1B5699] bg-[#0E4680]/50 text-[10px]">Orgs. 1ra Pre</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">1ra Pre-Cosecha</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">2da Pre-Cosecha</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">Cosecha Final</th>
+                <th colSpan={2} className="px-2 py-1.5 bg-indigo-950/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Totales</th>
+              </tr>
+              <tr className="bg-[#0D4075] text-slate-200 text-[9px] font-bold uppercase tracking-wider border-b border-[#125699] text-center">
+                {/* 1ra Pre-cosecha Column Subheaders */}
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
                 
-                {/* 2da Pre-cosecha Headers */}
-                <th className="px-2 py-3 border-r border-[#1B5699] text-[10px]">2da Pre-C (Kg)</th>
-                <th className="px-2 py-3 border-r border-[#1B5699] text-[10px]">2da Pre-C (gr)</th>
-                <th className="px-2 py-3 border-r border-[#1B5699] text-[10px]">Orgs. 2da Pre</th>
+                {/* 2da Pre-cosecha Column Subheaders */}
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Organismos</th>
                 
-                {/* Cosecha Final Headers */}
-                <th className="px-2 py-3 border-r border-[#1B5699] bg-[#0E4680]/50 text-[10px]">Cosecha Final (Kg)</th>
-                <th className="px-2 py-3 border-r border-[#1B5699] bg-[#0E4680]/50 text-[10px]">Cosecha Final (gr)</th>
-                <th className="px-2 py-3 border-r border-[#1B5699] bg-[#0E4680]/50 text-[10px]">Orgs. Final</th>
+                {/* Cosecha Final Column Subheaders */}
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
                 
-                {/* Totales Headers */}
-                <th className="px-3 py-3 border-r border-[#1B5699] bg-indigo-950/40 text-[11px] text-indigo-200">Kilos Totales</th>
-                <th className="px-3 py-3 bg-indigo-950/40 text-[11px] text-indigo-200">Orgs. Totales</th>
+                {/* Totales Column Subheaders */}
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/30 text-indigo-200">Suma Kilos</th>
+                <th className="px-2.5 py-1.5 bg-indigo-950/30 text-indigo-200">Suma Orgs.</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#125699]">
+            <tbody className="divide-y divide-[#125699]/60">
               {paginatedHarvests.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-10 text-center text-slate-400 italic">No hay registros de cosechas.</td>
+                  <td colSpan={14} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
                 </tr>
               ) : (
                 paginatedHarvests.map((h) => (
-                  <tr key={h.id} className="hover:bg-[#0E4680] transition-colors text-center text-[11px] whitespace-nowrap text-blue-100">
-                    <td className="px-3 py-3 border-r border-[#125699] text-left">
-                      <div className="flex items-center gap-1.5">
+                  <tr key={h.id} className="hover:bg-[#125699]/20 transition-colors text-center text-[10.5px] whitespace-nowrap text-blue-100/90">
+                    <td className="px-2 py-2 border-r border-[#125699]/40 text-left align-middle">
+                      <div className="flex items-center gap-1 justify-start">
                         <button 
                           onClick={() => handleStartEdit(h)}
-                          className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition-colors"
+                          className="text-blue-300 hover:text-white hover:bg-blue-600 bg-blue-900/30 border border-blue-700/20 p-1 rounded-md transition-colors"
                           title="Editar Registro"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Edit2 className="w-3 h-3" />
                         </button>
                         <button 
                           onClick={() => {
@@ -661,35 +667,35 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                               onDeleteHarvest(h.id);
                             }
                           }}
-                          className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors"
+                          className="text-red-400 hover:text-white hover:bg-red-600 bg-red-900/30 border border-red-700/20 p-1 rounded-md transition-colors"
                           title="Eliminar Registro"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-3 border-r border-[#125699] text-left font-semibold text-slate-100">{h.granja}</td>
-                    <td className="px-2 py-3 border-r border-[#125699] font-bold text-white">{h.estanque}</td>
-                    <td className="px-3 py-3 border-r border-[#125699] text-blue-200">{formatDate(h.fecha)}</td>
+                    <td className="px-3 py-2 border-r border-[#125699]/40 text-left font-semibold text-slate-100 align-middle truncate max-w-[120px]">{h.granja}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 font-bold text-white align-middle">{h.estanque}</td>
+                    <td className="px-2.5 py-2 border-r border-[#125699]/40 text-blue-200 align-middle">{formatDate(h.fecha)}</td>
                     
                     {/* 1ra Pre-cosecha Cells */}
-                    <td className="px-2 py-3 border-r border-[#125699] bg-[#0E4680]/30">{h.pre1Kilos ? formatNumber(h.pre1Kilos) : '-'}</td>
-                    <td className="px-2 py-3 border-r border-[#125699] bg-[#0E4680]/30">{h.pre1Gramos ? formatNumber(h.pre1Gramos) : '-'}</td>
-                    <td className="px-2 py-3 border-r border-[#125699] bg-[#0E4680]/30 text-blue-300 font-mono">{h.pre1Organismos ? formatNumber(h.pre1Organismos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre1Kilos ? formatNumber(h.pre1Kilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre1Gramos ? formatNumber(h.pre1Gramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre1Organismos ? formatNumber(h.pre1Organismos) : '-'}</td>
                     
                     {/* 2da Pre-cosecha Cells */}
-                    <td className="px-2 py-3 border-r border-[#125699]">{h.pre2Kilos ? formatNumber(h.pre2Kilos) : '-'}</td>
-                    <td className="px-2 py-3 border-r border-[#125699]">{h.pre2Gramos ? formatNumber(h.pre2Gramos) : '-'}</td>
-                    <td className="px-2 py-3 border-r border-[#125699] text-blue-300 font-mono">{h.pre2Organismos ? formatNumber(h.pre2Organismos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{h.pre2Kilos ? formatNumber(h.pre2Kilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{h.pre2Gramos ? formatNumber(h.pre2Gramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{h.pre2Organismos ? formatNumber(h.pre2Organismos) : '-'}</td>
                     
                     {/* Cosecha Final Cells */}
-                    <td className="px-2 py-3 border-r border-[#125699] bg-[#0E4680]/30">{h.finalKilos ? formatNumber(h.finalKilos) : '-'}</td>
-                    <td className="px-2 py-3 border-r border-[#125699] bg-[#0E4680]/30">{h.finalGramos ? formatNumber(h.finalGramos) : '-'}</td>
-                    <td className="px-2 py-3 border-r border-[#125699] bg-[#0E4680]/30 text-blue-300 font-mono">{h.finalOrganismos ? formatNumber(h.finalOrganismos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.finalKilos ? formatNumber(h.finalKilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.finalGramos ? formatNumber(h.finalGramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.finalOrganismos ? formatNumber(h.finalOrganismos) : '-'}</td>
                     
                     {/* Totales Cells */}
-                    <td className="px-3 py-3 border-r border-[#125699] font-bold text-white bg-indigo-950/20">{formatNumber(h.totalKilos)} kg</td>
-                    <td className="px-3 py-3 font-bold text-indigo-300 bg-indigo-950/20 font-mono">{formatNumber(h.totalOrganismos)}</td>
+                    <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-emerald-300 bg-indigo-950/25 align-middle">{formatNumber(h.totalKilos)} kg</td>
+                    <td className="px-2.5 py-2 font-extrabold text-[#818cf8] bg-indigo-950/25 align-middle font-mono text-[10px]">{formatNumber(h.totalOrganismos)}</td>
                   </tr>
                 ))
               )}
