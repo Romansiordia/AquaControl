@@ -19,17 +19,40 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   const camM2Actual = hectareas > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
   const orgMt2 = record.orgMt2 || camM2Inicial;
 
-  // Calculate days of cultivation if possible
+  // Calculate days of cultivation and exact fecha if missing
+  let fecha = record.fecha;
   let diasCultivo = record.diasCultivo || 0;
+
   if (record.fechaSiembra) {
-     const siembra = new Date(record.fechaSiembra);
-     const hoy = record.fecha ? new Date(record.fecha) : new Date();
-     
-     // Ignorar la parte del tiempo para un cálculo de días más exacto
-     const utc1 = Date.UTC(siembra.getFullYear(), siembra.getMonth(), siembra.getDate());
-     const utc2 = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-     
-     diasCultivo = Math.floor(Math.abs(utc2 - utc1) / (1000 * 60 * 60 * 24));
+    if (!fecha && diasCultivo) {
+      try {
+        const d = new Date(record.fechaSiembra + 'T12:00:00');
+        d.setDate(d.getDate() + Number(diasCultivo));
+        fecha = d.toISOString().split('T')[0];
+      } catch (e) {
+        fecha = record.fechaSiembra;
+      }
+    } else if (fecha) {
+      // standard YYYY-MM-DD parsing and cleanup
+      fecha = String(fecha).split('T')[0];
+    } else {
+      fecha = new Date().toISOString().split('T')[0];
+    }
+
+    try {
+      const siembra = new Date(record.fechaSiembra + 'T12:00:00');
+      const hoy = new Date(fecha + 'T12:00:00');
+      
+      // Ignorar la parte del tiempo para un cálculo de días más exacto
+      const utc1 = Date.UTC(siembra.getFullYear(), siembra.getMonth(), siembra.getDate());
+      const utc2 = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+      
+      diasCultivo = Math.round(Math.abs(utc2 - utc1) / (1000 * 60 * 60 * 24));
+    } catch (e) {
+      // fallback
+    }
+  } else {
+    fecha = fecha ? String(fecha).split('T')[0] : new Date().toISOString().split('T')[0];
   }
 
   return {
@@ -37,7 +60,7 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     granja: record.granja || '',
     orgMt2: orgMt2,
     especie: record.especie || 'L. Vannamei',
-    fecha: record.fecha || new Date().toISOString().split('T')[0],
+    fecha: fecha,
     fechaSiembra: record.fechaSiembra || '',
     fechaCosecha: record.fechaCosecha || '',
     alimento: record.alimento || '',

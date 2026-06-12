@@ -37,7 +37,34 @@ type View = 'dashboard' | 'estadisticas' | 'farmEvaluation' | 'evaluationsList' 
 const App: React.FC = () => {
   const [records, setRecords] = useState<PondRecord[]>(() => {
     const saved = localStorage.getItem('camaronera_records');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((r: any) => {
+            let fecha = r.fecha;
+            if (!fecha && r.fechaSiembra) {
+              try {
+                const d = new Date(r.fechaSiembra + 'T12:00:00');
+                if (r.diasCultivo) {
+                  d.setDate(d.getDate() + Number(r.diasCultivo));
+                }
+                fecha = d.toISOString().split('T')[0];
+              } catch (e) {
+                fecha = r.fechaSiembra;
+              }
+            }
+            return {
+              ...r,
+              fecha: fecha || new Date().toISOString().split('T')[0]
+            };
+          });
+        }
+      } catch (e) {
+        console.error("Error parsing camaronera_records:", e);
+      }
+    }
+    return [];
   });
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PondRecord | null>(null);
@@ -158,7 +185,24 @@ const App: React.FC = () => {
         ...INITIAL_DATA,
         { ...INITIAL_DATA[0], id: '1a', diasCultivo: 47, pesoAnterior: 3.1, pesoActual: 4.29, incrementoSemanal: 1.19, fca: 0.65 },
         { ...INITIAL_DATA[0], id: '1b', diasCultivo: 40, pesoAnterior: 2.0, pesoActual: 3.1, incrementoSemanal: 1.1, fca: 0.60 },
-      ];
+      ].map(rec => {
+        let fecha = rec.fecha;
+        if (!fecha && rec.fechaSiembra) {
+          try {
+            const d = new Date(rec.fechaSiembra + 'T12:00:00');
+            if (rec.diasCultivo) {
+              d.setDate(d.getDate() + Number(rec.diasCultivo));
+            }
+            fecha = d.toISOString().split('T')[0];
+          } catch (e) {
+            fecha = rec.fechaSiembra;
+          }
+        }
+        return {
+          ...rec,
+          fecha: fecha || new Date().toISOString().split('T')[0]
+        } as PondRecord;
+      });
       setRecords(historicalData);
     }
   }, []);
@@ -293,6 +337,7 @@ const App: React.FC = () => {
 
         const newRecords: PondRecord[] = json.map((row) => {
           const newRecord: NewPondRecord = {
+            fecha: row.fecha ? (typeof row.fecha === 'number' ? new Date((row.fecha - 25569) * 86400 * 1000).toISOString().split('T')[0] : String(row.fecha).split('T')[0]) : undefined as any,
             fechaSiembra: row.fechaSiembra ? new Date((Number(row.fechaSiembra) - 25569) * 86400 * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             alimento: String(row.alimento || ''),
             laboratorio: String(row.laboratorio || ''),
@@ -476,11 +521,27 @@ const App: React.FC = () => {
 
     const byDate = new Map<string, any>();
     filtered.forEach(record => {
-      const dateStr = record.fecha;
+      const dateStr = record.fecha || '';
       if (!byDate.has(dateStr)) {
+         let formattedDate = 'S/F';
+         if (dateStr) {
+           try {
+             const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
+             if (!isNaN(d.getTime())) {
+               formattedDate = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+             } else {
+               const dFallback = new Date(dateStr);
+               if (!isNaN(dFallback.getTime())) {
+                 formattedDate = dFallback.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+               }
+             }
+           } catch (e) {
+             console.error("Error formatting dateStr", dateStr, e);
+           }
+         }
          byDate.set(dateStr, { 
              fechaRaw: dateStr, 
-             fecha: new Date(dateStr + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) 
+             fecha: formattedDate 
          });
       }
       const entry = byDate.get(dateStr);
@@ -493,7 +554,13 @@ const App: React.FC = () => {
     });
 
     return Array.from(byDate.values())
-      .sort((a, b) => new Date(a.fechaRaw).getTime() - new Date(b.fechaRaw).getTime());
+      .sort((a, b) => {
+        const timeA = a.fechaRaw ? new Date(a.fechaRaw.includes('T') ? a.fechaRaw : a.fechaRaw + 'T12:00:00').getTime() : 0;
+        const timeB = b.fechaRaw ? new Date(b.fechaRaw.includes('T') ? b.fechaRaw : b.fechaRaw + 'T12:00:00').getTime() : 0;
+        const finalA = isNaN(timeA) ? 0 : timeA;
+        const finalB = isNaN(timeB) ? 0 : timeB;
+        return finalA - finalB;
+      });
   }, [records, filters]);
 
   const uniqueEstanquesInHistory = useMemo(() => {
