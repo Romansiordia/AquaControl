@@ -68,3 +68,30 @@ export interface GoogleSheetsConfig {
   lastSync?: string;
   isAutoSync?: boolean;
 }
+
+export interface HarvestRecord {
+  id: string;
+  granja: string;
+  estanque: string;
+  fecha: string;
+  
+  // Pre-cosecha 1
+  pre1Kilos?: number;
+  pre1Gramos?: number;
+  pre1Organismos?: number;
+  
+  // 2da Pre-cosecha
+  pre2Kilos?: number;
+  pre2Gramos?: number;
+  pre2Organismos?: number;
+  
+  // Cosecha Final
+  finalKilos?: number;
+  finalGramos?: number;
+  finalOrganismos?: number;
+  
+  // Totales
+  totalOrganismos: number;
+  totalKilos: number;
+}
+

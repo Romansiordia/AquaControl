@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-type View = 'dashboard' | 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync';
+type View = 'dashboard' | 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync' | 'harvests';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -142,6 +142,17 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
           label="Control de Producción"
           isActive={activeView === 'productionProgram'}
           onClick={() => onNavigate('productionProgram')}
+        />
+        <NavItem
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="10" rx="2" />
+              <path d="M12 2v9m-4-5l4-4 4 4" />
+            </svg>
+          }
+          label="Ciclo de Cosechas"
+          isActive={activeView === 'harvests'}
+          onClick={() => onNavigate('harvests')}
         />
         <NavItem
           icon={

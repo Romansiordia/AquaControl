@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData } from './types';
+import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, HarvestRecord } from './types';
 import { INITIAL_DATA } from './constants';
 import { calculatePondMetrics, formatNumber } from './utils';
 import DashboardStats from './components/DashboardStats';
@@ -13,6 +13,7 @@ import FarmEvaluationForm from './components/FarmEvaluationForm';
 import PondDetailModal from './components/PondDetailModal';
 import EvaluationList from './components/EvaluationList';
 import ProductionProgram from './components/ProductionProgram';
+import HarvestsModule from './components/HarvestsModule';
 import GoogleSheetsSync from './components/GoogleSheetsSync';
 import { 
   BarChart, 
@@ -31,7 +32,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
 
-type View = 'dashboard' | 'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync';
+type View = 'dashboard' | 'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests';
 
 const App: React.FC = () => {
   const [records, setRecords] = useState<PondRecord[]>(() => {
@@ -57,6 +58,10 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('camaronera_evaluations');
     return saved ? JSON.parse(saved) : [];
   });
+  const [harvests, setHarvests] = useState<HarvestRecord[]>(() => {
+    const saved = localStorage.getItem('camaronera_harvests');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState<GoogleSheetsConfig>(() => {
     const saved = localStorage.getItem('camaronera_sheet_config');
     return saved ? JSON.parse(saved) : {
@@ -65,7 +70,7 @@ const App: React.FC = () => {
     };
   });
 
-  const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[] }) => {
+  const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[], harvests?: HarvestRecord[] }) => {
     const fixNumberFromDate = (val: any) => {
       if (typeof val === 'number') return val;
       if (typeof val === 'string') {
@@ -110,6 +115,23 @@ const App: React.FC = () => {
     if (importedData.evaluations && importedData.evaluations.length > 0) {
       setEvaluations(importedData.evaluations);
     }
+    if (importedData.harvests && importedData.harvests.length > 0) {
+      const fixedHarvests = importedData.harvests.map(h => ({
+        ...h,
+        pre1Kilos: h.pre1Kilos ? fixNumberFromDate(h.pre1Kilos) : undefined,
+        pre1Gramos: h.pre1Gramos ? fixNumberFromDate(h.pre1Gramos) : undefined,
+        pre1Organismos: h.pre1Organismos ? fixNumberFromDate(h.pre1Organismos) : undefined,
+        pre2Kilos: h.pre2Kilos ? fixNumberFromDate(h.pre2Kilos) : undefined,
+        pre2Gramos: h.pre2Gramos ? fixNumberFromDate(h.pre2Gramos) : undefined,
+        pre2Organismos: h.pre2Organismos ? fixNumberFromDate(h.pre2Organismos) : undefined,
+        finalKilos: h.finalKilos ? fixNumberFromDate(h.finalKilos) : undefined,
+        finalGramos: h.finalGramos ? fixNumberFromDate(h.finalGramos) : undefined,
+        finalOrganismos: h.finalOrganismos ? fixNumberFromDate(h.finalOrganismos) : undefined,
+        totalOrganismos: fixNumberFromDate(h.totalOrganismos) || 0,
+        totalKilos: fixNumberFromDate(h.totalKilos) || 0,
+      }));
+      setHarvests(fixedHarvests);
+    }
   };
 
   useEffect(() => {
@@ -124,6 +146,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('camaronera_evaluations', JSON.stringify(evaluations));
   }, [evaluations]);
+
+  useEffect(() => {
+    localStorage.setItem('camaronera_harvests', JSON.stringify(harvests));
+  }, [harvests]);
 
   useEffect(() => {
     // Only load initial data if the records list is empty
@@ -147,7 +173,8 @@ const App: React.FC = () => {
 
   const syncDataToSheets = async (
     currentRecords: PondRecord[], 
-    currentEvaluations: EvaluationRecord[]
+    currentEvaluations: EvaluationRecord[],
+    currentHarvests?: HarvestRecord[]
   ) => {
     if (!googleSheetsConfig.webAppUrl) return;
 
@@ -157,6 +184,7 @@ const App: React.FC = () => {
         stocking: [],
         production: currentRecords,
         evaluations: currentEvaluations,
+        harvests: currentHarvests || harvests,
         timestamp: new Date().toISOString()
       };
 
@@ -171,6 +199,29 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Error syncing to sheets:', error);
     }
+  };
+
+  const handleAddHarvest = (newHarvest: HarvestRecord) => {
+    let updatedHarvests: HarvestRecord[];
+    if (harvests.some(h => h.id === newHarvest.id)) {
+      updatedHarvests = harvests.map(h => h.id === newHarvest.id ? newHarvest : h);
+    } else {
+      updatedHarvests = [newHarvest, ...harvests];
+    }
+    setHarvests(updatedHarvests);
+    syncDataToSheets(records, evaluations, updatedHarvests);
+  };
+
+  const handleEditHarvest = (editedHarvest: HarvestRecord) => {
+    const updatedHarvests = harvests.map(h => h.id === editedHarvest.id ? editedHarvest : h);
+    setHarvests(updatedHarvests);
+    syncDataToSheets(records, evaluations, updatedHarvests);
+  };
+
+  const handleDeleteHarvest = (id: string) => {
+    const updatedHarvests = harvests.filter(h => h.id !== id);
+    setHarvests(updatedHarvests);
+    syncDataToSheets(records, evaluations, updatedHarvests);
   };
 
   const handleAddRecord = (newRecord: Partial<PondRecord>) => {
@@ -650,6 +701,15 @@ const App: React.FC = () => {
               onDelete={handleDeleteRecord}
             />
           )}
+          {activeView === 'harvests' && (
+            <HarvestsModule 
+              records={records}
+              harvests={harvests}
+              onAddHarvest={handleAddHarvest}
+              onEditHarvest={handleEditHarvest}
+              onDeleteHarvest={handleDeleteHarvest}
+            />
+          )}
           {activeView === 'googleSync' && (
             <GoogleSheetsSync 
               config={googleSheetsConfig} 
@@ -657,7 +717,8 @@ const App: React.FC = () => {
               onImportData={handleImportData}
               data={{
                   production: records,
-                  evaluations: evaluations
+                  evaluations: evaluations,
+                  harvests: harvests
               }}
             />
           )}

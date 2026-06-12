@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
-import { GoogleSheetsConfig, StockingProgramRecord, PondRecord } from '../types';
+import { GoogleSheetsConfig, StockingProgramRecord, PondRecord, HarvestRecord } from '../types';
 import { Share2, Link as LinkIcon, CheckCircle2, AlertCircle, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 
 interface Props {
   config: GoogleSheetsConfig;
   onUpdateConfig: (config: GoogleSheetsConfig) => void;
-  onImportData?: (data: { production?: PondRecord[], evaluations?: any[] }) => void;
+  onImportData?: (data: { production?: PondRecord[], evaluations?: any[], harvests?: HarvestRecord[] }) => void;
   data: {
     stocking?: StockingProgramRecord[];
     production: PondRecord[];
     evaluations?: any[];
+    harvests?: HarvestRecord[];
   };
 }
 
@@ -48,6 +49,7 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
         stocking: data.stocking || [],
         production: data.production,
         evaluations: data.evaluations || [],
+        harvests: data.harvests || [],
         timestamp: new Date().toISOString()
       };
 
@@ -101,6 +103,7 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
       if (result.status === 'success') {
         let importedProduction = [];
         let importedEvaluations = [];
+        let importedHarvests = [];
 
         if (Array.isArray(result.data)) {
            // Old Apps script format (only production elements as 2D array)
@@ -109,15 +112,20 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
            // New Apps script format
            importedProduction = result.data.production || [];
            importedEvaluations = result.data.evaluations || [];
+           importedHarvests = result.data.harvests || [];
         }
 
         if (onImportData) {
-          onImportData({ production: importedProduction, evaluations: importedEvaluations });
+          onImportData({ 
+            production: importedProduction, 
+            evaluations: importedEvaluations,
+            harvests: importedHarvests
+          });
         }
         
         setStatus('import_success');
         onUpdateConfig({ ...config, lastSync: new Date().toLocaleTimeString() });
-        alert(`Se importaron ${importedProduction.length} registros de producción y ${importedEvaluations.length} evaluaciones.`);
+        alert(`Se importaron ${importedProduction.length} registros de producción, ${importedEvaluations.length} evaluaciones y ${importedHarvests.length} cosechas.`);
       } else {
         setStatus('error');
         setErrorMessage('Error del script: ' + result.message);
@@ -132,13 +140,21 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
   };
 
   const appsScriptCode = `/**
- * CÓDIGO ACTUALIZADO PARA GOOGLE APPS SCRIPT
+ * CÓDIGO ACTUALIZADO PARA GOOGLE APPS SCRIPT (Soporta Ciclo de Cosechas)
  * Sigue estos pasos:
- * 1. Extensiones > Apps Script
- * 2. Borra todo y pega este código
- * 3. Gestionar implementaciones > Nueva implementación
- * 4. Tipo: Aplicación Web
- * 5. Acceso: "Cualquier persona" (IMPORTANTE)
+ * 1. Abre tu hoja de Google Sheets.
+ * 2. Ve a Extensiones > Apps Script.
+ * 3. Selecciona y borra todo el código existente.
+ * 4. Pega este código completo.
+ * 5. Haz clic en "Guardar proyecto" (icono de disquete).
+ * 6. Haz clic en "Implementar" (botón azul arriba a la derecha) > "Nueva implementación".
+ * 7. En el tipo, escoge "Aplicación Web".
+ * 8. Configura de la siguiente forma:
+ *    - Descripción: Versión con Ciclo de Cosechas
+ *    - Ejecutar como: "Yo" (tu correo electrónico)
+ *    - Quién tiene acceso: "Cualquier persona" (IMPORTANTE para que la app pueda conectarse)
+ * 9. Haz clic en "Implementar", autoriza los accesos de tu cuenta y copia la URL de la web app resultante.
+ * 10. Pega esa nueva URL en la sección de configuración de la app.
  */
 
 function doPost(e) {
@@ -174,7 +190,7 @@ function doPost(e) {
         sheetProd.getRange(1, 1, 1, headersP.length).setFontWeight("bold").setBackground("#9fc5e8");
       }
       
-      // 3. Sincronizar Evaluacion Tecnica
+      // 3. Sincronizar Evaluación Técnica
       var sheetEval = ss.getSheetByName('Evaluacion Tecnica') || ss.insertSheet('Evaluacion Tecnica');
       sheetEval.clear();
       if (data.evaluations && data.evaluations.length > 0) {
@@ -188,6 +204,19 @@ function doPost(e) {
           sheetEval.appendRow(vals);
         });
         sheetEval.getRange(1, 1, 1, headersE.length).setFontWeight("bold").setBackground("#d9ead3");
+      }
+
+      // 4. Sincronizar Ciclo de Cosechas (NUEVO)
+      var sheetHarvest = ss.getSheetByName('Ciclo de Cosechas') || ss.insertSheet('Ciclo de Cosechas');
+      sheetHarvest.clear();
+      if (data.harvests && data.harvests.length > 0) {
+        var headersH = ["id", "granja", "estanque", "fecha", "pre1Kilos", "pre1Gramos", "pre1Organismos", "pre2Kilos", "pre2Gramos", "pre2Organismos", "finalKilos", "finalGramos", "finalOrganismos", "totalOrganismos", "totalKilos"];
+        sheetHarvest.appendRow(headersH);
+        data.harvests.forEach(function(row) {
+          var vals = headersH.map(function(h) { return row[h] !== undefined ? row[h] : ""; });
+          sheetHarvest.appendRow(vals);
+        });
+        sheetHarvest.getRange(1, 1, 1, headersH.length).setFontWeight("bold").setBackground("#c9daf8");
       }
 
       return ContentService.createTextOutput(JSON.stringify({status: 'success'}))
@@ -226,10 +255,11 @@ function doGet(e) {
 
     var production = sheetToObjects('Produccion');
     var evaluations = sheetToObjects('Evaluacion Tecnica');
+    var harvests = sheetToObjects('Ciclo de Cosechas');
 
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success', 
-      data: { production: production, evaluations: evaluations }
+      data: { production: production, evaluations: evaluations, harvests: harvests }
     })).setMimeType(ContentService.MimeType.JSON);
   }
   return ContentService.createTextOutput("Servicio CamaroneraPro activo");
