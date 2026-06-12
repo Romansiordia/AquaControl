@@ -293,13 +293,6 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               <option value="">Todos los Estanques</option>
               {uniqueEstanques.map(e => <option key={e} value={e}>Estanque {e}</option>)}
             </select>
-            <button 
-              onClick={() => { handleResetForm(); setShowForm(true); }}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ml-auto sm:ml-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Registrar Cosecha</span>
-            </button>
           </div>
         </div>
       </div>
@@ -595,6 +588,24 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           </div>
         </form>
       )}
+
+      {/* Table Actions Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0A345C] p-4 rounded-xl border border-[#125699] shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">📋</span>
+          <div>
+            <h3 className="text-md font-bold text-white">Registros de Cosechas</h3>
+            <p className="text-xs text-blue-300">Historial completo y controles de captura para pre-cosechas y cosechas finales.</p>
+          </div>
+        </div>
+        <button 
+          onClick={() => { handleResetForm(); setShowForm(true); }}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-md hover:shadow-lg active:scale-95"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Registrar Cosecha</span>
+        </button>
+      </div>
 
       {/* Harvest records Table */}
       <div className="bg-[#0B4075] rounded-xl border border-[#125699] shadow-sm overflow-hidden">
