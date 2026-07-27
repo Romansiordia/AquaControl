@@ -52,22 +52,31 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
 
     const filteredRecords = useMemo(() => {
         if (!records || !Array.isArray(records)) return [];
+        const normFilterEstanque = normalizeEstanque(estanqueFilter);
+        const normFilterGranja = granjaFilter.trim().toLowerCase();
+
         return records.filter(record => {
-            const matchGranja = granjaFilter === '' || 
+            const matchGranja = normFilterGranja === '' || 
                 (record.granja !== undefined && record.granja !== null && 
-                 String(record.granja).trim().toLowerCase() === granjaFilter.trim().toLowerCase());
+                 String(record.granja).trim().toLowerCase() === normFilterGranja);
             
+            if (!matchGranja) return false;
+
+            if (normFilterEstanque === '') return true;
+
             const normRecordEstanque = normalizeEstanque(record.estanque);
-            const normFilterEstanque = normalizeEstanque(estanqueFilter);
-            const matchEstanque = estanqueFilter === '' || normRecordEstanque === normFilterEstanque;
-            
-            return matchGranja && matchEstanque;
+            return normRecordEstanque === normFilterEstanque;
         });
     }, [records, granjaFilter, estanqueFilter]);
 
     useEffect(() => {
+        setEstanqueFilter('');
         setCurrentPage(1);
-    }, [granjaFilter, estanqueFilter]);
+    }, [granjaFilter]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [estanqueFilter]);
 
     const handleManualSync = async () => {
         if (!onSyncNow) return;

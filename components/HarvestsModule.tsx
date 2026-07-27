@@ -133,12 +133,20 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
   // Filter & Search Logic
   const filteredHarvests = useMemo(() => {
+    const normFilterEstanque = normalizeEstanque(estanqueFilter);
+    const normFilterGranja = granjaFilter.trim().toLowerCase();
+
     return harvests.filter(h => {
-      const matchGranja = granjaFilter === '' || h.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase();
+      const matchGranja = normFilterGranja === '' || 
+        (h.granja !== undefined && h.granja !== null && 
+         String(h.granja).trim().toLowerCase() === normFilterGranja);
+      
+      if (!matchGranja) return false;
+
+      if (normFilterEstanque === '') return true;
+
       const normHestanque = normalizeEstanque(h.estanque);
-      const normFilterEstanque = normalizeEstanque(estanqueFilter);
-      const matchEstanque = estanqueFilter === '' || normHestanque === normFilterEstanque;
-      return matchGranja && matchEstanque;
+      return normHestanque === normFilterEstanque;
     });
   }, [harvests, granjaFilter, estanqueFilter]);
 
