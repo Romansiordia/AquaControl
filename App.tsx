@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, HarvestRecord } from './types';
 import { INITIAL_DATA } from './constants';
-import { calculatePondMetrics, formatNumber } from './utils';
+import { calculatePondMetrics, formatNumber, normalizeEstanque } from './utils';
 import DashboardStats from './components/DashboardStats';
 import PondForm from './components/PondForm';
 import FilterPanel, { FilterState } from './components/FilterPanel';
@@ -519,28 +519,45 @@ const App: React.FC = () => {
 
   const uniqueAlimentos = useMemo(() => Array.from(new Set(records.map(r => r.alimento))), [records]);
   const uniqueLaboratorios = useMemo(() => Array.from(new Set(records.map(r => r.laboratorio))), [records]);
-  const uniqueEstanques = useMemo(() => Array.from(new Set(records.map(r => r.estanque))).sort((a, b) => a - b), [records]);
-  const uniqueGranjas = useMemo(() => Array.from(new Set(records.map(r => r.granja))), [records]);
+  const uniqueEstanques = useMemo(() => {
+    const set = new Set<string>();
+    records.forEach(r => {
+      const norm = normalizeEstanque(r.estanque);
+      if (norm) set.add(norm);
+    });
+    return Array.from(set).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }, [records]);
+  const uniqueGranjas = useMemo(() => Array.from(new Set(records.map(r => r.granja))).filter(Boolean), [records]);
 
   const latestRecordsByPond = useMemo(() => {
       const latest = new Map<string, PondRecord>();
       records.forEach(record => {
-          const key = `${record.granja}-${record.estanque}`;
+          const key = `${record.granja}-${normalizeEstanque(record.estanque)}`;
           const current = latest.get(key);
           if (!current || record.diasCultivo > current.diasCultivo) {
               latest.set(key, record);
           }
       });
       return Array.from(latest.values()).sort((a, b) => {
-          if (a.granja === b.granja) return a.estanque - b.estanque;
+          if (a.granja === b.granja) {
+            const numA = Number(normalizeEstanque(a.estanque));
+            const numB = Number(normalizeEstanque(b.estanque));
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return String(a.estanque).localeCompare(String(b.estanque), undefined, { numeric: true });
+          }
           return a.granja.localeCompare(b.granja);
       });
   }, [records]);
 
   const filteredRecords = useMemo(() => {
     return latestRecordsByPond.filter(record => {
-      const matchGranja = filters.granja === '' || record.granja === filters.granja;
-      const matchEstanque = filters.estanque === '' || record.estanque.toString() === filters.estanque;
+      const matchGranja = filters.granja === '' || record.granja?.toString().trim().toLowerCase() === filters.granja.trim().toLowerCase();
+      const matchEstanque = filters.estanque === '' || normalizeEstanque(record.estanque) === normalizeEstanque(filters.estanque);
       const matchAlimento = filters.alimento === '' || record.alimento === filters.alimento;
       const matchLab = filters.laboratorio === '' || record.laboratorio === filters.laboratorio;
       const recordDate = new Date(record.fechaSiembra).getTime();

@@ -121,10 +121,14 @@ export const normalizeEstanque = (val: any): string => {
   if (val === undefined || val === null) return '';
   const str = String(val).trim();
   if (!str) return '';
-  const cleaned = str.replace(/^estanque\s*/i, '').trim();
+  // Strip common pond prefixes case-insensitively: "estanque", "est.", "est", "tanque", "pond", "e-", "e", "#"
+  const cleaned = str
+    .replace(/^(estanque|est\.|est|tanque|pond|e-?|#)\s*/i, '')
+    .replace(/^#\s*/, '')
+    .trim();
   const num = Number(cleaned);
   if (!isNaN(num) && cleaned !== '') {
     return num.toString();
   }
-  return cleaned;
+  return cleaned.toLowerCase();
 };

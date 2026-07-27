@@ -37,8 +37,10 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
     const uniqueEstanques = useMemo(() => {
         const set = new Set<string>();
         records.forEach(r => {
-            const norm = normalizeEstanque(r.estanque);
-            if (norm) set.add(norm);
+            if (granjaFilter === '' || r.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
+                const norm = normalizeEstanque(r.estanque);
+                if (norm) set.add(norm);
+            }
         });
         return Array.from(set).sort((a, b) => {
             const numA = Number(a);
@@ -46,14 +48,19 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
             if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
             return a.localeCompare(b, undefined, { numeric: true });
         });
-    }, [records]);
+    }, [records, granjaFilter]);
 
     const filteredRecords = useMemo(() => {
+        if (!records || !Array.isArray(records)) return [];
         return records.filter(record => {
-            const matchGranja = granjaFilter === '' || record.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase();
+            const matchGranja = granjaFilter === '' || 
+                (record.granja !== undefined && record.granja !== null && 
+                 String(record.granja).trim().toLowerCase() === granjaFilter.trim().toLowerCase());
+            
             const normRecordEstanque = normalizeEstanque(record.estanque);
             const normFilterEstanque = normalizeEstanque(estanqueFilter);
             const matchEstanque = estanqueFilter === '' || normRecordEstanque === normFilterEstanque;
+            
             return matchGranja && matchEstanque;
         });
     }, [records, granjaFilter, estanqueFilter]);

@@ -54,12 +54,16 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const uniqueEstanques = useMemo(() => {
     const set = new Set<string>();
     records.forEach(r => {
-      const norm = normalizeEstanque(r.estanque);
-      if (norm) set.add(norm);
+      if (granjaFilter === '' || r.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
+        const norm = normalizeEstanque(r.estanque);
+        if (norm) set.add(norm);
+      }
     });
     harvests.forEach(h => {
-      const norm = normalizeEstanque(h.estanque);
-      if (norm) set.add(norm);
+      if (granjaFilter === '' || h.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
+        const norm = normalizeEstanque(h.estanque);
+        if (norm) set.add(norm);
+      }
     });
     return Array.from(set).sort((a, b) => {
       const numA = Number(a);
@@ -67,7 +71,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
       return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [records, harvests]);
+  }, [records, harvests, granjaFilter]);
 
   // Handle Automatic Calculations with Optional Overrides
   const calculatedPre1Org = useMemo(() => {
