@@ -171,7 +171,7 @@ function doPost(e) {
         var headersS = ["granja", "fechaCosecha", "fechaSiembra", "alimento", "laboratorio", "estanque", "hectareas", "organismosSembrados", "orgM2", "alimentadores", "aditivos"];
         sheetStocking.appendRow(headersS);
         data.stocking.forEach(function(row) {
-          var vals = headersS.map(function(h) { return row[h] || ""; });
+          var vals = headersS.map(function(h) { return (row[h] !== undefined && row[h] !== null) ? row[h] : ""; });
           sheetStocking.appendRow(vals);
         });
         sheetStocking.getRange(1, 1, 1, headersS.length).setFontWeight("bold").setBackground("#ffd966");
@@ -184,7 +184,7 @@ function doPost(e) {
         var headersP = ["id", "granja", "orgMt2", "especie", "fecha", "fechaCosecha", "fechaSiembra", "alimento", "alimentadores", "aditivos", "laboratorio", "estanque", "hectareas", "pesoAnterior", "pesoActual", "incrementoSemanal", "diasCultivo", "sobrevivencia", "densidadInicial", "densidadActual", "biomasaHa", "biomasaTotal", "alimentoAcumulado", "fca", "camM2Inicial", "camM2Actual", "alimentoProyectadoDia", "alimentoProyectadoSemana"];
         sheetProd.appendRow(headersP);
         data.production.forEach(function(row) {
-          var vals = headersP.map(function(h) { return row[h] || ""; });
+          var vals = headersP.map(function(h) { return (row[h] !== undefined && row[h] !== null) ? row[h] : ""; });
           sheetProd.appendRow(vals);
         });
         sheetProd.getRange(1, 1, 1, headersP.length).setFontWeight("bold").setBackground("#9fc5e8");

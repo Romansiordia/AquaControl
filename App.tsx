@@ -224,8 +224,8 @@ const App: React.FC = () => {
   };
 
   const syncDataToSheets = async (
-    currentRecords: PondRecord[], 
-    currentEvaluations: EvaluationRecord[],
+    currentRecords?: PondRecord[], 
+    currentEvaluations?: EvaluationRecord[],
     currentHarvests?: HarvestRecord[]
   ) => {
     if (!googleSheetsConfig.webAppUrl) return;
@@ -234,8 +234,8 @@ const App: React.FC = () => {
       const payload = {
         action: 'sync_data',
         stocking: [],
-        production: currentRecords,
-        evaluations: currentEvaluations,
+        production: currentRecords || records,
+        evaluations: currentEvaluations || evaluations,
         harvests: currentHarvests || harvests,
         timestamp: new Date().toISOString()
       };
@@ -289,13 +289,13 @@ const App: React.FC = () => {
     setRecords(updatedRecords);
     setShowForm(false);
     setEditingRecord(null);
-    syncDataToSheets(updatedRecords, evaluations);
+    syncDataToSheets(updatedRecords, evaluations, harvests);
   };
 
   const handleDeleteRecord = (id: string) => {
     const updatedRecords = records.filter(r => r.id !== id);
     setRecords(updatedRecords);
-    syncDataToSheets(updatedRecords, evaluations);
+    syncDataToSheets(updatedRecords, evaluations, harvests);
   };
 
   const handleSaveEvaluation = (formData: EvaluationFormData) => {
@@ -321,13 +321,13 @@ const App: React.FC = () => {
     
     setEvaluations(updatedEvaluations);
     setActiveView('evaluationsList'); // Navigate to the list after saving
-    syncDataToSheets(records, updatedEvaluations);
+    syncDataToSheets(records, updatedEvaluations, harvests);
   };
 
   const handleDeleteEvaluation = (id: string) => {
     const updatedEvaluations = evaluations.filter(e => e.id !== id);
     setEvaluations(updatedEvaluations);
-    syncDataToSheets(records, updatedEvaluations);
+    syncDataToSheets(records, updatedEvaluations, harvests);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -405,7 +405,9 @@ const App: React.FC = () => {
           return { ...calculated, id: Math.random().toString(36).substr(2, 9) };
         });
 
-        setRecords(prev => [...newRecords, ...prev]);
+        const combined = [...newRecords, ...records];
+        setRecords(combined);
+        syncDataToSheets(combined, evaluations, harvests);
         alert(`${newRecords.length} registros importados correctamente.`);
       } catch (error) {
         console.error("Error parsing file:", error);
@@ -944,6 +946,9 @@ const App: React.FC = () => {
               onAdd={() => { setEditingRecord(null); setShowForm(true); }}
               onEdit={(record) => { setEditingRecord(record); setShowForm(true); }}
               onDelete={handleDeleteRecord}
+              googleSheetsConfig={googleSheetsConfig}
+              onSyncNow={() => syncDataToSheets(records, evaluations, harvests)}
+              onOpenSyncConfig={() => setActiveView('googleSync')}
             />
           )}
           {activeView === 'harvests' && (
