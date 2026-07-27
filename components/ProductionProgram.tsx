@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PondRecord, GoogleSheetsConfig } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Share2, AlertCircle, RefreshCw } from 'lucide-react';
-import { formatNumber, formatDate } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque } from '../utils';
 
 interface ProductionProgramProps {
     records: PondRecord[];
@@ -29,13 +29,31 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
     const [syncMessage, setSyncMessage] = useState<string | null>(null);
     const recordsPerPage = 15;
 
-    const uniqueGranjas = useMemo(() => Array.from(new Set(records.map(r => r.granja))).filter(Boolean).sort(), [records]);
-    const uniqueEstanques = useMemo(() => Array.from(new Set(records.map(r => r.estanque?.toString()))).filter(Boolean).sort((a, b) => Number(a) - Number(b)), [records]);
+    const uniqueGranjas = useMemo(() => {
+        const granjas = records.map(r => r.granja?.toString().trim()).filter(Boolean);
+        return Array.from(new Set(granjas)).sort();
+    }, [records]);
+
+    const uniqueEstanques = useMemo(() => {
+        const set = new Set<string>();
+        records.forEach(r => {
+            const norm = normalizeEstanque(r.estanque);
+            if (norm) set.add(norm);
+        });
+        return Array.from(set).sort((a, b) => {
+            const numA = Number(a);
+            const numB = Number(b);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return a.localeCompare(b, undefined, { numeric: true });
+        });
+    }, [records]);
 
     const filteredRecords = useMemo(() => {
         return records.filter(record => {
-            const matchGranja = granjaFilter === '' || record.granja === granjaFilter;
-            const matchEstanque = estanqueFilter === '' || record.estanque?.toString() === estanqueFilter;
+            const matchGranja = granjaFilter === '' || record.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase();
+            const normRecordEstanque = normalizeEstanque(record.estanque);
+            const normFilterEstanque = normalizeEstanque(estanqueFilter);
+            const matchEstanque = estanqueFilter === '' || normRecordEstanque === normFilterEstanque;
             return matchGranja && matchEstanque;
         });
     }, [records, granjaFilter, estanqueFilter]);

@@ -116,3 +116,15 @@ export const formatDate = (dateStr: string) => {
     return 'S/F';
   }
 };
+
+export const normalizeEstanque = (val: any): string => {
+  if (val === undefined || val === null) return '';
+  const str = String(val).trim();
+  if (!str) return '';
+  const cleaned = str.replace(/^estanque\s*/i, '').trim();
+  const num = Number(cleaned);
+  if (!isNaN(num) && cleaned !== '') {
+    return num.toString();
+  }
+  return cleaned;
+};

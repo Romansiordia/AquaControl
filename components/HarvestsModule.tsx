@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles } from 'lucide-react';
-import { formatNumber, formatDate } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque } from '../utils';
 
 interface HarvestsModuleProps {
   records: PondRecord[];
@@ -52,11 +52,21 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   }, [records, harvests]);
 
   const uniqueEstanques = useMemo(() => {
-    const fromRecords = records.map(r => r.estanque?.toString());
-    const fromHarvests = harvests.map(h => h.estanque);
-    return Array.from(new Set([...fromRecords, ...fromHarvests]))
-      .filter(Boolean)
-      .sort((a, b) => Number(a) - Number(b));
+    const set = new Set<string>();
+    records.forEach(r => {
+      const norm = normalizeEstanque(r.estanque);
+      if (norm) set.add(norm);
+    });
+    harvests.forEach(h => {
+      const norm = normalizeEstanque(h.estanque);
+      if (norm) set.add(norm);
+    });
+    return Array.from(set).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
   }, [records, harvests]);
 
   // Handle Automatic Calculations with Optional Overrides
@@ -120,8 +130,10 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   // Filter & Search Logic
   const filteredHarvests = useMemo(() => {
     return harvests.filter(h => {
-      const matchGranja = granjaFilter === '' || h.granja === granjaFilter;
-      const matchEstanque = estanqueFilter === '' || h.estanque === estanqueFilter;
+      const matchGranja = granjaFilter === '' || h.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase();
+      const normHestanque = normalizeEstanque(h.estanque);
+      const normFilterEstanque = normalizeEstanque(estanqueFilter);
+      const matchEstanque = estanqueFilter === '' || normHestanque === normFilterEstanque;
       return matchGranja && matchEstanque;
     });
   }, [harvests, granjaFilter, estanqueFilter]);
