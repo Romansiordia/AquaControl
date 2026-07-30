@@ -66,7 +66,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     const [granja, estanque] = key.split('|');
     const record = latestRecordsByPond.find(r => r.granja === granja && r.estanque.toString() === estanque);
     
-    if (record) {
+        if (record) {
       setForm(prev => ({
         ...prev,
         granja: record.granja,
@@ -74,6 +74,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         especie: record.especie || 'L. Vannamei',
         hectareas: record.hectareas,
         fechaSiembra: record.fechaSiembra ? String(record.fechaSiembra).split('T')[0] : prev.fechaSiembra,
+        alimento: record.alimento || prev.alimento || 'A.D.M.',
         laboratorio: record.laboratorio,
         densidadInicial: record.densidadInicial,
         sobrevivencia: record.sobrevivencia,
@@ -90,6 +91,14 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     const granjas = evaluations.map(e => String(e.granja)).filter(Boolean);
     return Array.from(new Set(granjas)).sort();
   }, [evaluations]);
+
+  const uniqueAlimentos = useMemo(() => {
+    const set = new Set<string>(['A.D.M.', 'ALAB', 'CARGILL', 'PURINA', 'SKRETTING', 'BASTIDA']);
+    existingRecords.forEach(r => {
+      if (r.alimento && r.alimento.trim()) set.add(r.alimento.trim());
+    });
+    return Array.from(set).sort();
+  }, [existingRecords]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +211,24 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
 
           <div className="space-y-4">
             <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Densidad y Alimento</h3>
+            <div>
+              <label className="block text-sm font-medium text-slate-300">Tipo / Marca de Alimento</label>
+              <input 
+                type="text" 
+                name="alimento" 
+                list="alimentos-list" 
+                value={form.alimento || ''} 
+                onChange={handleChange} 
+                placeholder="Ej. A.D.M., CARGILL, ALAB..." 
+                className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" 
+                required 
+              />
+              <datalist id="alimentos-list">
+                {uniqueAlimentos.map(a => (
+                  <option key={a} value={a} />
+                ))}
+              </datalist>
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-300">Densidad Inicial (Org. Sembrados)</label>
               <input type="number" name="densidadInicial" value={form.densidadInicial} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required />
