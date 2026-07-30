@@ -40,6 +40,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const [pre2Gramos, setPre2Gramos] = useState('');
   const [pre2Organismos, setPre2Organismos] = useState('');
 
+  const [pre3Kilos, setPre3Kilos] = useState('');
+  const [pre3Gramos, setPre3Gramos] = useState('');
+  const [pre3Organismos, setPre3Organismos] = useState('');
+
+  const [pre4Kilos, setPre4Kilos] = useState('');
+  const [pre4Gramos, setPre4Gramos] = useState('');
+  const [pre4Organismos, setPre4Organismos] = useState('');
+
+  const [pre5Kilos, setPre5Kilos] = useState('');
+  const [pre5Gramos, setPre5Gramos] = useState('');
+  const [pre5Organismos, setPre5Organismos] = useState('');
+
   const [finalKilos, setFinalKilos] = useState('');
   const [finalGramos, setFinalGramos] = useState('');
   const [finalOrganismos, setFinalOrganismos] = useState('');
@@ -92,6 +104,33 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     return 0;
   }, [pre2Kilos, pre2Gramos]);
 
+  const calculatedPre3Org = useMemo(() => {
+    const kilos = parseFloat(pre3Kilos) || 0;
+    const grams = parseFloat(pre3Gramos) || 0;
+    if (kilos > 0 && grams > 0) {
+      return Math.round((kilos * 1000) / grams);
+    }
+    return 0;
+  }, [pre3Kilos, pre3Gramos]);
+
+  const calculatedPre4Org = useMemo(() => {
+    const kilos = parseFloat(pre4Kilos) || 0;
+    const grams = parseFloat(pre4Gramos) || 0;
+    if (kilos > 0 && grams > 0) {
+      return Math.round((kilos * 1000) / grams);
+    }
+    return 0;
+  }, [pre4Kilos, pre4Gramos]);
+
+  const calculatedPre5Org = useMemo(() => {
+    const kilos = parseFloat(pre5Kilos) || 0;
+    const grams = parseFloat(pre5Gramos) || 0;
+    if (kilos > 0 && grams > 0) {
+      return Math.round((kilos * 1000) / grams);
+    }
+    return 0;
+  }, [pre5Kilos, pre5Gramos]);
+
   const calculatedFinalOrg = useMemo(() => {
     const kilos = parseFloat(finalKilos) || 0;
     const grams = parseFloat(finalGramos) || 0;
@@ -115,6 +154,24 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   }, [calculatedPre2Org, pre2Organismos]);
 
   useEffect(() => {
+    if (calculatedPre3Org > 0 && !pre3Organismos) {
+      setPre3Organismos(calculatedPre3Org.toString());
+    }
+  }, [calculatedPre3Org, pre3Organismos]);
+
+  useEffect(() => {
+    if (calculatedPre4Org > 0 && !pre4Organismos) {
+      setPre4Organismos(calculatedPre4Org.toString());
+    }
+  }, [calculatedPre4Org, pre4Organismos]);
+
+  useEffect(() => {
+    if (calculatedPre5Org > 0 && !pre5Organismos) {
+      setPre5Organismos(calculatedPre5Org.toString());
+    }
+  }, [calculatedPre5Org, pre5Organismos]);
+
+  useEffect(() => {
     if (calculatedFinalOrg > 0 && !finalOrganismos) {
       setFinalOrganismos(calculatedFinalOrg.toString());
     }
@@ -122,14 +179,22 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
   // Dynamic preview of summary metrics
   const tempTotalKilos = useMemo(() => {
-    return (parseFloat(pre1Kilos) || 0) + (parseFloat(pre2Kilos) || 0) + (parseFloat(finalKilos) || 0);
-  }, [pre1Kilos, pre2Kilos, finalKilos]);
+    return (parseFloat(pre1Kilos) || 0) + 
+           (parseFloat(pre2Kilos) || 0) + 
+           (parseFloat(pre3Kilos) || 0) + 
+           (parseFloat(pre4Kilos) || 0) + 
+           (parseFloat(pre5Kilos) || 0) + 
+           (parseFloat(finalKilos) || 0);
+  }, [pre1Kilos, pre2Kilos, pre3Kilos, pre4Kilos, pre5Kilos, finalKilos]);
 
   const tempTotalOrganismos = useMemo(() => {
     return (parseInt(pre1Organismos) || calculatedPre1Org) + 
            (parseInt(pre2Organismos) || calculatedPre2Org) + 
+           (parseInt(pre3Organismos) || calculatedPre3Org) + 
+           (parseInt(pre4Organismos) || calculatedPre4Org) + 
+           (parseInt(pre5Organismos) || calculatedPre5Org) + 
            (parseInt(finalOrganismos) || calculatedFinalOrg);
-  }, [pre1Organismos, pre2Organismos, finalOrganismos, calculatedPre1Org, calculatedPre2Org, calculatedFinalOrg]);
+  }, [pre1Organismos, pre2Organismos, pre3Organismos, pre4Organismos, pre5Organismos, finalOrganismos, calculatedPre1Org, calculatedPre2Org, calculatedPre3Org, calculatedPre4Org, calculatedPre5Org, calculatedFinalOrg]);
 
   // Filter & Search Logic
   const filteredHarvests = useMemo(() => {
@@ -177,10 +242,16 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       const p1G = h.pre1Gramos || 0;
       const p2K = h.pre2Kilos || 0;
       const p2G = h.pre2Gramos || 0;
+      const p3K = h.pre3Kilos || 0;
+      const p3G = h.pre3Gramos || 0;
+      const p4K = h.pre4Kilos || 0;
+      const p4G = h.pre4Gramos || 0;
+      const p5K = h.pre5Kilos || 0;
+      const p5G = h.pre5Gramos || 0;
       const fK = h.finalKilos || 0;
       const fG = h.finalGramos || 0;
       
-      const weightedGrams = (p1K * p1G) + (p2K * p2G) + (fK * fG);
+      const weightedGrams = (p1K * p1G) + (p2K * p2G) + (p3K * p3G) + (p4K * p4G) + (p5K * p5G) + (fK * fG);
       weightedGramsSum += weightedGrams;
     });
 
@@ -209,6 +280,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     setPre2Gramos(harvest.pre2Gramos ? harvest.pre2Gramos.toString() : '');
     setPre2Organismos(harvest.pre2Organismos ? harvest.pre2Organismos.toString() : '');
 
+    setPre3Kilos(harvest.pre3Kilos ? harvest.pre3Kilos.toString() : '');
+    setPre3Gramos(harvest.pre3Gramos ? harvest.pre3Gramos.toString() : '');
+    setPre3Organismos(harvest.pre3Organismos ? harvest.pre3Organismos.toString() : '');
+
+    setPre4Kilos(harvest.pre4Kilos ? harvest.pre4Kilos.toString() : '');
+    setPre4Gramos(harvest.pre4Gramos ? harvest.pre4Gramos.toString() : '');
+    setPre4Organismos(harvest.pre4Organismos ? harvest.pre4Organismos.toString() : '');
+
+    setPre5Kilos(harvest.pre5Kilos ? harvest.pre5Kilos.toString() : '');
+    setPre5Gramos(harvest.pre5Gramos ? harvest.pre5Gramos.toString() : '');
+    setPre5Organismos(harvest.pre5Organismos ? harvest.pre5Organismos.toString() : '');
+
     setFinalKilos(harvest.finalKilos ? harvest.finalKilos.toString() : '');
     setFinalGramos(harvest.finalGramos ? harvest.finalGramos.toString() : '');
     setFinalOrganismos(harvest.finalOrganismos ? harvest.finalOrganismos.toString() : '');
@@ -227,6 +310,15 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     setPre2Kilos('');
     setPre2Gramos('');
     setPre2Organismos('');
+    setPre3Kilos('');
+    setPre3Gramos('');
+    setPre3Organismos('');
+    setPre4Kilos('');
+    setPre4Gramos('');
+    setPre4Organismos('');
+    setPre5Kilos('');
+    setPre5Gramos('');
+    setPre5Organismos('');
     setFinalKilos('');
     setFinalGramos('');
     setFinalOrganismos('');
@@ -242,10 +334,19 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
     const calculatedP1Org = pre1Organismos ? parseInt(pre1Organismos) : calculatedPre1Org;
     const calculatedP2Org = pre2Organismos ? parseInt(pre2Organismos) : calculatedPre2Org;
+    const calculatedP3Org = pre3Organismos ? parseInt(pre3Organismos) : calculatedPre3Org;
+    const calculatedP4Org = pre4Organismos ? parseInt(pre4Organismos) : calculatedPre4Org;
+    const calculatedP5Org = pre5Organismos ? parseInt(pre5Organismos) : calculatedPre5Org;
     const calculatedFOrg = finalOrganismos ? parseInt(finalOrganismos) : calculatedFinalOrg;
 
-    const totalK = (parseFloat(pre1Kilos) || 0) + (parseFloat(pre2Kilos) || 0) + (parseFloat(finalKilos) || 0);
-    const totalO = calculatedP1Org + calculatedP2Org + calculatedFOrg;
+    const totalK = (parseFloat(pre1Kilos) || 0) + 
+                   (parseFloat(pre2Kilos) || 0) + 
+                   (parseFloat(pre3Kilos) || 0) + 
+                   (parseFloat(pre4Kilos) || 0) + 
+                   (parseFloat(pre5Kilos) || 0) + 
+                   (parseFloat(finalKilos) || 0);
+
+    const totalO = calculatedP1Org + calculatedP2Org + calculatedP3Org + calculatedP4Org + calculatedP5Org + calculatedFOrg;
 
     const harvestData: HarvestRecord = {
       id: editingHarvest ? editingHarvest.id : Math.random().toString(36).substring(2, 11),
@@ -260,6 +361,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       pre2Kilos: pre2Kilos ? parseFloat(pre2Kilos) : undefined,
       pre2Gramos: pre2Gramos ? parseFloat(pre2Gramos) : undefined,
       pre2Organismos: pre2Organismos ? parseInt(pre2Organismos) : undefined,
+
+      pre3Kilos: pre3Kilos ? parseFloat(pre3Kilos) : undefined,
+      pre3Gramos: pre3Gramos ? parseFloat(pre3Gramos) : undefined,
+      pre3Organismos: pre3Organismos ? parseInt(pre3Organismos) : undefined,
+
+      pre4Kilos: pre4Kilos ? parseFloat(pre4Kilos) : undefined,
+      pre4Gramos: pre4Gramos ? parseFloat(pre4Gramos) : undefined,
+      pre4Organismos: pre4Organismos ? parseInt(pre4Organismos) : undefined,
+
+      pre5Kilos: pre5Kilos ? parseFloat(pre5Kilos) : undefined,
+      pre5Gramos: pre5Gramos ? parseFloat(pre5Gramos) : undefined,
+      pre5Organismos: pre5Organismos ? parseInt(pre5Organismos) : undefined,
 
       finalKilos: finalKilos ? parseFloat(finalKilos) : undefined,
       finalGramos: finalGramos ? parseFloat(finalGramos) : undefined,
@@ -284,6 +397,15 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   };
   const fillComputedPre2 = () => {
     if (calculatedPre2Org > 0) setPre2Organismos(calculatedPre2Org.toString());
+  };
+  const fillComputedPre3 = () => {
+    if (calculatedPre3Org > 0) setPre3Organismos(calculatedPre3Org.toString());
+  };
+  const fillComputedPre4 = () => {
+    if (calculatedPre4Org > 0) setPre4Organismos(calculatedPre4Org.toString());
+  };
+  const fillComputedPre5 = () => {
+    if (calculatedPre5Org > 0) setPre5Organismos(calculatedPre5Org.toString());
   };
   const fillComputedFinal = () => {
     if (calculatedFinalOrg > 0) setFinalOrganismos(calculatedFinalOrg.toString());
@@ -426,8 +548,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             </div>
           </div>
 
-          {/* Harvesting Stages (Divided into nice sections) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+          {/* Harvesting Stages (Divided into nice sections: 5 pre-harvests + final harvest) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
             
             {/* Stage 1: Pre-Cosecha 1 */}
             <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
@@ -524,6 +646,156 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   placeholder="Sustituir / introducir directo"
                   value={pre2Organismos}
                   onChange={(e) => setPre2Organismos(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+            </div>
+
+            {/* Stage 3: Pre-Cosecha 3 */}
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">3ra Pre-Cosecha</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Kilos 3ra pre"
+                    value={pre3Kilos}
+                    onChange={(e) => setPre3Kilos(e.target.value)}
+                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Gramos 3ra pre"
+                    value={pre3Gramos}
+                    onChange={(e) => setPre3Gramos(e.target.value)}
+                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
+                  <span>Organismos calculados</span>
+                  {calculatedPre3Org > 0 && (
+                    <button 
+                      type="button" 
+                      onClick={fillComputedPre3}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
+                    >
+                      Copiar {calculatedPre3Org}
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="number"
+                  placeholder="Sustituir / introducir directo"
+                  value={pre3Organismos}
+                  onChange={(e) => setPre3Organismos(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+            </div>
+
+            {/* Stage 4: Pre-Cosecha 4 */}
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">4ta Pre-Cosecha</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Kilos 4ta pre"
+                    value={pre4Kilos}
+                    onChange={(e) => setPre4Kilos(e.target.value)}
+                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Gramos 4ta pre"
+                    value={pre4Gramos}
+                    onChange={(e) => setPre4Gramos(e.target.value)}
+                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
+                  <span>Organismos calculados</span>
+                  {calculatedPre4Org > 0 && (
+                    <button 
+                      type="button" 
+                      onClick={fillComputedPre4}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
+                    >
+                      Copiar {calculatedPre4Org}
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="number"
+                  placeholder="Sustituir / introducir directo"
+                  value={pre4Organismos}
+                  onChange={(e) => setPre4Organismos(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+            </div>
+
+            {/* Stage 5: Pre-Cosecha 5 */}
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">5ta Pre-Cosecha</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Kilos 5ta pre"
+                    value={pre5Kilos}
+                    onChange={(e) => setPre5Kilos(e.target.value)}
+                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Gramos 5ta pre"
+                    value={pre5Gramos}
+                    onChange={(e) => setPre5Gramos(e.target.value)}
+                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
+                  <span>Organismos calculados</span>
+                  {calculatedPre5Org > 0 && (
+                    <button 
+                      type="button" 
+                      onClick={fillComputedPre5}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
+                    >
+                      Copiar {calculatedPre5Org}
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="number"
+                  placeholder="Sustituir / introducir directo"
+                  value={pre5Organismos}
+                  onChange={(e) => setPre5Organismos(e.target.value)}
                   className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
                 />
               </div>
@@ -644,7 +916,10 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 
                 <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">1ra Pre-Cosecha</th>
                 <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">2da Pre-Cosecha</th>
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">Cosecha Final</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">3ra Pre-Cosecha</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">4ta Pre-Cosecha</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">5ta Pre-Cosecha</th>
+                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#a5b4fc]">Cosecha Final</th>
                 <th colSpan={2} className="px-2 py-1.5 bg-indigo-950/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Totales</th>
               </tr>
               <tr className="bg-[#0D4075] text-slate-200 text-[9px] font-bold uppercase tracking-wider border-b border-[#125699] text-center">
@@ -657,11 +932,26 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Kilos (kg)</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Organismos</th>
-                
-                {/* Cosecha Final Column Subheaders */}
+
+                {/* 3ra Pre-cosecha Column Subheaders */}
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
+
+                {/* 4ta Pre-cosecha Column Subheaders */}
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Organismos</th>
+
+                {/* 5ta Pre-cosecha Column Subheaders */}
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
+                
+                {/* Cosecha Final Column Subheaders */}
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 font-medium">Peso (g)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 font-medium text-indigo-300">Organismos</th>
                 
                 {/* Totales Column Subheaders */}
                 <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/30 text-indigo-200">Suma Kilos</th>
@@ -671,7 +961,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             <tbody className="divide-y divide-[#125699]/60">
               {paginatedHarvests.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
+                  <td colSpan={23} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
                 </tr>
               ) : (
                 paginatedHarvests.map((h) => (
@@ -712,10 +1002,25 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                     <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{h.pre2Gramos ? formatNumber(h.pre2Gramos) : '-'}</td>
                     <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{h.pre2Organismos ? formatNumber(h.pre2Organismos) : '-'}</td>
                     
+                    {/* 3ra Pre-cosecha Cells */}
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre3Kilos ? formatNumber(h.pre3Kilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre3Gramos ? formatNumber(h.pre3Gramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre3Organismos ? formatNumber(h.pre3Organismos) : '-'}</td>
+
+                    {/* 4ta Pre-cosecha Cells */}
+                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{h.pre4Kilos ? formatNumber(h.pre4Kilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{h.pre4Gramos ? formatNumber(h.pre4Gramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{h.pre4Organismos ? formatNumber(h.pre4Organismos) : '-'}</td>
+
+                    {/* 5ta Pre-cosecha Cells */}
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre5Kilos ? formatNumber(h.pre5Kilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre5Gramos ? formatNumber(h.pre5Gramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre5Organismos ? formatNumber(h.pre5Organismos) : '-'}</td>
+
                     {/* Cosecha Final Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.finalKilos ? formatNumber(h.finalKilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.finalGramos ? formatNumber(h.finalGramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.finalOrganismos ? formatNumber(h.finalOrganismos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#125699]/20 align-middle text-slate-200">{h.finalKilos ? formatNumber(h.finalKilos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#125699]/20 align-middle text-slate-300 font-medium">{h.finalGramos ? formatNumber(h.finalGramos) : '-'}</td>
+                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#125699]/30 align-middle text-indigo-300 font-mono text-[10px]">{h.finalOrganismos ? formatNumber(h.finalOrganismos) : '-'}</td>
                     
                     {/* Totales Cells */}
                     <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-emerald-300 bg-indigo-950/25 align-middle">{formatNumber(h.totalKilos)} kg</td>

@@ -210,7 +210,7 @@ function doPost(e) {
       var sheetHarvest = ss.getSheetByName('Ciclo de Cosechas') || ss.insertSheet('Ciclo de Cosechas');
       sheetHarvest.clear();
       if (data.harvests && data.harvests.length > 0) {
-        var headersH = ["id", "granja", "estanque", "fecha", "pre1Kilos", "pre1Gramos", "pre1Organismos", "pre2Kilos", "pre2Gramos", "pre2Organismos", "finalKilos", "finalGramos", "finalOrganismos", "totalOrganismos", "totalKilos"];
+        var headersH = ["id", "granja", "estanque", "fecha", "pre1Kilos", "pre1Gramos", "pre1Organismos", "pre2Kilos", "pre2Gramos", "pre2Organismos", "pre3Kilos", "pre3Gramos", "pre3Organismos", "pre4Kilos", "pre4Gramos", "pre4Organismos", "pre5Kilos", "pre5Gramos", "pre5Organismos", "finalKilos", "finalGramos", "finalOrganismos", "totalOrganismos", "totalKilos"];
         sheetHarvest.appendRow(headersH);
         data.harvests.forEach(function(row) {
           var vals = headersH.map(function(h) { return row[h] !== undefined ? row[h] : ""; });

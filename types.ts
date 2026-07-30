@@ -84,6 +84,21 @@ export interface HarvestRecord {
   pre2Kilos?: number;
   pre2Gramos?: number;
   pre2Organismos?: number;
+
+  // 3ra Pre-cosecha
+  pre3Kilos?: number;
+  pre3Gramos?: number;
+  pre3Organismos?: number;
+
+  // 4ta Pre-cosecha
+  pre4Kilos?: number;
+  pre4Gramos?: number;
+  pre4Organismos?: number;
+
+  // 5ta Pre-cosecha
+  pre5Kilos?: number;
+  pre5Gramos?: number;
+  pre5Organismos?: number;
   
   // Cosecha Final
   finalKilos?: number;
