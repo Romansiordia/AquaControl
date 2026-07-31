@@ -196,6 +196,30 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
            (parseInt(finalOrganismos) || calculatedFinalOrg);
   }, [pre1Organismos, pre2Organismos, pre3Organismos, pre4Organismos, pre5Organismos, finalOrganismos, calculatedPre1Org, calculatedPre2Org, calculatedPre3Org, calculatedPre4Org, calculatedPre5Org, calculatedFinalOrg]);
 
+  // Matching pond record for the current form selection
+  const matchingPondRecord = useMemo(() => {
+    if (!formGranja || !formEstanque) return null;
+    const matchEst = normalizeEstanque(formEstanque);
+    const matchGranja = formGranja.trim().toLowerCase();
+    
+    return records.find(r => 
+      r.granja?.toString().trim().toLowerCase() === matchGranja && 
+      normalizeEstanque(r.estanque) === matchEst
+    );
+  }, [records, formGranja, formEstanque]);
+
+  const pondStats = useMemo(() => {
+    if (!matchingPondRecord) return null;
+    const sembrados = matchingPondRecord.densidadInicial || 0;
+    const surv = matchingPondRecord.sobrevivencia || 100;
+    const pobVivaEst = Math.round(sembrados * (surv / 100));
+    return {
+      sembrados,
+      surv,
+      pobVivaEst
+    };
+  }, [matchingPondRecord]);
+
   // Filter & Search Logic
   const filteredHarvests = useMemo(() => {
     const normFilterEstanque = normalizeEstanque(estanqueFilter);
@@ -553,7 +577,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             
             {/* Stage 1: Pre-Cosecha 1 */}
             <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">1ra Pre-Cosecha</h4>
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
+                <span>1ra Pre-Cosecha</span>
+                {pondStats && pondStats.sembrados > 0 && (parseInt(pre1Organismos) || calculatedPre1Org) > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    {(((parseInt(pre1Organismos) || calculatedPre1Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
+                  </span>
+                )}
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
@@ -603,7 +634,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
             {/* Stage 2: Pre-Cosecha 2 */}
             <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">2da Pre-Cosecha</h4>
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
+                <span>2da Pre-Cosecha</span>
+                {pondStats && pondStats.sembrados > 0 && (parseInt(pre2Organismos) || calculatedPre2Org) > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    {(((parseInt(pre2Organismos) || calculatedPre2Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
+                  </span>
+                )}
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
@@ -653,7 +691,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
             {/* Stage 3: Pre-Cosecha 3 */}
             <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">3ra Pre-Cosecha</h4>
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
+                <span>3ra Pre-Cosecha</span>
+                {pondStats && pondStats.sembrados > 0 && (parseInt(pre3Organismos) || calculatedPre3Org) > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    {(((parseInt(pre3Organismos) || calculatedPre3Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
+                  </span>
+                )}
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
@@ -703,7 +748,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
             {/* Stage 4: Pre-Cosecha 4 */}
             <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">4ta Pre-Cosecha</h4>
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
+                <span>4ta Pre-Cosecha</span>
+                {pondStats && pondStats.sembrados > 0 && (parseInt(pre4Organismos) || calculatedPre4Org) > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    {(((parseInt(pre4Organismos) || calculatedPre4Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
+                  </span>
+                )}
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
@@ -753,7 +805,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
             {/* Stage 5: Pre-Cosecha 5 */}
             <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5">5ta Pre-Cosecha</h4>
+              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
+                <span>5ta Pre-Cosecha</span>
+                {pondStats && pondStats.sembrados > 0 && (parseInt(pre5Organismos) || calculatedPre5Org) > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    {(((parseInt(pre5Organismos) || calculatedPre5Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
+                  </span>
+                )}
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
@@ -803,8 +862,13 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
             {/* Stage 3: Cosecha Final */}
             <div className="bg-[#0E4680]/90 p-4 rounded-xl border border-[#1963ad] space-y-4 shadow-sm">
-              <h4 className="text-sm font-bold text-indigo-300 border-b border-[#125699] pb-1.5 flex items-center gap-1.5">
-                <span>🎯</span> Cosecha Final
+              <h4 className="text-sm font-bold text-indigo-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
+                <span className="flex items-center gap-1.5"><span>🎯</span> Cosecha Final</span>
+                {pondStats && pondStats.sembrados > 0 && (parseInt(finalOrganismos) || calculatedFinalOrg) > 0 && (
+                  <span className="text-[10px] font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
+                    {(((parseInt(finalOrganismos) || calculatedFinalOrg) / pondStats.sembrados) * 100).toFixed(1)}% estanque
+                  </span>
+                )}
               </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -857,12 +921,36 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
           {/* Form Real-Time Computed Review Panel */}
           <div className="bg-[#0A345C] p-4 rounded-xl border border-[#125699] flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
-            <div>
-              <p className="text-xs font-semibold text-blue-300">Resumen Proyectado de Cosecha:</p>
-              <p className="text-sm text-white mt-1">
-                Kilos Totales: <span className="font-extrabold text-white text-base mr-4">{formatNumber(tempTotalKilos)} kg</span>
-                Organismos Totales: <span className="font-extrabold text-indigo-300 text-base">{formatNumber(tempTotalOrganismos)} orgs.</span>
-              </p>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                <p className="text-xs font-semibold text-blue-300">Resumen Proyectado de Cosecha:</p>
+                {pondStats && pondStats.sembrados > 0 && (
+                  <span className="text-[11px] font-medium text-blue-200 bg-blue-900/50 border border-blue-600/30 px-2 py-0.5 rounded-md">
+                    Estanque {formEstanque} ({formatNumber(pondStats.sembrados)} orgs. sembrados | Sobrev. {pondStats.surv}%)
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-white pt-1 justify-center sm:justify-start">
+                <span>
+                  Kilos Totales: <strong className="font-extrabold text-white text-base mr-2">{formatNumber(tempTotalKilos)} kg</strong>
+                </span>
+                <span>
+                  Organismos Totales: <strong className="font-extrabold text-indigo-300 text-base mr-2">{formatNumber(tempTotalOrganismos)} orgs.</strong>
+                </span>
+
+                {pondStats && pondStats.sembrados > 0 && tempTotalOrganismos > 0 && (
+                  <>
+                    <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                      📊 {((tempTotalOrganismos / pondStats.sembrados) * 100).toFixed(1)}% del Total Sembrado
+                    </span>
+                    {pondStats.pobVivaEst > 0 && (
+                      <span className="inline-flex items-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                        🦐 {((tempTotalOrganismos / pondStats.pobVivaEst) * 100).toFixed(1)}% de Pob. Viva Est. ({formatNumber(pondStats.pobVivaEst)} orgs)
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
             
             <div className="flex gap-3">
