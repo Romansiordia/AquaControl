@@ -247,7 +247,9 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                             </div>
                                         </td>
                                         <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">{record.granja}</td>
-                                        <td className="px-3 py-3 border-r border-[#125699]">{record.orgMt2}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium text-emerald-300">
+                                            {formatNumber(record.orgMt2 || record.camM2Inicial || (record.hectareas > 0 && record.densidadInicial > 0 ? (record.densidadInicial / (record.hectareas * 10000)) : 0))}
+                                        </td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.especie}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.fecha ? String(record.fecha).split('T')[0] : ''}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.fechaCosecha ? String(record.fechaCosecha).split('T')[0] : ''}</td>

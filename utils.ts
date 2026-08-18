@@ -4,10 +4,15 @@ import { PondRecord } from './types';
 export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord => {
   const pesoActual = record.pesoActual || 0;
   const pesoAnterior = record.pesoAnterior || 0;
-  const densidadInicial = record.densidadInicial || 0;
+  let densidadInicial = record.densidadInicial || 0;
   const sobrevivencia = record.sobrevivencia || 0;
   const hectareas = record.hectareas || 1;
   const alimentoAcumulado = record.alimentoAcumulado || 0;
+
+  const rawOrgMt2 = record.orgMt2 || record.camM2Inicial || 0;
+  if (densidadInicial === 0 && rawOrgMt2 > 0 && hectareas > 0) {
+    densidadInicial = Math.round(rawOrgMt2 * (hectareas * 10000));
+  }
 
   const incrementoSemanal = parseFloat((pesoActual - pesoAnterior).toFixed(2));
   const densidadActual = Math.round(densidadInicial * (sobrevivencia / 100));
@@ -15,9 +20,9 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   const biomasaHa = hectareas > 0 ? parseFloat((biomasaTotal / hectareas).toFixed(2)) : 0;
   const fca = biomasaTotal > 0 ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(2)) : 0;
   
-  const camM2Inicial = hectareas > 0 ? parseFloat((densidadInicial / (hectareas * 10000)).toFixed(2)) : 0;
-  const camM2Actual = hectareas > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
-  const orgMt2 = record.orgMt2 || camM2Inicial;
+  const camM2Inicial = hectareas > 0 && densidadInicial > 0 ? parseFloat((densidadInicial / (hectareas * 10000)).toFixed(2)) : (rawOrgMt2 || 0);
+  const camM2Actual = hectareas > 0 && densidadActual > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
+  const orgMt2 = camM2Inicial > 0 ? camM2Inicial : (rawOrgMt2 || 0);
 
   // Calculate days of cultivation and exact fecha if missing
   let fecha = record.fecha;

@@ -58,10 +58,10 @@ const App: React.FC = () => {
                 fecha = r.fechaSiembra;
               }
             }
-            return {
+            return calculatePondMetrics({
               ...r,
               fecha: fecha || new Date().toISOString().split('T')[0]
-            };
+            });
           });
         }
       } catch (e) {
@@ -121,26 +121,29 @@ const App: React.FC = () => {
     };
 
     if (importedData.production && importedData.production.length > 0) {
-      const fixedProd = importedData.production.map(p => ({
-        ...p,
-        orgMt2: fixNumberFromDate(p.orgMt2),
-        // Fix other numeric fields just in case they suffer from the same issue
-        pesoAnterior: fixNumberFromDate(p.pesoAnterior),
-        pesoActual: fixNumberFromDate(p.pesoActual),
-        incrementoSemanal: fixNumberFromDate(p.incrementoSemanal),
-        diasCultivo: fixNumberFromDate(p.diasCultivo),
-        sobrevivencia: fixNumberFromDate(p.sobrevivencia),
-        densidadInicial: fixNumberFromDate(p.densidadInicial),
-        densidadActual: fixNumberFromDate(p.densidadActual),
-        biomasaHa: fixNumberFromDate(p.biomasaHa),
-        biomasaTotal: fixNumberFromDate(p.biomasaTotal),
-        alimentoAcumulado: fixNumberFromDate(p.alimentoAcumulado),
-        fca: fixNumberFromDate(p.fca),
-        camM2Inicial: fixNumberFromDate(p.camM2Inicial),
-        camM2Actual: fixNumberFromDate(p.camM2Actual),
-        alimentoProyectadoDia: fixNumberFromDate(p.alimentoProyectadoDia),
-        alimentoProyectadoSemana: fixNumberFromDate(p.alimentoProyectadoSemana)
-      }));
+      const fixedProd = importedData.production.map(p => {
+        const cleaned: Partial<PondRecord> = {
+          ...p,
+          orgMt2: fixNumberFromDate(p.orgMt2),
+          pesoAnterior: fixNumberFromDate(p.pesoAnterior),
+          pesoActual: fixNumberFromDate(p.pesoActual),
+          incrementoSemanal: fixNumberFromDate(p.incrementoSemanal),
+          diasCultivo: fixNumberFromDate(p.diasCultivo),
+          sobrevivencia: fixNumberFromDate(p.sobrevivencia),
+          densidadInicial: fixNumberFromDate(p.densidadInicial),
+          densidadActual: fixNumberFromDate(p.densidadActual),
+          biomasaHa: fixNumberFromDate(p.biomasaHa),
+          biomasaTotal: fixNumberFromDate(p.biomasaTotal),
+          alimentoAcumulado: fixNumberFromDate(p.alimentoAcumulado),
+          fca: fixNumberFromDate(p.fca),
+          camM2Inicial: fixNumberFromDate(p.camM2Inicial),
+          camM2Actual: fixNumberFromDate(p.camM2Actual),
+          alimentoProyectadoDia: fixNumberFromDate(p.alimentoProyectadoDia),
+          alimentoProyectadoSemana: fixNumberFromDate(p.alimentoProyectadoSemana),
+          hectareas: fixNumberFromDate(p.hectareas) || (p.hectareas ? Number(p.hectareas) : 1)
+        };
+        return calculatePondMetrics(cleaned);
+      });
       setRecords(fixedProd);
     }
     if (importedData.evaluations && importedData.evaluations.length > 0) {
