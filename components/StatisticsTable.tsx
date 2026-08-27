@@ -19,14 +19,16 @@ const StatisticsTable: React.FC<Props> = ({ records }) => {
   const rows: StatRow[] = [
     { label: 'Peso Actual', key: 'pesoActual', unit: 'g' },
     { label: 'Incremento Semanal', key: 'incrementoSemanal', unit: 'g' },
-    { label: 'Supervivencia', key: 'porcentajeSobrevivencia', unit: '%' },
+    { label: 'Supervivencia', key: 'sobrevivencia', unit: '%' },
     { label: 'Biomasa Total', key: 'biomasaTotal', unit: 'kg' },
     { label: 'FCA', key: 'fca', unit: '' },
     { label: 'Densidad Actual', key: 'densidadActual', unit: 'ind' },
   ];
 
   const calculateStats = (key: keyof PondRecord) => {
-    const values = records.map(r => r[key] as number).filter(v => typeof v === 'number');
+    const values = records
+      .map(r => Number(r[key]))
+      .filter(v => typeof v === 'number' && !isNaN(v));
     if (values.length === 0) return { avg: 0, max: 0, min: 0, std: 0 };
 
     const sum = values.reduce((a, b) => a + b, 0);
