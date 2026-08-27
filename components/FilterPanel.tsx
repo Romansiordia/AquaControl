@@ -29,7 +29,11 @@ const FilterPanel: React.FC<Props> = ({
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    onFilterChange({ ...filters, [name]: value });
+    if (name === 'granja') {
+      onFilterChange({ ...filters, granja: value, estanque: '' });
+    } else {
+      onFilterChange({ ...filters, [name]: value });
+    }
   };
 
   const handleReset = () => {
@@ -114,7 +118,7 @@ const FilterPanel: React.FC<Props> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-blue-300 mb-1">Desde (Siembra)</label>
+          <label className="block text-xs font-medium text-blue-300 mb-1">Fecha Desde</label>
           <input 
             type="date" 
             name="fechaDesde" 
@@ -125,7 +129,7 @@ const FilterPanel: React.FC<Props> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-blue-300 mb-1">Hasta (Siembra)</label>
+          <label className="block text-xs font-medium text-blue-300 mb-1">Fecha Hasta</label>
           <input 
             type="date" 
             name="fechaHasta" 

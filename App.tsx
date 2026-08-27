@@ -518,7 +518,10 @@ const App: React.FC = () => {
   const uniqueLaboratorios = useMemo(() => Array.from(new Set(records.map(r => r.laboratorio))), [records]);
   const uniqueEstanques = useMemo(() => {
     const set = new Set<string>();
-    records.forEach(r => {
+    const source = filters.granja 
+      ? records.filter(r => r.granja?.toString().trim().toLowerCase() === filters.granja.trim().toLowerCase())
+      : records;
+    source.forEach(r => {
       const norm = normalizeEstanque(r.estanque);
       if (norm) set.add(norm);
     });
@@ -528,133 +531,120 @@ const App: React.FC = () => {
       if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
       return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [records]);
+  }, [records, filters.granja]);
   const uniqueGranjas = useMemo(() => Array.from(new Set(records.map(r => r.granja))).filter(Boolean), [records]);
 
-  const latestRecordsByPond = useMemo(() => {
-      const latest = new Map<string, PondRecord>();
-      records.forEach(record => {
-          const key = `${record.granja}-${normalizeEstanque(record.estanque)}`;
-          const current = latest.get(key);
-          if (!current || record.diasCultivo > current.diasCultivo) {
-              latest.set(key, record);
-          }
-      });
-      return Array.from(latest.values()).sort((a, b) => {
-          if (a.granja === b.granja) {
-            const numA = Number(normalizeEstanque(a.estanque));
-            const numB = Number(normalizeEstanque(b.estanque));
-            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-            return String(a.estanque).localeCompare(String(b.estanque), undefined, { numeric: true });
-          }
-          return a.granja.localeCompare(b.granja);
-      });
-  }, [records]);
+  // All individual sampling/production records matching active filters (granja, estanque, dates, etc.)
+  const filteredRawRecords = useMemo(() => {
+    return records.filter(record => {
+      const matchGranja = !filters.granja || record.granja?.toString().trim().toLowerCase() === filters.granja.trim().toLowerCase();
+      const matchEstanque = !filters.estanque || normalizeEstanque(record.estanque) === normalizeEstanque(filters.estanque);
+      const matchAlimento = !filters.alimento || record.alimento === filters.alimento;
+      const matchLab = !filters.laboratorio || record.laboratorio === filters.laboratorio;
 
-  const filteredRecords = useMemo(() => {
-    return latestRecordsByPond.filter(record => {
-      const matchGranja = filters.granja === '' || record.granja?.toString().trim().toLowerCase() === filters.granja.trim().toLowerCase();
-      const matchEstanque = filters.estanque === '' || normalizeEstanque(record.estanque) === normalizeEstanque(filters.estanque);
-      const matchAlimento = filters.alimento === '' || record.alimento === filters.alimento;
-      const matchLab = filters.laboratorio === '' || record.laboratorio === filters.laboratorio;
-      const recordDate = new Date(record.fechaSiembra).getTime();
-      const matchDesde = filters.fechaDesde === '' || recordDate >= new Date(filters.fechaDesde).getTime();
-      const matchHasta = filters.fechaHasta === '' || recordDate <= new Date(filters.fechaHasta).getTime();
+      const rDate = cleanDateString(record.fecha) || cleanDateString(record.fechaSiembra);
+      const matchDesde = !filters.fechaDesde || (rDate ? rDate >= filters.fechaDesde : true);
+      const matchHasta = !filters.fechaHasta || (rDate ? rDate <= filters.fechaHasta : true);
+
       return matchGranja && matchEstanque && matchAlimento && matchLab && matchDesde && matchHasta;
     });
-  }, [latestRecordsByPond, filters]);
+  }, [records, filters]);
+
+  // Latest status per pond within the filtered dataset (for summary cards, tables, and pond bar charts)
+  const filteredRecords = useMemo(() => {
+    const latest = new Map<string, PondRecord>();
+    filteredRawRecords.forEach(record => {
+      const key = `${record.granja}-${normalizeEstanque(record.estanque)}`;
+      const current = latest.get(key);
+      const rDate = cleanDateString(record.fecha) || cleanDateString(record.fechaSiembra);
+      const cDate = current ? (cleanDateString(current.fecha) || cleanDateString(current.fechaSiembra)) : '';
+
+      if (!current || rDate > cDate || (rDate === cDate && Number(record.diasCultivo) >= Number(current.diasCultivo))) {
+        latest.set(key, record);
+      }
+    });
+
+    return Array.from(latest.values()).sort((a, b) => {
+      if (a.granja === b.granja) {
+        const numA = Number(normalizeEstanque(a.estanque));
+        const numB = Number(normalizeEstanque(b.estanque));
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(a.estanque).localeCompare(String(b.estanque), undefined, { numeric: true });
+      }
+      return a.granja.localeCompare(b.granja);
+    });
+  }, [filteredRawRecords]);
 
   const chartData = useMemo(() => 
-    // FIX: Explicitly cast properties to Number to prevent type errors during arithmetic operations in the sort function.
-    [...filteredRecords].sort((a, b) => Number(a.estanque) - Number(b.estanque)),
+    [...filteredRecords].sort((a, b) => {
+      const numA = Number(normalizeEstanque(a.estanque));
+      const numB = Number(normalizeEstanque(b.estanque));
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return String(a.estanque).localeCompare(String(b.estanque), undefined, { numeric: true });
+    }),
   [filteredRecords]);
 
   const historicalChartData = useMemo(() => {
-    const filtered = records.filter(record => {
-      const matchGranja = filters.granja === '' || record.granja === filters.granja;
-      const matchEstanque = filters.estanque === '' || record.estanque.toString() === filters.estanque;
-      const matchAlimento = filters.alimento === '' || record.alimento === filters.alimento;
-      const matchLab = filters.laboratorio === '' || record.laboratorio === filters.laboratorio;
-      const recordDate = new Date(record.fechaSiembra).getTime();
-      const matchDesde = filters.fechaDesde === '' || (recordDate >= new Date(filters.fechaDesde).getTime() || new Date(record.fecha).getTime() >= new Date(filters.fechaDesde).getTime());
-      const matchHasta = filters.fechaHasta === '' || (recordDate <= new Date(filters.fechaHasta).getTime() || new Date(record.fecha).getTime() <= new Date(filters.fechaHasta).getTime());
-      return matchGranja && matchEstanque && matchAlimento && matchLab && matchDesde && matchHasta;
-    });
-
     const byDate = new Map<string, any>();
-    filtered.forEach(record => {
-      let dateStr = record.fecha || '';
-      if (dateStr === 'Invalid Date' || !dateStr || isNaN(new Date(dateStr).getTime())) {
-         dateStr = record.fechaSiembra || new Date().toISOString().split('T')[0];
-         if (dateStr === 'Invalid Date' || !dateStr || isNaN(new Date(dateStr).getTime())) {
-            dateStr = new Date().toISOString().split('T')[0];
-         }
+    filteredRawRecords.forEach(record => {
+      let dateStr = cleanDateString(record.fecha) || cleanDateString(record.fechaSiembra);
+      if (!dateStr) {
+        dateStr = new Date().toISOString().split('T')[0];
       }
 
       if (!byDate.has(dateStr)) {
-         let formattedDate = 'S/F';
-         if (dateStr) {
-           try {
-             const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
-             if (!isNaN(d.getTime())) {
-               formattedDate = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
-             } else {
-               const dFallback = new Date(dateStr);
-               if (!isNaN(dFallback.getTime())) {
-                 formattedDate = dFallback.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
-               }
-             }
-           } catch (e) {
-             console.error("Error formatting dateStr", dateStr, e);
-           }
-         }
-         byDate.set(dateStr, { 
-             fechaRaw: dateStr, 
-             fecha: formattedDate 
-         });
+        let formattedDate = dateStr;
+        try {
+          const parts = dateStr.split('-').map(Number);
+          if (parts.length === 3) {
+            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+            formattedDate = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+          }
+        } catch (e) {
+          formattedDate = dateStr;
+        }
+        byDate.set(dateStr, { 
+          fechaRaw: dateStr, 
+          fecha: formattedDate 
+        });
       }
       const entry = byDate.get(dateStr);
-      const key = `Estanque ${record.estanque}`;
+      const pondLabel = filters.granja ? `Estanque ${normalizeEstanque(record.estanque)}` : `${record.granja} - E${normalizeEstanque(record.estanque)}`;
       
-      entry[`${key}_peso`] = Number(record.pesoActual) || 0;
-      entry[`${key}_inc`] = Number(record.incrementoSemanal) || 0;
-      entry[`${key}_surv`] = Number(record.sobrevivencia) || 0;
-      entry[`${key}_biomasa`] = Number(record.biomasaTotal) || 0;
+      entry[`${pondLabel}_peso`] = Number(record.pesoActual) || 0;
+      entry[`${pondLabel}_inc`] = Number(record.incrementoSemanal) || 0;
+      entry[`${pondLabel}_surv`] = Number(record.sobrevivencia) || 0;
+      entry[`${pondLabel}_biomasa`] = Number(record.biomasaTotal) || 0;
     });
 
     return Array.from(byDate.values())
-      .sort((a, b) => {
-        const timeA = a.fechaRaw ? new Date(a.fechaRaw.includes('T') ? a.fechaRaw : a.fechaRaw + 'T12:00:00').getTime() : 0;
-        const timeB = b.fechaRaw ? new Date(b.fechaRaw.includes('T') ? b.fechaRaw : b.fechaRaw + 'T12:00:00').getTime() : 0;
-        const finalA = isNaN(timeA) ? 0 : timeA;
-        const finalB = isNaN(timeB) ? 0 : timeB;
-        return finalA - finalB;
-      });
-  }, [records, filters]);
+      .sort((a, b) => (a.fechaRaw || '').localeCompare(b.fechaRaw || ''));
+  }, [filteredRawRecords, filters.granja]);
 
   const uniqueEstanquesInHistory = useMemo(() => {
-      const estanques = new Set<string>();
-      historicalChartData.forEach(entry => {
-         Object.keys(entry).forEach(k => {
-            if (k.startsWith('Estanque ') && k.endsWith('_peso')) {
-                estanques.add(k.replace('_peso', ''));
-            }
-         });
+    const estanques = new Set<string>();
+    historicalChartData.forEach(entry => {
+      Object.keys(entry).forEach(k => {
+        if (k.endsWith('_peso')) {
+          estanques.add(k.replace('_peso', ''));
+        }
       });
-      return Array.from(estanques).sort((a, b) => {
-         const numA = Number(a.replace('Estanque ', ''));
-         const numB = Number(b.replace('Estanque ', ''));
-         return numA - numB;
-      });
+    });
+    return Array.from(estanques).sort((a, b) => {
+      const numA = Number(a.replace(/[^0-9]/g, ''));
+      const numB = Number(b.replace(/[^0-9]/g, ''));
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
   }, [historicalChartData]);
 
   const filteredHarvestsForChart = useMemo(() => {
     return harvests.filter(h => {
-      const matchGranja = filters.granja === '' || h.granja === filters.granja;
-      const matchEstanque = filters.estanque === '' || h.estanque.toString() === filters.estanque;
-      const recordDate = h.fecha ? new Date(h.fecha + 'T12:00:00').getTime() : 0;
-      const matchDesde = filters.fechaDesde === '' || recordDate >= new Date(filters.fechaDesde + 'T00:00:00').getTime();
-      const matchHasta = filters.fechaHasta === '' || recordDate <= new Date(filters.fechaHasta + 'T23:59:59').getTime();
+      const matchGranja = !filters.granja || h.granja?.toString().trim().toLowerCase() === filters.granja.trim().toLowerCase();
+      const matchEstanque = !filters.estanque || normalizeEstanque(h.estanque) === normalizeEstanque(filters.estanque);
+      const hDate = cleanDateString(h.fecha);
+      const matchDesde = !filters.fechaDesde || (hDate ? hDate >= filters.fechaDesde : true);
+      const matchHasta = !filters.fechaHasta || (hDate ? hDate <= filters.fechaHasta : true);
       return matchGranja && matchEstanque && matchDesde && matchHasta;
     });
   }, [harvests, filters]);

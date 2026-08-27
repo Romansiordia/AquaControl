@@ -68,7 +68,7 @@ const DashboardStats: React.FC<Props> = ({ records }) => {
     };
   }, [records]);
 
-  const totalBiomass = records.reduce((sum, r) => sum + r.biomasaTotal, 0);
+  const totalBiomass = stats?.biomasaTotal || records.reduce((sum, r) => sum + (Number(r.biomasaTotal) || 0), 0);
   const avgFca = stats?.fca || 0;
   const avgIncrement = stats?.incSemanal || 0;
   const avgSurvival = stats?.sobrevivencia || 0;
