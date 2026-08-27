@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, HarvestRecord } from './types';
 import { INITIAL_DATA } from './constants';
-import { calculatePondMetrics, formatNumber, normalizeEstanque } from './utils';
+import { calculatePondMetrics, formatNumber, normalizeEstanque, cleanDateString } from './utils';
 import DashboardStats from './components/DashboardStats';
 import PondForm from './components/PondForm';
 import FilterPanel, { FilterState } from './components/FilterPanel';
@@ -41,28 +41,7 @@ const App: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map((r: any) => {
-            let fecha = r.fecha;
-            if (fecha === 'Invalid Date' || !fecha || isNaN(new Date(fecha).getTime())) {
-              fecha = undefined;
-            }
-            if (!fecha && r.fechaSiembra) {
-              try {
-                const siembraStr = (r.fechaSiembra === 'Invalid Date' || !r.fechaSiembra) ? '2025-04-13' : r.fechaSiembra;
-                const d = new Date(siembraStr + 'T12:00:00');
-                if (r.diasCultivo) {
-                  d.setDate(d.getDate() + Number(r.diasCultivo));
-                }
-                fecha = d.toISOString().split('T')[0];
-              } catch (e) {
-                fecha = r.fechaSiembra;
-              }
-            }
-            return calculatePondMetrics({
-              ...r,
-              fecha: fecha || new Date().toISOString().split('T')[0]
-            });
-          });
+          return parsed.map((r: any) => calculatePondMetrics(r));
         }
       } catch (e) {
         console.error("Error parsing camaronera_records:", e);
@@ -124,6 +103,9 @@ const App: React.FC = () => {
       const fixedProd = importedData.production.map(p => {
         const cleaned: Partial<PondRecord> = {
           ...p,
+          fecha: cleanDateString(p.fecha),
+          fechaSiembra: cleanDateString(p.fechaSiembra),
+          fechaCosecha: cleanDateString(p.fechaCosecha),
           orgMt2: fixNumberFromDate(p.orgMt2),
           pesoAnterior: fixNumberFromDate(p.pesoAnterior),
           pesoActual: fixNumberFromDate(p.pesoActual),
@@ -147,11 +129,17 @@ const App: React.FC = () => {
       setRecords(fixedProd);
     }
     if (importedData.evaluations && importedData.evaluations.length > 0) {
-      setEvaluations(importedData.evaluations);
+      const fixedEvals = importedData.evaluations.map(ev => ({
+        ...ev,
+        fecha: cleanDateString(ev.fecha) || ev.fecha,
+        fecha_siembra: cleanDateString(ev.fecha_siembra) || ev.fecha_siembra
+      }));
+      setEvaluations(fixedEvals);
     }
     if (importedData.harvests && importedData.harvests.length > 0) {
       const fixedHarvests = importedData.harvests.map(h => ({
         ...h,
+        fecha: cleanDateString(h.fecha) || h.fecha,
         pre1Kilos: h.pre1Kilos ? fixNumberFromDate(h.pre1Kilos) : undefined,
         pre1Gramos: h.pre1Gramos ? fixNumberFromDate(h.pre1Gramos) : undefined,
         pre1Organismos: h.pre1Organismos ? fixNumberFromDate(h.pre1Organismos) : undefined,
@@ -201,28 +189,7 @@ const App: React.FC = () => {
         ...INITIAL_DATA,
         { ...INITIAL_DATA[0], id: '1a', diasCultivo: 47, pesoAnterior: 3.1, pesoActual: 4.29, incrementoSemanal: 1.19, fca: 0.65 },
         { ...INITIAL_DATA[0], id: '1b', diasCultivo: 40, pesoAnterior: 2.0, pesoActual: 3.1, incrementoSemanal: 1.1, fca: 0.60 },
-      ].map(rec => {
-        let fecha = rec.fecha;
-        if (fecha === 'Invalid Date' || !fecha || isNaN(new Date(fecha).getTime())) {
-          fecha = undefined;
-        }
-        if (!fecha && rec.fechaSiembra) {
-          try {
-            const siembraStr = (rec.fechaSiembra === 'Invalid Date' || !rec.fechaSiembra) ? '2025-04-13' : rec.fechaSiembra;
-            const d = new Date(siembraStr + 'T12:00:00');
-            if (rec.diasCultivo) {
-              d.setDate(d.getDate() + Number(rec.diasCultivo));
-            }
-            fecha = d.toISOString().split('T')[0];
-          } catch (e) {
-            fecha = rec.fechaSiembra;
-          }
-        }
-        return {
-          ...rec,
-          fecha: fecha || new Date().toISOString().split('T')[0]
-        } as PondRecord;
-      });
+      ].map(rec => calculatePondMetrics(rec));
       setRecords(historicalData);
     }
   }, []);
@@ -243,12 +210,30 @@ const App: React.FC = () => {
     if (!googleSheetsConfig.webAppUrl) return;
 
     try {
+      const recsToSync = (currentRecords || records).map(r => ({
+        ...r,
+        fecha: cleanDateString(r.fecha) || r.fecha,
+        fechaSiembra: cleanDateString(r.fechaSiembra) || r.fechaSiembra,
+        fechaCosecha: cleanDateString(r.fechaCosecha) || r.fechaCosecha
+      }));
+
+      const evalsToSync = (currentEvaluations || evaluations).map(e => ({
+        ...e,
+        fecha: cleanDateString(e.fecha) || e.fecha,
+        fecha_siembra: cleanDateString(e.fecha_siembra) || e.fecha_siembra
+      }));
+
+      const harvestsToSync = (currentHarvests || harvests).map(h => ({
+        ...h,
+        fecha: cleanDateString(h.fecha) || h.fecha
+      }));
+
       const payload = {
         action: 'sync_data',
         stocking: [],
-        production: currentRecords || records,
-        evaluations: currentEvaluations || evaluations,
-        harvests: currentHarvests || harvests,
+        production: recsToSync,
+        evaluations: evalsToSync,
+        harvests: harvestsToSync,
         timestamp: new Date().toISOString()
       };
 

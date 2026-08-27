@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PondRecord, GoogleSheetsConfig } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Share2, AlertCircle, RefreshCw } from 'lucide-react';
-import { formatNumber, formatDate, normalizeEstanque } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque, cleanDateString, calculateDaysBetween } from '../utils';
 
 interface ProductionProgramProps {
     records: PondRecord[];
@@ -251,9 +251,9 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                             {formatNumber(record.orgMt2 || record.camM2Inicial || (record.hectareas > 0 && record.densidadInicial > 0 ? (record.densidadInicial / (record.hectareas * 10000)) : 0))}
                                         </td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.especie}</td>
-                                        <td className="px-3 py-3 border-r border-[#125699]">{record.fecha ? String(record.fecha).split('T')[0] : ''}</td>
-                                        <td className="px-3 py-3 border-r border-[#125699]">{record.fechaCosecha ? String(record.fechaCosecha).split('T')[0] : ''}</td>
-                                        <td className="px-3 py-3 border-r border-[#125699]">{record.fechaSiembra ? String(record.fechaSiembra).split('T')[0] : ''}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fecha)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fechaCosecha)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fechaSiembra)}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.alimento}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.alimentadores}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.aditivos}</td>
@@ -263,7 +263,11 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                         <td className="px-3 py-3 border-r border-[#125699] text-blue-300">{record.pesoAnterior}</td>
                                         <td className="px-3 py-3 border-r border-[#125699] font-bold text-emerald-400">{record.pesoActual}</td>
                                         <td className="px-3 py-3 border-r border-[#125699] text-emerald-400">+{record.incrementoSemanal}</td>
-                                        <td className="px-3 py-3 border-r border-[#125699]">{record.diasCultivo}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">
+                                            {!isNaN(Number(record.diasCultivo)) && record.diasCultivo !== '' && Number(record.diasCultivo) >= 0 
+                                                ? Number(record.diasCultivo) 
+                                                : (record.fechaSiembra && record.fecha ? calculateDaysBetween(record.fechaSiembra, record.fecha) : 0)}
+                                        </td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.sobrevivencia}%</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadInicial)}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadActual)}</td>

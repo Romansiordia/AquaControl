@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { PondRecord } from '../types';
-import { formatNumber, formatDate } from '../utils';
+import { formatNumber, formatDate, cleanDateString, calculateDaysBetween } from '../utils';
 
 interface Props {
   records: PondRecord[];
@@ -45,8 +45,8 @@ const PondTable: React.FC<Props> = ({ records, onDelete, onSelectPond }) => {
               {records.map((record) => (
                 <tr key={record.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50 text-[12px]">
                   <td className="px-4 py-3 font-medium border-r border-slate-50">{record.granja}</td>
-                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-50">{record.fechaCosecha}</td>
-                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-50 font-bold text-slate-900">{record.fechaSiembra}</td>
+                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-50">{cleanDateString(record.fechaCosecha)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-50 font-bold text-slate-900">{cleanDateString(record.fechaSiembra)}</td>
                   <td className="px-4 py-3 border-r border-slate-50">{record.alimento}</td>
                   <td className="px-4 py-3 border-r border-slate-50">{record.alimentadores}</td>
                   <td className="px-4 py-3 border-r border-slate-50">{record.aditivos}</td>
@@ -62,7 +62,11 @@ const PondTable: React.FC<Props> = ({ records, onDelete, onSelectPond }) => {
                   <td className="px-4 py-3 border-r border-slate-50 font-medium text-emerald-600">
                     {record.incrementoSemanal > 0 ? `+${record.incrementoSemanal}` : record.incrementoSemanal}g
                   </td>
-                  <td className="px-4 py-3 border-r border-slate-50">{record.diasCultivo}</td>
+                  <td className="px-4 py-3 border-r border-slate-50 font-medium">
+                    {!isNaN(Number(record.diasCultivo)) && record.diasCultivo !== '' && Number(record.diasCultivo) >= 0 
+                      ? Number(record.diasCultivo) 
+                      : (record.fechaSiembra && record.fecha ? calculateDaysBetween(record.fechaSiembra, record.fecha) : 0)}
+                  </td>
                   <td className="px-4 py-3 border-r border-slate-50 font-bold text-amber-600">{record.sobrevivencia}%</td>
                   <td className="px-4 py-3 border-r border-slate-50">{formatNumber(record.densidadInicial)}</td>
                   <td className="px-4 py-3 border-r border-slate-50 font-bold">{formatNumber(record.densidadActual)}</td>

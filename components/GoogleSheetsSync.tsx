@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GoogleSheetsConfig, StockingProgramRecord, PondRecord, HarvestRecord } from '../types';
 import { Share2, Link as LinkIcon, CheckCircle2, AlertCircle, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { cleanDateString } from '../utils';
 
 interface Props {
   config: GoogleSheetsConfig;
@@ -44,12 +45,30 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
     setStatus('idle');
 
     try {
+      const sanitizedProd = (data.production || []).map(p => ({
+        ...p,
+        fecha: cleanDateString(p.fecha) || p.fecha,
+        fechaSiembra: cleanDateString(p.fechaSiembra) || p.fechaSiembra,
+        fechaCosecha: cleanDateString(p.fechaCosecha) || p.fechaCosecha
+      }));
+
+      const sanitizedEvals = (data.evaluations || []).map(e => ({
+        ...e,
+        fecha: cleanDateString(e.fecha) || e.fecha,
+        fecha_siembra: cleanDateString(e.fecha_siembra) || e.fecha_siembra
+      }));
+
+      const sanitizedHarvests = (data.harvests || []).map(h => ({
+        ...h,
+        fecha: cleanDateString(h.fecha) || h.fecha
+      }));
+
       const payload = {
         action: 'sync_data',
         stocking: data.stocking || [],
-        production: data.production,
-        evaluations: data.evaluations || [],
-        harvests: data.harvests || [],
+        production: sanitizedProd,
+        evaluations: sanitizedEvals,
+        harvests: sanitizedHarvests,
         timestamp: new Date().toISOString()
       };
 
@@ -240,10 +259,16 @@ function doGet(e) {
       if (data.length < 2) return [];
       var headers = data[0];
       var result = [];
+      var tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone() || "UTC";
       for (var i = 1; i < data.length; i++) {
         var obj = {};
         for (var j = 0; j < headers.length; j++) {
             var val = data[i][j];
+            if (val instanceof Date) {
+              val = Utilities.formatDate(val, tz, "yyyy-MM-dd");
+            } else if (typeof val === 'string' && val.indexOf('T') > -1) {
+              val = val.split('T')[0].trim();
+            }
             if (val === "SI") val = true;
             if (val === "NO") val = false;
             obj[headers[j]] = val;

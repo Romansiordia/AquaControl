@@ -1,6 +1,84 @@
 
 import { PondRecord } from './types';
 
+export const cleanDateString = (val: any): string => {
+  if (val === undefined || val === null || val === '' || val === 'Invalid Date' || val === 'null' || val === 'undefined') {
+    return '';
+  }
+  if (val instanceof Date) {
+    if (!isNaN(val.getTime())) {
+      return val.toISOString().split('T')[0];
+    }
+    return '';
+  }
+  if (typeof val === 'number') {
+    // If it's a timestamp (epoch ms)
+    if (val > 1000000000000) {
+      const d = new Date(val);
+      return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : '';
+    }
+    // If it's Excel serial number (e.g. 45000-48000)
+    if (val > 20000 && val < 70000) {
+      const base = new Date(Date.UTC(1899, 11, 30));
+      base.setUTCDate(base.getUTCDate() + Math.floor(val));
+      return base.toISOString().split('T')[0];
+    }
+  }
+  const str = String(val).trim();
+  if (!str || str === 'Invalid Date') return '';
+
+  // If format is ISO or contains T
+  if (str.includes('T')) {
+    const part = str.split('T')[0].trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
+  }
+  // If format is space separated YYYY-MM-DD HH:mm:ss
+  if (str.includes(' ')) {
+    const part = str.split(' ')[0].trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
+  }
+  // Standard YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
+    const parts = str.split(/[-/]/);
+    const y = parts[0];
+    const m = parts[1].padStart(2, '0');
+    const d = parts[2].padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  // DD/MM/YYYY or DD-MM-YYYY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
+    const parts = str.split(/[-/]/);
+    const d = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    const y = parts[2];
+    return `${y}-${m}-${d}`;
+  }
+
+  // General fallback parse
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  return '';
+};
+
+export const calculateDaysBetween = (startDateStr: any, endDateStr: any): number => {
+  const start = cleanDateString(startDateStr);
+  const end = cleanDateString(endDateStr);
+  if (!start || !end) return 0;
+
+  const p1 = start.split('-').map(Number);
+  const p2 = end.split('-').map(Number);
+  if (p1.length !== 3 || p2.length !== 3) return 0;
+  if (isNaN(p1[0]) || isNaN(p1[1]) || isNaN(p1[2]) || isNaN(p2[0]) || isNaN(p2[1]) || isNaN(p2[2])) return 0;
+
+  const utc1 = Date.UTC(p1[0], p1[1] - 1, p1[2]);
+  const utc2 = Date.UTC(p2[0], p2[1] - 1, p2[2]);
+
+  const diffDays = Math.round(Math.abs(utc2 - utc1) / (1000 * 60 * 60 * 24));
+  return isNaN(diffDays) ? 0 : diffDays;
+};
+
 export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord => {
   const pesoActual = record.pesoActual || 0;
   const pesoAnterior = record.pesoAnterior || 0;
@@ -24,47 +102,31 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   const camM2Actual = hectareas > 0 && densidadActual > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
   const orgMt2 = camM2Inicial > 0 ? camM2Inicial : (rawOrgMt2 || 0);
 
-  // Calculate days of cultivation and exact fecha if missing
-  let fecha = record.fecha;
-  let diasCultivo = record.diasCultivo || 0;
+  // Clean all dates
+  let fecha = cleanDateString(record.fecha);
+  const fechaSiembra = cleanDateString(record.fechaSiembra);
+  const fechaCosecha = cleanDateString(record.fechaCosecha);
+  let diasCultivo = 0;
 
-  // Clean invalid date strings
-  if (fecha === 'Invalid Date' || !fecha || isNaN(new Date(fecha).getTime())) {
-    fecha = undefined;
+  if (record.diasCultivo !== undefined && record.diasCultivo !== null && !isNaN(Number(record.diasCultivo)) && Number(record.diasCultivo) >= 0) {
+    diasCultivo = Number(record.diasCultivo);
   }
 
-  if (record.fechaSiembra && record.fechaSiembra !== 'Invalid Date' && !isNaN(new Date(record.fechaSiembra).getTime())) {
-    const cleanSiembra = record.fechaSiembra;
-    if (!fecha && diasCultivo) {
-      try {
-        const d = new Date(cleanSiembra + 'T12:00:00');
-        d.setDate(d.getDate() + Number(diasCultivo));
-        fecha = d.toISOString().split('T')[0];
-      } catch (e) {
-        fecha = cleanSiembra;
-      }
-    } else if (fecha) {
-      // standard YYYY-MM-DD parsing and cleanup
-      fecha = String(fecha).split('T')[0];
-    } else {
-      fecha = new Date().toISOString().split('T')[0];
-    }
-
+  if (fechaSiembra && fecha) {
+    diasCultivo = calculateDaysBetween(fechaSiembra, fecha);
+  } else if (fechaSiembra && diasCultivo > 0 && !fecha) {
     try {
-      const siembra = new Date(cleanSiembra + 'T12:00:00');
-      const hoy = new Date(fecha + 'T12:00:00');
-      
-      // Ignorar la parte del tiempo para un cálculo de días más exacto
-      const utc1 = Date.UTC(siembra.getFullYear(), siembra.getMonth(), siembra.getDate());
-      const utc2 = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-      
-      diasCultivo = Math.round(Math.abs(utc2 - utc1) / (1000 * 60 * 60 * 24));
+      const parts = fechaSiembra.split('-').map(Number);
+      const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+      d.setUTCDate(d.getUTCDate() + diasCultivo);
+      fecha = d.toISOString().split('T')[0];
     } catch (e) {
-      // fallback
+      fecha = fechaSiembra;
     }
-  } else {
-    // If we have no seed date, try fallback options
-    fecha = fecha ? String(fecha).split('T')[0] : new Date().toISOString().split('T')[0];
+  }
+
+  if (!fecha) {
+    fecha = new Date().toISOString().split('T')[0];
   }
 
   return {
@@ -73,8 +135,8 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     orgMt2: orgMt2,
     especie: record.especie || 'L. Vannamei',
     fecha: fecha,
-    fechaSiembra: record.fechaSiembra || '',
-    fechaCosecha: record.fechaCosecha || '',
+    fechaSiembra: fechaSiembra,
+    fechaCosecha: fechaCosecha,
     alimento: record.alimento || '',
     laboratorio: record.laboratorio || '',
     estanque: record.estanque || '',
@@ -82,7 +144,7 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     pesoAnterior: pesoAnterior,
     pesoActual: pesoActual,
     incrementoSemanal: incrementoSemanal,
-    diasCultivo: diasCultivo,
+    diasCultivo: isNaN(diasCultivo) ? 0 : diasCultivo,
     sobrevivencia: sobrevivencia,
     densidadInicial: densidadInicial,
     densidadActual: densidadActual,
@@ -102,23 +164,26 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
 };
 
 export const formatNumber = (num: number) => {
+  if (num === undefined || num === null || isNaN(num)) return '0';
   return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(num);
 };
 
 export const formatDate = (dateStr: string) => {
-  if (!dateStr || dateStr === 'Invalid Date' || isNaN(new Date(dateStr).getTime())) {
+  const clean = cleanDateString(dateStr);
+  if (!clean) {
     return 'S/F';
   }
   try {
-    const cleanStr = dateStr.split('T')[0];
-    const d = new Date(cleanStr + 'T12:00:00');
+    const parts = clean.split('-').map(Number);
+    const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
     return d.toLocaleDateString('es-MX', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'UTC'
     });
   } catch (e) {
-    return 'S/F';
+    return clean;
   }
 };
 
