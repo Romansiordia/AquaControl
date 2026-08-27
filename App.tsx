@@ -938,7 +938,7 @@ const App: React.FC = () => {
           {activeView === 'estadisticas' && (
              <div className="space-y-8">
                 <FilterPanel filters={filters} onFilterChange={setFilters} uniqueAlimentos={uniqueAlimentos} uniqueLaboratorios={uniqueLaboratorios} uniqueEstanques={uniqueEstanques} uniqueGranjas={uniqueGranjas} />
-                <EstadisticasView records={filteredRecords} />
+                <EstadisticasView records={filteredRecords} allRecords={filteredRawRecords} />
              </div>
           )}
 

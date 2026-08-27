@@ -5,9 +5,11 @@ import StatisticsTable from './StatisticsTable';
 
 interface Props {
   records: PondRecord[];
+  allRecords?: PondRecord[];
 }
 
-const EstadisticasView: React.FC<Props> = ({ records }) => {
+const EstadisticasView: React.FC<Props> = ({ records, allRecords }) => {
+  const datasetForStats = allRecords && allRecords.length > 0 ? allRecords : records;
   const stats = useMemo(() => {
     if (records.length === 0) return null;
 
@@ -132,7 +134,7 @@ const EstadisticasView: React.FC<Props> = ({ records }) => {
         </div>
       </div>
       
-      <StatisticsTable records={records} />
+      <StatisticsTable records={datasetForStats} />
     </div>
   );
 };
