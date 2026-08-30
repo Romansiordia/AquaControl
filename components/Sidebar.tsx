@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-type View = 'dashboard' | 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync' | 'harvests';
+type View = 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync' | 'harvests';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -29,9 +29,10 @@ interface Props {
   onNavigate: (view: View) => void;
   onExportPDF: () => void;
   isExporting: boolean;
+  onLocalFileUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExporting }) => {
+const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExporting, onLocalFileUpload }) => {
   return (
     <aside className="w-64 bg-[#072C52] text-white flex flex-col p-4 border-r border-[#125699]">
       <div className="flex items-center gap-4 px-2 py-4 mb-8">
@@ -157,16 +158,6 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
         <NavItem
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-          }
-          label="Dashboard"
-          isActive={activeView === 'dashboard'}
-          onClick={() => onNavigate('dashboard')}
-        />
-        <NavItem
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           }
@@ -186,9 +177,9 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
         />
         <button 
           onClick={onExportPDF} 
-          disabled={isExporting || activeView !== 'dashboard'}
+          disabled={isExporting || activeView !== 'estadisticas'}
           className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-slate-400 hover:bg-slate-700 hover:text-white disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed"
-          title={activeView !== 'dashboard' ? 'Disponible solo en el Dashboard' : 'Exportar Reporte a PDF'}
+          title={activeView !== 'estadisticas' ? 'Disponible solo en Análisis Estadístico' : 'Exportar Reporte a PDF'}
         >
           {isExporting ? (
             <>
@@ -202,6 +193,28 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
             </>
           )}
         </button>
+
+        <label 
+          className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-yellow-400 hover:bg-slate-700 cursor-pointer mt-4 border border-dashed border-yellow-700/50"
+          title="Cargar datos de forma local desde un archivo Excel o CSV (Modo Solo Lectura)"
+        >
+          <input 
+            type="file" 
+            accept=".xlsx, .xls, .csv" 
+            className="hidden" 
+            onChange={(e) => {
+              if (onLocalFileUpload) {
+                onLocalFileUpload(e);
+              } else if (window.handleLocalFileUpload) {
+                window.handleLocalFileUpload(e);
+              }
+            }} 
+          />
+          <svg className="w-5 h-5 mr-3 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <span>Cargar Datos Locales</span>
+        </label>
       </nav>
     </aside>
   );

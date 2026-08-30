@@ -38,6 +38,8 @@ const PondTable: React.FC<Props> = ({ records, onDelete, onSelectPond }) => {
                 <th className="px-4 py-3 border-r border-slate-200">FCA</th>
                 <th className="px-4 py-3 border-r border-slate-200">Cam/m2 I</th>
                 <th className="px-4 py-3 border-r border-slate-200">Cam/m2 A</th>
+                <th className="px-4 py-3 border-r border-slate-200">Proy.Día(kg)</th>
+                <th className="px-4 py-3 border-r border-slate-200">Proy.Sem(kg)</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
@@ -76,6 +78,8 @@ const PondTable: React.FC<Props> = ({ records, onDelete, onSelectPond }) => {
                   <td className="px-4 py-3 border-r border-slate-50 font-bold text-rose-600">{record.fca}</td>
                   <td className="px-4 py-3 border-r border-slate-50">{record.camM2Inicial}</td>
                   <td className="px-4 py-3 border-r border-slate-50 font-bold">{record.camM2Actual}</td>
+                  <td className="px-4 py-3 border-r border-slate-50 font-bold text-indigo-600">{formatNumber(record.alimentoProyectadoDia || 0)}</td>
+                  <td className="px-4 py-3 border-r border-slate-50 font-bold text-indigo-600">{formatNumber(record.alimentoProyectadoSemana || 0)}</td>
                   <td className="px-4 py-3 text-right">
                   <button 
                     onClick={() => onDelete(record.id)}

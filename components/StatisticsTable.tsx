@@ -23,6 +23,8 @@ const StatisticsTable: React.FC<Props> = ({ records }) => {
     { label: 'Biomasa Total', key: 'biomasaTotal', unit: 'kg' },
     { label: 'FCA', key: 'fca', unit: '' },
     { label: 'Densidad Actual', key: 'densidadActual', unit: 'ind' },
+    { label: 'Alimento Proy. Diario', key: 'alimentoProyectadoDia', unit: 'kg' },
+    { label: 'Alimento Proy. Semanal', key: 'alimentoProyectadoSemana', unit: 'kg' },
   ];
 
   const calculateStats = (key: keyof PondRecord) => {

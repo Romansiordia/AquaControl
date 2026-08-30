@@ -1,0 +1,44 @@
+--- components/EstadisticasView.tsx
++++ components/EstadisticasView.tsx
+@@ -1,13 +1,38 @@
+-import React, { useMemo } from 'react';
++import React, { useMemo, useState } from 'react';
+ import { PondRecord } from '../types';
+ import { formatNumber } from '../utils';
+ import StatisticsTable from './StatisticsTable';
++import {
++  BarChart,
++  Bar,
++  XAxis,
++  YAxis,
++  CartesianGrid,
++  Tooltip,
++  ResponsiveContainer,
++  Cell,
++  LineChart,
++  Line
++} from 'recharts';
+ 
+ interface Props {
+   records: PondRecord[];
+   allRecords?: PondRecord[];
++  chartData?: any[];
++  historicalChartData?: any[];
++  harvestChartData?: any[];
++  uniqueEstanquesInHistory?: string[];
++  lineColors?: string[];
+ }
+ 
+-const EstadisticasView: React.FC<Props> = ({ records, allRecords }) => {
++const EstadisticasView: React.FC<Props> = ({ 
++  records, 
++  allRecords,
++  chartData = [],
++  historicalChartData = [],
++  harvestChartData = [],
++  uniqueEstanquesInHistory = [],
++  lineColors = ['#3b82f6', '#10b981', '#fb923c', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#eab308']
++}) => {
++  const [chartView, setChartView] = useState<'actual' | 'tendencia' | 'cosechas'>('actual');
+   const datasetForStats = allRecords && allRecords.length > 0 ? allRecords : records;
+   const stats = useMemo(() => {

@@ -79,6 +79,34 @@ export const calculateDaysBetween = (startDateStr: any, endDateStr: any): number
   return isNaN(diffDays) ? 0 : diffDays;
 };
 
+// Based on standard %BW table for L. Vannamei
+export const getFeedingRatePercentage = (peso: number): number => {
+  if (peso <= 0.1) return 15.0;
+  if (peso <= 1.0) return 6.0 + ((1.0 - peso) / 0.9) * (15.0 - 6.0);
+  if (peso <= 2.0) return 5.5 + ((2.0 - peso) / 1.0) * (6.0 - 5.5);
+  if (peso <= 3.0) return 5.0 + ((3.0 - peso) / 1.0) * (5.5 - 5.0);
+  if (peso <= 4.0) return 4.5 + ((4.0 - peso) / 1.0) * (5.0 - 4.5);
+  if (peso <= 5.0) return 4.3 + ((5.0 - peso) / 1.0) * (4.5 - 4.3);
+  if (peso <= 6.0) return 4.0 + ((6.0 - peso) / 1.0) * (4.3 - 4.0);
+  if (peso <= 7.0) return 3.8 + ((7.0 - peso) / 1.0) * (4.0 - 3.8);
+  if (peso <= 8.0) return 3.5 + ((8.0 - peso) / 1.0) * (3.8 - 3.5);
+  if (peso <= 9.0) return 3.2 + ((9.0 - peso) / 1.0) * (3.5 - 3.2);
+  if (peso <= 10.0) return 3.0 + ((10.0 - peso) / 1.0) * (3.2 - 3.0);
+  if (peso <= 11.0) return 2.8 + ((11.0 - peso) / 1.0) * (3.0 - 2.8);
+  if (peso <= 12.0) return 2.7 + ((12.0 - peso) / 1.0) * (2.8 - 2.7);
+  if (peso <= 13.0) return 2.6 + ((13.0 - peso) / 1.0) * (2.7 - 2.6);
+  if (peso <= 14.0) return 2.5 + ((14.0 - peso) / 1.0) * (2.6 - 2.5);
+  if (peso <= 15.0) return 2.4 + ((15.0 - peso) / 1.0) * (2.5 - 2.4);
+  if (peso <= 16.0) return 2.3 + ((16.0 - peso) / 1.0) * (2.4 - 2.3);
+  if (peso <= 17.0) return 2.2 + ((17.0 - peso) / 1.0) * (2.3 - 2.2);
+  if (peso <= 18.0) return 2.1 + ((18.0 - peso) / 1.0) * (2.2 - 2.1);
+  if (peso <= 19.0) return 2.0 + ((19.0 - peso) / 1.0) * (2.1 - 2.0);
+  if (peso <= 20.0) return 2.0;
+  if (peso <= 25.0) return 1.8 + ((25.0 - peso) / 5.0) * (2.0 - 1.8);
+  if (peso <= 30.0) return 1.6 + ((30.0 - peso) / 5.0) * (1.8 - 1.6);
+  return 1.5; // Default for > 30g
+};
+
 export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord => {
   const pesoActual = record.pesoActual || 0;
   const pesoAnterior = record.pesoAnterior || 0;
@@ -101,6 +129,15 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   const camM2Inicial = hectareas > 0 && densidadInicial > 0 ? parseFloat((densidadInicial / (hectareas * 10000)).toFixed(2)) : (rawOrgMt2 || 0);
   const camM2Actual = hectareas > 0 && densidadActual > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
   const orgMt2 = camM2Inicial > 0 ? camM2Inicial : (rawOrgMt2 || 0);
+
+  // Feeding Projection based on %BW table interpolation
+  let alimentoProyectadoDia = 0;
+  let alimentoProyectadoSemana = 0;
+  if (biomasaTotal > 0 && pesoActual > 0) {
+    const bwPercentage = getFeedingRatePercentage(pesoActual);
+    alimentoProyectadoDia = parseFloat(((biomasaTotal * bwPercentage) / 100).toFixed(2));
+    alimentoProyectadoSemana = parseFloat((alimentoProyectadoDia * 7).toFixed(2));
+  }
 
   // Clean all dates
   let fecha = cleanDateString(record.fecha);
@@ -158,8 +195,8 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     organismosSembrados: record.organismosSembrados || densidadInicial,
     alimentadores: record.alimentadores || '',
     aditivos: record.aditivos || '',
-    alimentoProyectadoDia: record.alimentoProyectadoDia || 0,
-    alimentoProyectadoSemana: record.alimentoProyectadoSemana || 0
+    alimentoProyectadoDia: alimentoProyectadoDia,
+    alimentoProyectadoSemana: alimentoProyectadoSemana
   };
 };
 

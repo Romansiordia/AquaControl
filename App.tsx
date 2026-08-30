@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, HarvestRecord } from './types';
 import { INITIAL_DATA } from './constants';
 import { calculatePondMetrics, formatNumber, normalizeEstanque, cleanDateString } from './utils';
-import DashboardStats from './components/DashboardStats';
 import PondForm from './components/PondForm';
 import FilterPanel, { FilterState } from './components/FilterPanel';
 import StatisticsTable from './components/StatisticsTable';
@@ -32,10 +31,10 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
 
-type View = 'dashboard' | 'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests';
+type View = 'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests';
 
 const App: React.FC = () => {
-  const [records, setRecords] = useState<PondRecord[]>(() => {
+  const [actualRecords, setRecords] = useState<PondRecord[]>(() => {
     const saved = localStorage.getItem('camaronera_records');
     if (saved) {
       try {
@@ -54,8 +53,7 @@ const App: React.FC = () => {
   const [editingEvaluation, setEditingEvaluation] = useState<EvaluationRecord | null>(null);
   const [selectedPond, setSelectedPond] = useState<number | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [chartView, setChartView] = useState<'actual' | 'tendencia' | 'cosechas'>('actual');
-  const [activeView, setActiveView] = useState<View>('dashboard');
+    const [activeView, setActiveView] = useState<'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests'>('estadisticas');
   const [filters, setFilters] = useState<FilterState>({
     fechaDesde: '',
     fechaHasta: '',
@@ -64,14 +62,24 @@ const App: React.FC = () => {
     estanque: '',
     granja: ''
   });
-  const [evaluations, setEvaluations] = useState<EvaluationRecord[]>(() => {
+  const [actualEvaluations, setEvaluations] = useState<EvaluationRecord[]>(() => {
     const saved = localStorage.getItem('camaronera_evaluations');
     return saved ? JSON.parse(saved) : [];
   });
-  const [harvests, setHarvests] = useState<HarvestRecord[]>(() => {
+  const [actualHarvests, setHarvests] = useState<HarvestRecord[]>(() => {
     const saved = localStorage.getItem('camaronera_harvests');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [isLocalMode, setIsLocalMode] = useState(false);
+  const [localRecords, setLocalRecords] = useState<PondRecord[]>([]);
+  const [localEvaluations, setLocalEvaluations] = useState<EvaluationRecord[]>([]);
+  const [localHarvests, setLocalHarvests] = useState<HarvestRecord[]>([]);
+
+  const records = isLocalMode ? localRecords : actualRecords;
+  const evaluations = isLocalMode ? localEvaluations : actualEvaluations;
+  const harvests = isLocalMode ? localHarvests : actualHarvests;
+
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState<GoogleSheetsConfig>(() => {
     const saved = localStorage.getItem('camaronera_sheet_config');
     return saved ? JSON.parse(saved) : {
@@ -80,7 +88,41 @@ const App: React.FC = () => {
     };
   });
 
-  const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[], harvests?: HarvestRecord[] }) => {
+  const handleLocalFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+
+        const prodName = workbook.SheetNames.find(n => n.toLowerCase().includes('produccion') || n.toLowerCase().includes('producción'));
+        const evalsName = workbook.SheetNames.find(n => n.toLowerCase().includes('evaluacion') || n.toLowerCase().includes('evaluación'));
+        const harvestsName = workbook.SheetNames.find(n => n.toLowerCase().includes('cosechas'));
+
+        const importedProduction = prodName ? XLSX.utils.sheet_to_json<PondRecord>(workbook.Sheets[prodName], { raw: false }) : undefined;
+        const importedEvaluations = evalsName ? XLSX.utils.sheet_to_json<EvaluationRecord>(workbook.Sheets[evalsName], { raw: false }) : undefined;
+        const importedHarvests = harvestsName ? XLSX.utils.sheet_to_json<HarvestRecord>(workbook.Sheets[harvestsName], { raw: false }) : undefined;
+
+        handleImportData({
+          production: importedProduction,
+          evaluations: importedEvaluations,
+          harvests: importedHarvests
+        }, true);
+        
+        setIsLocalMode(true);
+      } catch (error) {
+        console.error("Error parsing Excel file", error);
+        alert("Hubo un error al leer el archivo. Asegúrate de que sea el formato correcto.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ''; // Reset input
+  };
+
+  const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[], harvests?: HarvestRecord[] }, isLocal = false) => {
     const fixNumberFromDate = (val: any) => {
       if (typeof val === 'number') return val;
       if (typeof val === 'string') {
@@ -126,7 +168,11 @@ const App: React.FC = () => {
         };
         return calculatePondMetrics(cleaned);
       });
-      setRecords(fixedProd);
+      if (isLocal) {
+        setLocalRecords(fixedProd);
+      } else {
+        setRecords(fixedProd);
+      }
     }
     if (importedData.evaluations && importedData.evaluations.length > 0) {
       const fixedEvals = importedData.evaluations.map(ev => ({
@@ -134,7 +180,11 @@ const App: React.FC = () => {
         fecha: cleanDateString(ev.fecha) || ev.fecha,
         fecha_siembra: cleanDateString(ev.fecha_siembra) || ev.fecha_siembra
       }));
-      setEvaluations(fixedEvals);
+      if (isLocal) {
+        setLocalEvaluations(fixedEvals);
+      } else {
+        setEvaluations(fixedEvals);
+      }
     }
     if (importedData.harvests && importedData.harvests.length > 0) {
       const fixedHarvests = importedData.harvests.map(h => ({
@@ -161,7 +211,11 @@ const App: React.FC = () => {
         totalOrganismos: fixNumberFromDate(h.totalOrganismos) || 0,
         totalKilos: fixNumberFromDate(h.totalKilos) || 0,
       }));
-      setHarvests(fixedHarvests);
+      if (isLocal) {
+        setLocalHarvests(fixedHarvests);
+      } else {
+        setHarvests(fixedHarvests);
+      }
     }
   };
 
@@ -171,20 +225,20 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('camaronera_records', JSON.stringify(records));
-  }, [records]);
+    localStorage.setItem('camaronera_records', JSON.stringify(actualRecords));
+  }, [actualRecords]);
 
   useEffect(() => {
-    localStorage.setItem('camaronera_evaluations', JSON.stringify(evaluations));
-  }, [evaluations]);
+    localStorage.setItem('camaronera_evaluations', JSON.stringify(actualEvaluations));
+  }, [actualEvaluations]);
 
   useEffect(() => {
-    localStorage.setItem('camaronera_harvests', JSON.stringify(harvests));
-  }, [harvests]);
+    localStorage.setItem('camaronera_harvests', JSON.stringify(actualHarvests));
+  }, [actualHarvests]);
 
   useEffect(() => {
     // Only load initial data if the records list is empty
-    if (records.length === 0) {
+    if (actualRecords.length === 0) {
       const historicalData = [
         ...INITIAL_DATA,
         { ...INITIAL_DATA[0], id: '1a', diasCultivo: 47, pesoAnterior: 3.1, pesoActual: 4.29, incrementoSemanal: 1.19, fca: 0.65 },
@@ -250,7 +304,16 @@ const App: React.FC = () => {
     }
   };
 
+  const checkLocalModeBlock = () => {
+    if (isLocalMode) {
+      alert("Operación bloqueada. Estás en Modo Local de solo lectura. Recarga la página para salir del modo local.");
+      return true;
+    }
+    return false;
+  };
+
   const handleAddHarvest = (newHarvest: HarvestRecord) => {
+    if (checkLocalModeBlock()) return;
     let updatedHarvests: HarvestRecord[];
     if (harvests.some(h => h.id === newHarvest.id)) {
       updatedHarvests = harvests.map(h => h.id === newHarvest.id ? newHarvest : h);
@@ -262,18 +325,21 @@ const App: React.FC = () => {
   };
 
   const handleEditHarvest = (editedHarvest: HarvestRecord) => {
+    if (checkLocalModeBlock()) return;
     const updatedHarvests = harvests.map(h => h.id === editedHarvest.id ? editedHarvest : h);
     setHarvests(updatedHarvests);
     syncDataToSheets(records, evaluations, updatedHarvests);
   };
 
   const handleDeleteHarvest = (id: string) => {
+    if (checkLocalModeBlock()) return;
     const updatedHarvests = harvests.filter(h => h.id !== id);
     setHarvests(updatedHarvests);
     syncDataToSheets(records, evaluations, updatedHarvests);
   };
 
   const handleAddRecord = (newRecord: Partial<PondRecord>) => {
+    if (checkLocalModeBlock()) return;
     const calculated = calculatePondMetrics(newRecord);
     
     let updatedRecords: PondRecord[];
@@ -290,12 +356,14 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecord = (id: string) => {
+    if (checkLocalModeBlock()) return;
     const updatedRecords = records.filter(r => r.id !== id);
     setRecords(updatedRecords);
     syncDataToSheets(updatedRecords, evaluations, harvests);
   };
 
   const handleSaveEvaluation = (formData: EvaluationFormData) => {
+    if (checkLocalModeBlock()) return;
     let updatedEvaluations: EvaluationRecord[];
     
     if (editingEvaluation) {
@@ -322,6 +390,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteEvaluation = (id: string) => {
+    if (checkLocalModeBlock()) return;
     const updatedEvaluations = evaluations.filter(e => e.id !== id);
     setEvaluations(updatedEvaluations);
     syncDataToSheets(records, updatedEvaluations, harvests);
@@ -424,10 +493,24 @@ const App: React.FC = () => {
     // Title
     doc.setFontSize(20);
     doc.text('Reporte de Producción - AquaControl', 14, yPos);
+    
+    yPos += 8;
+    
+    const identityText = [];
+    if (filters.granja) identityText.push(`Granja: ${filters.granja}`);
+    if (filters.estanque) identityText.push(`Estanque: ${filters.estanque}`);
+    
+    if (identityText.length > 0) {
+      doc.setFontSize(14);
+      doc.setTextColor(11, 64, 117); // Match brand dark blue #0B4075
+      doc.text(identityText.join(' | '), 14, yPos);
+      yPos += 8;
+    }
+
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Generado el: ${today}`, 14, yPos + 8);
-    yPos += 20;
+    doc.text(`Generado el: ${today}`, 14, yPos);
+    yPos += 14;
 
     // Dashboard Stats
     const statsEl = document.getElementById('dashboard-stats');
@@ -453,7 +536,7 @@ const App: React.FC = () => {
       yPos += pdfHeight + 10;
     }
 
-    // Statistics Table built from filteredRecords
+    // Statistics Table built from filteredRawRecords
     const statKeys = [
       { label: 'Peso Actual', key: 'pesoActual', unit: 'g' },
       { label: 'Incremento Semanal', key: 'incrementoSemanal', unit: 'g' },
@@ -461,10 +544,12 @@ const App: React.FC = () => {
       { label: 'Biomasa Total', key: 'biomasaTotal', unit: 'kg' },
       { label: 'FCA', key: 'fca', unit: '' },
       { label: 'Densidad Actual', key: 'densidadActual', unit: 'ind' },
+      { label: 'Alimento Proy. Diario', key: 'alimentoProyectadoDia', unit: 'kg' },
+      { label: 'Alimento Proy. Semanal', key: 'alimentoProyectadoSemana', unit: 'kg' },
     ];
     
     const calculateStats = (key: string) => {
-      const values = filteredRecords.map(r => r[key as keyof PondRecord] as number).filter(v => typeof v === 'number');
+      const values = filteredRawRecords.map(r => Number(r[key as keyof PondRecord])).filter(v => typeof v === 'number' && !isNaN(v));
       if (values.length === 0) return { avg: 0, max: 0, min: 0, std: 0 };
       const sum = values.reduce((a, b) => a + b, 0);
       const avg = sum / values.length;
@@ -490,8 +575,8 @@ const App: React.FC = () => {
 
     yPos = ((doc as any).lastAutoTable?.finalY || yPos) + 10;
 
-    // Pond Records Table built from filteredRecords
-    const pondBody = filteredRecords.map(record => [
+    // Pond Records Table built from filteredRawRecords
+    const pondBody = filteredRawRecords.map(record => [
       record.granja?.toString() || '',
       record.estanque?.toString() || '',
       (record.pesoActual || 0).toString() + 'g',
@@ -500,12 +585,13 @@ const App: React.FC = () => {
       (record.sobrevivencia || 0).toString() + '%',
       formatNumber(record.densidadActual || 0),
       formatNumber(record.biomasaTotal || 0),
-      (record.fca || 0).toString()
+      (record.fca || 0).toString(),
+      formatNumber(record.alimentoProyectadoDia || 0) + ' kg'
     ]);
 
     autoTable(doc, {
       startY: yPos,
-      head: [['Granja', 'Est.', 'P.Act', 'Inc.S', 'Días', '% Sobr', 'Dens.A', 'Bio.Tot', 'FCA']],
+      head: [['Granja', 'Est.', 'P.Act', 'Inc.S', 'Días', '% Sobr', 'Dens.A', 'Bio.Tot', 'FCA', 'Proy.Dia']],
       body: pondBody,
       headStyles: { fillColor: '#475569' }
     });
@@ -554,7 +640,8 @@ const App: React.FC = () => {
   const filteredRecords = useMemo(() => {
     const latest = new Map<string, PondRecord>();
     filteredRawRecords.forEach(record => {
-      const key = `${record.granja}-${normalizeEstanque(record.estanque)}`;
+      const normalizedGranja = String(record.granja || '').trim().toLowerCase();
+      const key = `${normalizedGranja}-${normalizeEstanque(record.estanque)}`;
       const current = latest.get(key);
       const rDate = cleanDateString(record.fecha) || cleanDateString(record.fechaSiembra);
       const cDate = current ? (cleanDateString(current.fecha) || cleanDateString(current.fechaSiembra)) : '';
@@ -686,16 +773,22 @@ const App: React.FC = () => {
         }}
         onExportPDF={handleExportPDF}
         isExporting={isExporting}
+        onLocalFileUpload={handleLocalFileUpload}
       />
 
       <div className="flex-1 flex flex-col w-full">
+        {isLocalMode && (
+          <div className="bg-yellow-500 text-yellow-900 px-4 py-2 text-center text-sm font-bold shadow-md relative z-50">
+            ⚠️ Modo Local: Viendo datos de archivo. Los cambios y la sincronización con Google Sheets están deshabilitados. Recarga la página para volver.
+          </div>
+        )}
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".xlsx, .csv" />
         <nav className="bg-[#093661] border-b border-[#125699] sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
               <div className="flex items-center gap-2">
                  <h1 className="text-xl font-bold text-white">
-                    {activeView === 'dashboard' && 'Dashboard de Producción'}
+                    
                     {activeView === 'estadisticas' && 'Análisis Estadístico'}
                     {activeView === 'farmEvaluation' && 'Evaluación Técnica de Granja'}
                     {activeView === 'evaluationsList' && 'Historial de Evaluaciones'}
@@ -704,23 +797,19 @@ const App: React.FC = () => {
                  </h1>
               </div>
               <div className="flex items-center gap-4">
-                {activeView === 'dashboard' && (
+                {activeView === 'estadisticas' && (
                   <>
                     <button 
                       onClick={handleExportPDF} 
                       disabled={isExporting}
-                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all"
+                      className="bg-[#0B4075] border border-[#125699] hover:bg-indigo-600 hover:border-indigo-500 hover:text-white disabled:opacity-50 text-blue-200 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-sm"
                     >
                       {isExporting ? (
-                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <svg className="animate-spin h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                       ) : (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                       )}
                       <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar a PDF'}</span>
-                    </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="bg-[#0B4075] border border-[#1B66B0] hover:bg-[#0F4C8A] text-blue-100 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                      <span className="hidden sm:inline">Cargar Archivo</span>
                     </button>
                   </>
                 )}
@@ -730,215 +819,19 @@ const App: React.FC = () => {
         </nav>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8 w-full">
-          {activeView === 'dashboard' && (
-            <>
-              <FilterPanel filters={filters} onFilterChange={setFilters} uniqueAlimentos={uniqueAlimentos} uniqueLaboratorios={uniqueLaboratorios} uniqueEstanques={uniqueEstanques} uniqueGranjas={uniqueGranjas} />
-              <div id="dashboard-stats"><DashboardStats records={filteredRecords} /></div>
-              
-              <div className="flex flex-col items-start gap-3 mb-4 mt-8">
-                <h2 className="text-lg font-bold text-white">
-                  {chartView === 'cosechas' ? 'Gráficos de Cosechas' : 'Gráficos de Producción'}
-                </h2>
-                <div className="flex bg-[#0B4075] rounded-lg p-1 border border-[#125699]">
-                  <button onClick={() => setChartView('actual')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${chartView === 'actual' ? 'bg-indigo-600 text-white' : 'text-blue-200 hover:text-white'}`}>Último por Estanque</button>
-                  <button onClick={() => setChartView('tendencia')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${chartView === 'tendencia' ? 'bg-indigo-600 text-white' : 'text-blue-200 hover:text-white'}`}>Tendencia Histórica</button>
-                  <button onClick={() => setChartView('cosechas')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${chartView === 'cosechas' ? 'bg-indigo-600 text-white' : 'text-blue-200 hover:text-white'}`}>Ciclo de Cosechas</button>
-                </div>
-              </div>
-
-              <div id="charts-container" className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Peso Actual */}
-                <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
-                  {chartView === 'cosechas' ? (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-blue-500">⚖️</span> Kilos Totales Cosechados (kg)</h2>
-                      <div className="flex-1 min-h-0">
-                        {harvestChartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={harvestChartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                              <Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} kg`, 'Kilos Totales']} />
-                              <Bar dataKey="totalKilos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos de cosechas para graficar</div>}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-blue-500">⚖️</span> Peso Actual (g)</h2>
-                      <div className="flex-1 min-h-0">
-                        {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            {chartView === 'actual' ? (
-                              <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} g`, 'Peso']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="pesoActual" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.pesoActual > 6 ? '#2563eb' : '#3b82f6'} />))}</Bar></BarChart>
-                            ) : (
-                              <LineChart data={historicalChartData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                                <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`${formatNumber(value)} g`, name.replace('_peso', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
-                                {uniqueEstanquesInHistory.map((est, idx) => (
-                                   <Line key={est} type="monotone" dataKey={`${est}_peso`} name={`${est}_peso`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
-                                ))}
-                              </LineChart>
-                            )}
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
-                      </div>
-                    </>
-                  )}
-                </div>
-                
-                {/* Incremento Semanal */}
-                <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
-                  {chartView === 'cosechas' ? (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-emerald-500">🔢</span> Organismos Cosechados Totales</h2>
-                      <div className="flex-1 min-h-0">
-                        {harvestChartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={harvestChartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                              <Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} org`, 'Organismos']} />
-                              <Bar dataKey="totalOrganismos" fill="#10b981" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos de cosechas para graficar</div>}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-indigo-500">📈</span> Incremento Semanal (g)</h2>
-                      <div className="flex-1 min-h-0">
-                        {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                             {chartView === 'actual' ? (
-                               <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`+${formatNumber(value)} g`, 'Incremento']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="incrementoSemanal" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-inc-${index}`} fill={entry.incrementoSemanal > 1.2 ? '#6366f1' : '#818cf8'} />))}</Bar></BarChart>
-                             ) : (
-                               <LineChart data={historicalChartData}>
-                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                                 <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`+${formatNumber(value)} g`, name.replace('_inc', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
-                                 {uniqueEstanquesInHistory.map((est, idx) => (
-                                    <Line key={est} type="monotone" dataKey={`${est}_inc`} name={`${est}_inc`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
-                                 ))}
-                               </LineChart>
-                             )}
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Supervivencia */}
-                <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
-                  {chartView === 'cosechas' ? (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-indigo-500">📊</span> Desglose de Kilos por Etapa (kg)</h2>
-                      <div className="flex-1 min-h-0">
-                        {harvestChartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={harvestChartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                              <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} kg`, '']} />
-                              <Bar dataKey="pre1Kilos" stackId="a" name="1ra Pre-Cosecha" fill="#60a5fa" />
-                              <Bar dataKey="pre2Kilos" stackId="a" name="2da Pre-Cosecha" fill="#34d399" />
-                              <Bar dataKey="finalKilos" stackId="a" name="Cosecha Final" fill="#f97316" />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos de cosechas para graficar</div>}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-emerald-500">🛡️</span> Supervivencia (%)</h2>
-                      <div className="flex-1 min-h-0">
-                        {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            {chartView === 'actual' ? (
-                              <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)}%`, 'Supervivencia']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="sobrevivencia" radius={[4, 4, 0, 0]}>{chartData.map((entry, index) => (<Cell key={`cell-surv-${index}`} fill={entry.sobrevivencia > 75 ? '#10b981' : entry.sobrevivencia > 50 ? '#f59e0b' : '#ef4444'} />))}</Bar></BarChart>
-                            ) : (
-                              <LineChart data={historicalChartData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                                <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`${formatNumber(value)}%`, name.replace('_surv', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
-                                {uniqueEstanquesInHistory.map((est, idx) => (
-                                   <Line key={est} type="monotone" dataKey={`${est}_surv`} name={`${est}_surv`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
-                                ))}
-                              </LineChart>
-                            )}
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Biomasa Total */}
-                <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[320px]">
-                  {chartView === 'cosechas' ? (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-orange-400">🦐</span> Tallas Promedio por Etapa (g)</h2>
-                      <div className="flex-1 min-h-0">
-                        {harvestChartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={harvestChartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                              <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} g`, '']} />
-                              <Bar dataKey="pre1Gramos" name="1ra Pre-Cosecha (g)" fill="#818cf8" radius={[2, 2, 0, 0]} />
-                              <Bar dataKey="pre2Gramos" name="2da Pre-Cosecha (g)" fill="#a78bfa" radius={[2, 2, 0, 0]} />
-                              <Bar dataKey="finalGramos" name="Cosecha Final (g)" fill="#f43f5e" radius={[2, 2, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos de cosechas para graficar</div>}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><span className="text-orange-400">🦐</span> Biomasa Total (kg)</h2>
-                      <div className="flex-1 min-h-0">
-                        {(chartView === 'actual' ? chartData.length : historicalChartData.length) > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                             {chartView === 'actual' ? (
-                               <BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" /><XAxis dataKey="estanque" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} label={{ value: 'Estanque', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#0F4C8A'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number) => [`${formatNumber(value)} kg`, 'Biomasa']} labelFormatter={(label) => `Estanque ${label}`} /><Bar dataKey="biomasaTotal" radius={[4, 4, 0, 0]} fill="#fb923c" /></BarChart>
-                             ) : (
-                               <LineChart data={historicalChartData}>
-                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                                 <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
-                                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: '#093661', color: '#fff' }} formatter={(value: number, name: string) => [`${formatNumber(value)} kg`, name.replace('_biomasa', '')]} labelFormatter={(label) => `Fecha: ${label}`} />
-                                 {uniqueEstanquesInHistory.map((est, idx) => (
-                                    <Line key={est} type="monotone" dataKey={`${est}_biomasa`} name={`${est}_biomasa`} stroke={lineColors[idx % lineColors.length]} strokeWidth={2} dot={{ fill: lineColors[idx % lineColors.length], strokeWidth: 2 }} activeDot={{ r: 6 }} connectNulls />
-                                 ))}
-                               </LineChart>
-                             )}
-                          </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">Sin datos para graficar</div>}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-              </div>
-            </>
-          )}
 
           {activeView === 'estadisticas' && (
              <div className="space-y-8">
                 <FilterPanel filters={filters} onFilterChange={setFilters} uniqueAlimentos={uniqueAlimentos} uniqueLaboratorios={uniqueLaboratorios} uniqueEstanques={uniqueEstanques} uniqueGranjas={uniqueGranjas} />
-                <EstadisticasView records={filteredRecords} allRecords={filteredRawRecords} />
+                <EstadisticasView 
+                  records={filteredRecords} 
+                  allRecords={filteredRawRecords} 
+                  chartData={chartData}
+                  historicalChartData={historicalChartData}
+                  harvestChartData={harvestChartData}
+                  uniqueEstanquesInHistory={uniqueEstanquesInHistory}
+                  lineColors={lineColors}
+                />
              </div>
           )}
 
@@ -967,8 +860,8 @@ const App: React.FC = () => {
           {activeView === 'googleSync' && (
             <GoogleSheetsSync 
               config={googleSheetsConfig} 
-              onUpdateConfig={setGoogleSheetsConfig}
-              onImportData={handleImportData}
+              onUpdateConfig={isLocalMode ? () => alert("Estás en modo local. Configuración bloqueada.") : setGoogleSheetsConfig}
+              onImportData={isLocalMode ? () => alert("Estás en modo local. Sincronización bloqueada.") : handleImportData}
               data={{
                   production: records,
                   evaluations: evaluations,
