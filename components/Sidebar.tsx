@@ -205,8 +205,8 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
             onChange={(e) => {
               if (onLocalFileUpload) {
                 onLocalFileUpload(e);
-              } else if (window.handleLocalFileUpload) {
-                window.handleLocalFileUpload(e);
+              } else if ((window as any).handleLocalFileUpload) {
+                (window as any).handleLocalFileUpload(e);
               }
             }} 
           />

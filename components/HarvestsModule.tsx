@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles } from 'lucide-react';
 import { formatNumber, formatDate, normalizeEstanque } from '../utils';
+import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell } from 'recharts';
 
 interface HarvestsModuleProps {
   records: PondRecord[];
@@ -238,6 +239,27 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       return normHestanque === normFilterEstanque;
     });
   }, [harvests, granjaFilter, estanqueFilter]);
+
+  const [chartView, setChartView] = useState<'kilos' | 'organismos' | 'etapas' | 'tallas'>('kilos');
+
+  const harvestChartData = useMemo(() => {
+    return [...filteredHarvests]
+      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+      .map(h => {
+        const formattedDate = h.fecha ? new Date(h.fecha + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
+        return {
+          label: `${h.granja} - E${h.estanque} (${formattedDate})`,
+          totalKilos: h.totalKilos || 0,
+          totalOrganismos: h.totalOrganismos || 0,
+          pre1Kilos: h.pre1Kilos || 0,
+          pre2Kilos: h.pre2Kilos || 0,
+          finalKilos: h.finalKilos || 0,
+          pre1Gramos: h.pre1Gramos || 0,
+          pre2Gramos: h.pre2Gramos || 0,
+          finalGramos: h.finalGramos || 0,
+        };
+      });
+  }, [filteredHarvests]);
 
   // Pagination Logic
   useEffect(() => {

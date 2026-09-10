@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, HarvestRecord } from './types';
+import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, HarvestRecord, GoogleSheetsConfig } from './types';
 import { INITIAL_DATA } from './constants';
 import { calculatePondMetrics, formatNumber, normalizeEstanque, cleanDateString } from './utils';
 import PondForm from './components/PondForm';
@@ -100,7 +100,7 @@ const App: React.FC = () => {
 
         const prodName = workbook.SheetNames.find(n => n.toLowerCase().includes('produccion') || n.toLowerCase().includes('producción'));
         const evalsName = workbook.SheetNames.find(n => n.toLowerCase().includes('evaluacion') || n.toLowerCase().includes('evaluación'));
-        const harvestsName = workbook.SheetNames.find(n => n.toLowerCase().includes('cosechas'));
+        const harvestsName = workbook.SheetNames.find(n => n.toLowerCase().includes('cosecha'));
 
         const importedProduction = prodName ? XLSX.utils.sheet_to_json<PondRecord>(workbook.Sheets[prodName], { raw: false }) : undefined;
         const importedEvaluations = evalsName ? XLSX.utils.sheet_to_json<EvaluationRecord>(workbook.Sheets[evalsName], { raw: false }) : undefined;
@@ -189,6 +189,7 @@ const App: React.FC = () => {
     if (importedData.harvests && importedData.harvests.length > 0) {
       const fixedHarvests = importedData.harvests.map(h => ({
         ...h,
+        id: h.id || Math.random().toString(36).substring(2, 11),
         fecha: cleanDateString(h.fecha) || h.fecha,
         pre1Kilos: h.pre1Kilos ? fixNumberFromDate(h.pre1Kilos) : undefined,
         pre1Gramos: h.pre1Gramos ? fixNumberFromDate(h.pre1Gramos) : undefined,
@@ -447,18 +448,18 @@ const App: React.FC = () => {
         const worksheet = workbook.Sheets[sheetName];
         const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-        const newRecords: PondRecord[] = json.map((row) => {
-          const newRecord: NewPondRecord = {
+        const newRecords: any[] = json.map((row) => {
+          const newRecord: any = {
             fecha: parseImportedDate(row.fecha) as any,
             fechaSiembra: parseImportedDate(row.fechaSiembra) || new Date().toISOString().split('T')[0],
             alimento: String(row.alimento || ''),
             laboratorio: String(row.laboratorio || ''),
-            estanque: Number(row.estanque || 0),
+            estanque: String(row.estanque || ''),
             hectareas: Number(row.hectareas || 0),
             pesoAnterior: Number(row.pesoAnterior || 0),
             pesoActual: Number(row.pesoActual || 0),
             diasCultivo: Number(row.diasCultivo || 0),
-            porcentajeSobrevivencia: Number(row.porcentajeSobrevivencia || 0),
+            sobrevivencia: Number(row.sobrevivencia || 0),
             densidadInicial: Number(row.densidadInicial || 0),
             densidadActual: Number(row.densidadActual || 0),
             alimentoSemanal: Number(row.alimentoSemanal || 0),
@@ -725,40 +726,6 @@ const App: React.FC = () => {
     });
   }, [historicalChartData]);
 
-  const filteredHarvestsForChart = useMemo(() => {
-    return harvests.filter(h => {
-      const matchGranja = !filters.granja || h.granja?.toString().trim().toLowerCase() === filters.granja.trim().toLowerCase();
-      const matchEstanque = !filters.estanque || normalizeEstanque(h.estanque) === normalizeEstanque(filters.estanque);
-      const hDate = cleanDateString(h.fecha);
-      const matchDesde = !filters.fechaDesde || (hDate ? hDate >= filters.fechaDesde : true);
-      const matchHasta = !filters.fechaHasta || (hDate ? hDate <= filters.fechaHasta : true);
-      return matchGranja && matchEstanque && matchDesde && matchHasta;
-    });
-  }, [harvests, filters]);
-
-  const harvestChartData = useMemo(() => {
-    return [...filteredHarvestsForChart]
-      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-      .map(h => {
-        const formattedDate = h.fecha ? new Date(h.fecha + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
-        return {
-          id: h.id,
-          granja: h.granja,
-          estanque: h.estanque,
-          label: `Est. ${h.estanque} (${formattedDate})`,
-          fecha: formattedDate,
-          totalKilos: Number(h.totalKilos) || 0,
-          totalOrganismos: Number(h.totalOrganismos) || 0,
-          pre1Kilos: Number(h.pre1Kilos) || 0,
-          pre2Kilos: Number(h.pre2Kilos) || 0,
-          finalKilos: Number(h.finalKilos) || 0,
-          pre1Gramos: Number(h.pre1Gramos) || 0,
-          pre2Gramos: Number(h.pre2Gramos) || 0,
-          finalGramos: Number(h.finalGramos) || 0,
-        };
-      });
-  }, [filteredHarvestsForChart]);
-
   const lineColors = ['#3b82f6', '#10b981', '#fb923c', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#eab308'];
 
   return (
@@ -828,7 +795,6 @@ const App: React.FC = () => {
                   allRecords={filteredRawRecords} 
                   chartData={chartData}
                   historicalChartData={historicalChartData}
-                  harvestChartData={harvestChartData}
                   uniqueEstanquesInHistory={uniqueEstanquesInHistory}
                   lineColors={lineColors}
                 />
