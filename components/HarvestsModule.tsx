@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles } from 'lucide-react';
 import { formatNumber, formatDate, normalizeEstanque } from '../utils';
-import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell } from 'recharts';
+import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
 
 interface HarvestsModuleProps {
   records: PondRecord[];
@@ -249,14 +249,20 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
         const formattedDate = h.fecha ? new Date(h.fecha + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
         return {
           label: `${h.granja} - E${h.estanque} (${formattedDate})`,
-          totalKilos: h.totalKilos || 0,
-          totalOrganismos: h.totalOrganismos || 0,
-          pre1Kilos: h.pre1Kilos || 0,
-          pre2Kilos: h.pre2Kilos || 0,
-          finalKilos: h.finalKilos || 0,
-          pre1Gramos: h.pre1Gramos || 0,
-          pre2Gramos: h.pre2Gramos || 0,
-          finalGramos: h.finalGramos || 0,
+          totalKilos: Number(h.totalKilos) || 0,
+          totalOrganismos: Number(h.totalOrganismos) || 0,
+          pre1Kilos: Number(h.pre1Kilos) || 0,
+          pre2Kilos: Number(h.pre2Kilos) || 0,
+          pre3Kilos: Number(h.pre3Kilos) || 0,
+          pre4Kilos: Number(h.pre4Kilos) || 0,
+          pre5Kilos: Number(h.pre5Kilos) || 0,
+          finalKilos: Number(h.finalKilos) || 0,
+          pre1Gramos: Number(h.pre1Gramos) || 0,
+          pre2Gramos: Number(h.pre2Gramos) || 0,
+          pre3Gramos: Number(h.pre3Gramos) || 0,
+          pre4Gramos: Number(h.pre4Gramos) || 0,
+          pre5Gramos: Number(h.pre5Gramos) || 0,
+          finalGramos: Number(h.finalGramos) || 0,
         };
       });
   }, [filteredHarvests]);
@@ -1209,6 +1215,192 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Gráficos de Cosechas (100% Independientes con Filtros Locales) */}
+      <div className="mt-8 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-indigo-400" />
+              Gráfico de Ciclo de Cosechas
+            </h2>
+            <p className="text-xs text-blue-200 mt-0.5">
+              Visualizando {harvestChartData.length} registros según los filtros de Granja y Estanque seleccionados
+            </p>
+          </div>
+          
+          <div className="flex bg-[#0B4075] rounded-lg p-1 border border-[#125699] flex-wrap gap-1">
+            <button 
+              onClick={() => setChartView('kilos')} 
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'kilos' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+            >
+              ⚖️ Kilos Totales
+            </button>
+            <button 
+              onClick={() => setChartView('organismos')} 
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'organismos' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+            >
+              🔢 Organismos
+            </button>
+            <button 
+              onClick={() => setChartView('etapas')} 
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'etapas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+            >
+              📊 Desglose Etapas
+            </button>
+            <button 
+              onClick={() => setChartView('tallas')} 
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'tallas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+            >
+              🦐 Tallas Promedio
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[420px]">
+          {chartView === 'kilos' && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-blue-400">⚖️</span> Kilos Totales Cosechados (kg)
+                </h3>
+                <span className="text-xs text-blue-300">Total por estanque / fecha</span>
+              </div>
+              <div className="flex-1 min-h-0">
+                {harvestChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(15, 76, 138, 0.4)' }} 
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
+                        formatter={(value: number) => [`${formatNumber(value)} kg`, 'Kilos Totales']} 
+                      />
+                      <Bar dataKey="totalKilos" name="Kilos Totales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                    <span>Sin registros de cosechas para los filtros seleccionados</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {chartView === 'organismos' && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-emerald-400">🔢</span> Organismos Cosechados Totales
+                </h3>
+                <span className="text-xs text-blue-300">Total de camarones cosechados</span>
+              </div>
+              <div className="flex-1 min-h-0">
+                {harvestChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(15, 76, 138, 0.4)' }} 
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
+                        formatter={(value: number) => [`${formatNumber(value)} org`, 'Organismos']} 
+                      />
+                      <Bar dataKey="totalOrganismos" name="Organismos" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                    <span>Sin registros de cosechas para los filtros seleccionados</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {chartView === 'etapas' && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-indigo-400">📊</span> Desglose de Kilos por Etapa (kg)
+                </h3>
+                <span className="text-xs text-blue-300">Pre-cosechas y Cosecha Final apiladas</span>
+              </div>
+              <div className="flex-1 min-h-0">
+                {harvestChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
+                        formatter={(value: number) => [`${formatNumber(value)} kg`, '']} 
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
+                      <Bar dataKey="pre1Kilos" stackId="a" name="1ra Pre (kg)" fill="#60a5fa" />
+                      <Bar dataKey="pre2Kilos" stackId="a" name="2da Pre (kg)" fill="#34d399" />
+                      <Bar dataKey="pre3Kilos" stackId="a" name="3ra Pre (kg)" fill="#a78bfa" />
+                      <Bar dataKey="pre4Kilos" stackId="a" name="4ta Pre (kg)" fill="#f472b6" />
+                      <Bar dataKey="pre5Kilos" stackId="a" name="5ta Pre (kg)" fill="#fbbf24" />
+                      <Bar dataKey="finalKilos" stackId="a" name="Final (kg)" fill="#f97316" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                    <span>Sin registros de cosechas para los filtros seleccionados</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {chartView === 'tallas' && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-orange-400">🦐</span> Tallas Promedio por Etapa (g)
+                </h3>
+                <span className="text-xs text-blue-300">Peso individual de camarón</span>
+              </div>
+              <div className="flex-1 min-h-0">
+                {harvestChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
+                        formatter={(value: number) => [`${formatNumber(value)} g`, '']} 
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
+                      <Bar dataKey="pre1Gramos" name="1ra Pre (g)" fill="#818cf8" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="pre2Gramos" name="2da Pre (g)" fill="#a78bfa" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="pre3Gramos" name="3ra Pre (g)" fill="#c084fc" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="pre4Gramos" name="4ta Pre (g)" fill="#f472b6" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="pre5Gramos" name="5ta Pre (g)" fill="#fbbf24" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="finalGramos" name="Final (g)" fill="#f43f5e" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                    <span>Sin registros de cosechas para los filtros seleccionados</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
     </div>
