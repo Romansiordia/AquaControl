@@ -76,37 +76,45 @@ export interface HarvestRecord {
   fecha: string;
   
   // Pre-cosecha 1
+  fecha1?: string;
   pre1Kilos?: number;
   pre1Gramos?: number;
   pre1Organismos?: number;
   
   // 2da Pre-cosecha
+  fecha2?: string;
   pre2Kilos?: number;
   pre2Gramos?: number;
   pre2Organismos?: number;
 
   // 3ra Pre-cosecha
+  fecha3?: string;
   pre3Kilos?: number;
   pre3Gramos?: number;
   pre3Organismos?: number;
 
   // 4ta Pre-cosecha
+  fecha4?: string;
   pre4Kilos?: number;
   pre4Gramos?: number;
   pre4Organismos?: number;
 
   // 5ta Pre-cosecha
+  fecha5?: string;
   pre5Kilos?: number;
   pre5Gramos?: number;
   pre5Organismos?: number;
   
   // Cosecha Final
+  fechaFinal?: string;
   finalKilos?: number;
   finalGramos?: number;
   finalOrganismos?: number;
   
-  // Totales
+  // Totales Precosechados
   totalOrganismos: number;
   totalKilos: number;
+  pesoPromedioPrecosechado?: number;
+  sobrevivenciaFinal?: number;
 }
 

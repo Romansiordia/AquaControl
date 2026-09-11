@@ -187,31 +187,124 @@ const App: React.FC = () => {
       }
     }
     if (importedData.harvests && importedData.harvests.length > 0) {
-      const fixedHarvests = importedData.harvests.map(h => ({
-        ...h,
-        id: h.id || Math.random().toString(36).substring(2, 11),
-        fecha: cleanDateString(h.fecha) || h.fecha,
-        pre1Kilos: h.pre1Kilos ? fixNumberFromDate(h.pre1Kilos) : undefined,
-        pre1Gramos: h.pre1Gramos ? fixNumberFromDate(h.pre1Gramos) : undefined,
-        pre1Organismos: h.pre1Organismos ? fixNumberFromDate(h.pre1Organismos) : undefined,
-        pre2Kilos: h.pre2Kilos ? fixNumberFromDate(h.pre2Kilos) : undefined,
-        pre2Gramos: h.pre2Gramos ? fixNumberFromDate(h.pre2Gramos) : undefined,
-        pre2Organismos: h.pre2Organismos ? fixNumberFromDate(h.pre2Organismos) : undefined,
-        pre3Kilos: h.pre3Kilos ? fixNumberFromDate(h.pre3Kilos) : undefined,
-        pre3Gramos: h.pre3Gramos ? fixNumberFromDate(h.pre3Gramos) : undefined,
-        pre3Organismos: h.pre3Organismos ? fixNumberFromDate(h.pre3Organismos) : undefined,
-        pre4Kilos: h.pre4Kilos ? fixNumberFromDate(h.pre4Kilos) : undefined,
-        pre4Gramos: h.pre4Gramos ? fixNumberFromDate(h.pre4Gramos) : undefined,
-        pre4Organismos: h.pre4Organismos ? fixNumberFromDate(h.pre4Organismos) : undefined,
-        pre5Kilos: h.pre5Kilos ? fixNumberFromDate(h.pre5Kilos) : undefined,
-        pre5Gramos: h.pre5Gramos ? fixNumberFromDate(h.pre5Gramos) : undefined,
-        pre5Organismos: h.pre5Organismos ? fixNumberFromDate(h.pre5Organismos) : undefined,
-        finalKilos: h.finalKilos ? fixNumberFromDate(h.finalKilos) : undefined,
-        finalGramos: h.finalGramos ? fixNumberFromDate(h.finalGramos) : undefined,
-        finalOrganismos: h.finalOrganismos ? fixNumberFromDate(h.finalOrganismos) : undefined,
-        totalOrganismos: fixNumberFromDate(h.totalOrganismos) || 0,
-        totalKilos: fixNumberFromDate(h.totalKilos) || 0,
-      }));
+      const fixedHarvests: HarvestRecord[] = (importedData.harvests as any[]).map(row => {
+        // Helper to find value from row with multiple possible header names (flexible matching)
+        const getVal = (...keys: string[]) => {
+          for (const k of keys) {
+            if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+          }
+          const rowKeys = Object.keys(row);
+          for (const k of keys) {
+            const cleanTarget = k.toLowerCase().replace(/[\s_()\-]/g, '');
+            const foundKey = rowKeys.find(rk => rk.toLowerCase().replace(/[\s_()\-]/g, '') === cleanTarget);
+            if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') {
+              return row[foundKey];
+            }
+          }
+          return undefined;
+        };
+
+        const id = String(getVal('id', 'ID') || Math.random().toString(36).substring(2, 11));
+        const granja = String(getVal('granja', 'Granja') || '');
+        const estanque = String(getVal('estanque', 'Estanque') || '');
+
+        // Stage 1
+        const fecha1 = cleanDateString(getVal('Fecha 1', 'Fecha1', 'fecha 1', 'fecha1'));
+        const pre1Kilos = fixNumberFromDate(getVal('Biomasa 1 (Kg)', 'Biomasa 1', 'Biomasa1', 'pre1Kilos', 'Kilos 1', 'kilos1'));
+        const pre1Gramos = fixNumberFromDate(getVal('Peso 1 (g)', 'Peso 1', 'Peso1', 'pre1Gramos', 'Gramos 1', 'gramos1'));
+        let pre1Organismos = fixNumberFromDate(getVal('Org Totales 1', 'Org. Totales 1', 'Org Totales1', 'pre1Organismos', 'Organismos 1'));
+        if ((!pre1Organismos || pre1Organismos === 0) && pre1Kilos > 0 && pre1Gramos > 0) {
+          pre1Organismos = Math.round((pre1Kilos * 1000) / pre1Gramos);
+        }
+
+        // Stage 2
+        const fecha2 = cleanDateString(getVal('Fecha 2', 'Fecha2', 'fecha 2', 'fecha2'));
+        const pre2Kilos = fixNumberFromDate(getVal('Biomasa 2 (Kg)', 'Biomasa 2', 'Biomasa2', 'pre2Kilos', 'Kilos 2', 'kilos2'));
+        const pre2Gramos = fixNumberFromDate(getVal('Peso 2 (g)', 'Peso 2', 'Peso2', 'pre2Gramos', 'Gramos 2', 'gramos2'));
+        let pre2Organismos = fixNumberFromDate(getVal('Org Totales 2', 'Org. Totales 2', 'Org Totales2', 'pre2Organismos', 'Organismos 2'));
+        if ((!pre2Organismos || pre2Organismos === 0) && pre2Kilos > 0 && pre2Gramos > 0) {
+          pre2Organismos = Math.round((pre2Kilos * 1000) / pre2Gramos);
+        }
+
+        // Stage 3
+        const fecha3 = cleanDateString(getVal('Fecha 3', 'Fecha3', 'fecha 3', 'fecha3'));
+        const pre3Kilos = fixNumberFromDate(getVal('Biomasa 3 (Kg)', 'Biomasa 3', 'Biomasa3', 'pre3Kilos', 'Kilos 3', 'kilos3'));
+        const pre3Gramos = fixNumberFromDate(getVal('Peso 3 (g)', 'Peso 3', 'Peso3', 'pre3Gramos', 'Gramos 3', 'gramos3'));
+        let pre3Organismos = fixNumberFromDate(getVal('Org Totales 3', 'Org. Totales 3', 'Org Totales3', 'pre3Organismos', 'Organismos 3'));
+        if ((!pre3Organismos || pre3Organismos === 0) && pre3Kilos > 0 && pre3Gramos > 0) {
+          pre3Organismos = Math.round((pre3Kilos * 1000) / pre3Gramos);
+        }
+
+        // Stage 4
+        const fecha4 = cleanDateString(getVal('Fecha 4', 'Fecha4', 'fecha 4', 'fecha4'));
+        const pre4Kilos = fixNumberFromDate(getVal('Biomasa 4 (Kg)', 'Biomasa 4', 'Biomasa4', 'pre4Kilos', 'Kilos 4', 'kilos4'));
+        const pre4Gramos = fixNumberFromDate(getVal('Peso 4 (g)', 'Peso 4', 'Peso4', 'pre4Gramos', 'Gramos 4', 'gramos4'));
+        let pre4Organismos = fixNumberFromDate(getVal('Org Totales 4', 'Org. Totales 4', 'Org Totales4', 'pre4Organismos', 'Organismos 4'));
+        if ((!pre4Organismos || pre4Organismos === 0) && pre4Kilos > 0 && pre4Gramos > 0) {
+          pre4Organismos = Math.round((pre4Kilos * 1000) / pre4Gramos);
+        }
+
+        // Stage 5 (if any)
+        const fecha5 = cleanDateString(getVal('Fecha 5', 'Fecha5', 'fecha 5', 'fecha5'));
+        const pre5Kilos = fixNumberFromDate(getVal('Biomasa 5 (Kg)', 'Biomasa 5', 'Biomasa5', 'pre5Kilos', 'Kilos 5', 'kilos5'));
+        const pre5Gramos = fixNumberFromDate(getVal('Peso 5 (g)', 'Peso 5', 'Peso5', 'pre5Gramos', 'Gramos 5', 'gramos5'));
+        let pre5Organismos = fixNumberFromDate(getVal('Org Totales 5', 'Org. Totales 5', 'Org Totales5', 'pre5Organismos', 'Organismos 5'));
+        if ((!pre5Organismos || pre5Organismos === 0) && pre5Kilos > 0 && pre5Gramos > 0) {
+          pre5Organismos = Math.round((pre5Kilos * 1000) / pre5Gramos);
+        }
+
+        // Totals
+        let totalKilos = fixNumberFromDate(getVal('Biomasa Precosechada Kg', 'Biomasa Precosechada', 'totalKilos', 'Total Kilos', 'total_kilos'));
+        if (!totalKilos || totalKilos === 0) {
+          totalKilos = (pre1Kilos || 0) + (pre2Kilos || 0) + (pre3Kilos || 0) + (pre4Kilos || 0) + (pre5Kilos || 0);
+        }
+
+        let totalOrganismos = fixNumberFromDate(getVal('Organismos Precosechados', 'Org Precosechados', 'totalOrganismos', 'Total Organismos', 'total_organismos'));
+        if (!totalOrganismos || totalOrganismos === 0) {
+          totalOrganismos = (pre1Organismos || 0) + (pre2Organismos || 0) + (pre3Organismos || 0) + (pre4Organismos || 0) + (pre5Organismos || 0);
+        }
+
+        let pesoPromedioPrecosechado = fixNumberFromDate(getVal('Peso Promedio Precosechado', 'Peso Promedio', 'pesoPromedioPrecosechado'));
+        if ((!pesoPromedioPrecosechado || pesoPromedioPrecosechado === 0) && totalKilos > 0 && totalOrganismos > 0) {
+          pesoPromedioPrecosechado = Number(((totalKilos * 1000) / totalOrganismos).toFixed(2));
+        }
+
+        const sobrevivenciaFinal = fixNumberFromDate(getVal('Sobrevocencia Final', 'Sobrevivencia Final', 'Sobrevivencia', 'sobrevivenciaFinal'));
+
+        // Representative date: most advanced event date, or general date
+        const fecha = fecha4 || fecha3 || fecha2 || fecha1 || cleanDateString(getVal('fecha', 'Fecha')) || new Date().toISOString().split('T')[0];
+
+        return {
+          id,
+          granja,
+          estanque,
+          fecha,
+          fecha1: fecha1 || undefined,
+          pre1Kilos: pre1Kilos || undefined,
+          pre1Gramos: pre1Gramos || undefined,
+          pre1Organismos: pre1Organismos || undefined,
+          fecha2: fecha2 || undefined,
+          pre2Kilos: pre2Kilos || undefined,
+          pre2Gramos: pre2Gramos || undefined,
+          pre2Organismos: pre2Organismos || undefined,
+          fecha3: fecha3 || undefined,
+          pre3Kilos: pre3Kilos || undefined,
+          pre3Gramos: pre3Gramos || undefined,
+          pre3Organismos: pre3Organismos || undefined,
+          fecha4: fecha4 || undefined,
+          pre4Kilos: pre4Kilos || undefined,
+          pre4Gramos: pre4Gramos || undefined,
+          pre4Organismos: pre4Organismos || undefined,
+          fecha5: fecha5 || undefined,
+          pre5Kilos: pre5Kilos || undefined,
+          pre5Gramos: pre5Gramos || undefined,
+          pre5Organismos: pre5Organismos || undefined,
+          totalKilos: totalKilos || 0,
+          totalOrganismos: totalOrganismos || 0,
+          pesoPromedioPrecosechado: pesoPromedioPrecosechado || undefined,
+          sobrevivenciaFinal: sobrevivenciaFinal || undefined,
+        };
+      });
       if (isLocal) {
         setLocalHarvests(fixedHarvests);
       } else {

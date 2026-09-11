@@ -33,18 +33,22 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const [formEstanque, setFormEstanque] = useState('');
   const [formFecha, setFormFecha] = useState(new Date().toISOString().split('T')[0]);
 
+  const [fecha1, setFecha1] = useState('');
   const [pre1Kilos, setPre1Kilos] = useState('');
   const [pre1Gramos, setPre1Gramos] = useState('');
   const [pre1Organismos, setPre1Organismos] = useState('');
 
+  const [fecha2, setFecha2] = useState('');
   const [pre2Kilos, setPre2Kilos] = useState('');
   const [pre2Gramos, setPre2Gramos] = useState('');
   const [pre2Organismos, setPre2Organismos] = useState('');
 
+  const [fecha3, setFecha3] = useState('');
   const [pre3Kilos, setPre3Kilos] = useState('');
   const [pre3Gramos, setPre3Gramos] = useState('');
   const [pre3Organismos, setPre3Organismos] = useState('');
 
+  const [fecha4, setFecha4] = useState('');
   const [pre4Kilos, setPre4Kilos] = useState('');
   const [pre4Gramos, setPre4Gramos] = useState('');
   const [pre4Organismos, setPre4Organismos] = useState('');
@@ -56,6 +60,34 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const [finalKilos, setFinalKilos] = useState('');
   const [finalGramos, setFinalGramos] = useState('');
   const [finalOrganismos, setFinalOrganismos] = useState('');
+
+  // Fast map of pond attributes (hectareas, sembrados, etc.) by key `${granja}_${estanque}`
+  const pondDataMap = useMemo(() => {
+    const map = new Map<string, { hectareas: number; sembrados: number; sobrevivencia: number; pesoActual: number; biomasaTotal: number }>();
+    records.forEach(r => {
+      const g = (r.granja || '').toString().trim().toLowerCase();
+      const e = normalizeEstanque(r.estanque);
+      if (e) {
+        const key = `${g}_${e}`;
+        if (!map.has(key)) {
+          map.set(key, {
+            hectareas: r.hectareas || 0,
+            sembrados: r.densidadInicial || 0,
+            sobrevivencia: r.sobrevivencia || 0,
+            pesoActual: r.pesoActual || 0,
+            biomasaTotal: r.biomasaTotal || 0
+          });
+        }
+      }
+    });
+    return map;
+  }, [records]);
+
+  const getPondData = (granja: string, estanque: string) => {
+    const g = (granja || '').toString().trim().toLowerCase();
+    const e = normalizeEstanque(estanque);
+    return pondDataMap.get(`${g}_${e}`);
+  };
 
   // Extract unique options from existing production records for convenience
   const uniqueGranjas = useMemo(() => {
@@ -285,6 +317,9 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     let totOrganismos = 0;
     let weightedGramsSum = 0;
     
+    let survSum = 0;
+    let survCount = 0;
+
     filteredHarvests.forEach(h => {
       totKilos += h.totalKilos;
       totOrganismos += h.totalOrganismos;
@@ -305,17 +340,31 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       
       const weightedGrams = (p1K * p1G) + (p2K * p2G) + (p3K * p3G) + (p4K * p4G) + (p5K * p5G) + (fK * fG);
       weightedGramsSum += weightedGrams;
+
+      let surv = h.sobrevivenciaFinal;
+      if (!surv) {
+        const pond = getPondData(h.granja, h.estanque);
+        if (pond && pond.sembrados > 0) {
+          surv = Number(((h.totalOrganismos / pond.sembrados) * 100).toFixed(1));
+        }
+      }
+      if (surv && surv > 0) {
+        survSum += surv;
+        survCount++;
+      }
     });
 
     const avgWeight = totKilos > 0 ? (weightedGramsSum / totKilos) : 0;
+    const avgSurvival = survCount > 0 ? (survSum / survCount) : 0;
 
     return {
       totalKilos: totKilos,
       totalOrganismos: totOrganismos,
       totalRegistros: filteredHarvests.length,
-      pesoPromedio: avgWeight
+      pesoPromedio: avgWeight,
+      sobrevivenciaPromedio: avgSurvival
     };
-  }, [filteredHarvests]);
+  }, [filteredHarvests, pondDataMap]);
 
   // Populate form for editing
   const handleStartEdit = (harvest: HarvestRecord) => {
@@ -324,18 +373,22 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     setFormEstanque(harvest.estanque);
     setFormFecha(harvest.fecha);
 
+    setFecha1(harvest.fecha1 || harvest.fecha || '');
     setPre1Kilos(harvest.pre1Kilos ? harvest.pre1Kilos.toString() : '');
     setPre1Gramos(harvest.pre1Gramos ? harvest.pre1Gramos.toString() : '');
     setPre1Organismos(harvest.pre1Organismos ? harvest.pre1Organismos.toString() : '');
 
+    setFecha2(harvest.fecha2 || '');
     setPre2Kilos(harvest.pre2Kilos ? harvest.pre2Kilos.toString() : '');
     setPre2Gramos(harvest.pre2Gramos ? harvest.pre2Gramos.toString() : '');
     setPre2Organismos(harvest.pre2Organismos ? harvest.pre2Organismos.toString() : '');
 
+    setFecha3(harvest.fecha3 || '');
     setPre3Kilos(harvest.pre3Kilos ? harvest.pre3Kilos.toString() : '');
     setPre3Gramos(harvest.pre3Gramos ? harvest.pre3Gramos.toString() : '');
     setPre3Organismos(harvest.pre3Organismos ? harvest.pre3Organismos.toString() : '');
 
+    setFecha4(harvest.fecha4 || '');
     setPre4Kilos(harvest.pre4Kilos ? harvest.pre4Kilos.toString() : '');
     setPre4Gramos(harvest.pre4Gramos ? harvest.pre4Gramos.toString() : '');
     setPre4Organismos(harvest.pre4Organismos ? harvest.pre4Organismos.toString() : '');
@@ -356,15 +409,19 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     setFormGranja('');
     setFormEstanque('');
     setFormFecha(new Date().toISOString().split('T')[0]);
+    setFecha1('');
     setPre1Kilos('');
     setPre1Gramos('');
     setPre1Organismos('');
+    setFecha2('');
     setPre2Kilos('');
     setPre2Gramos('');
     setPre2Organismos('');
+    setFecha3('');
     setPre3Kilos('');
     setPre3Gramos('');
     setPre3Organismos('');
+    setFecha4('');
     setPre4Kilos('');
     setPre4Gramos('');
     setPre4Organismos('');
@@ -400,24 +457,33 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
     const totalO = calculatedP1Org + calculatedP2Org + calculatedP3Org + calculatedP4Org + calculatedP5Org + calculatedFOrg;
 
+    const effectiveFecha = fecha4 || fecha3 || fecha2 || fecha1 || formFecha;
+    const pond = getPondData(formGranja, formEstanque);
+    const surv = pond && pond.sembrados > 0 ? Number(((totalO / pond.sembrados) * 100).toFixed(1)) : undefined;
+    const avgP = totalO > 0 ? Number(((totalK * 1000) / totalO).toFixed(2)) : undefined;
+
     const harvestData: HarvestRecord = {
       id: editingHarvest ? editingHarvest.id : Math.random().toString(36).substring(2, 11),
       granja: formGranja,
       estanque: formEstanque,
-      fecha: formFecha,
+      fecha: effectiveFecha,
       
+      fecha1: fecha1 || undefined,
       pre1Kilos: pre1Kilos ? parseFloat(pre1Kilos) : undefined,
       pre1Gramos: pre1Gramos ? parseFloat(pre1Gramos) : undefined,
       pre1Organismos: pre1Organismos ? parseInt(pre1Organismos) : undefined,
 
+      fecha2: fecha2 || undefined,
       pre2Kilos: pre2Kilos ? parseFloat(pre2Kilos) : undefined,
       pre2Gramos: pre2Gramos ? parseFloat(pre2Gramos) : undefined,
       pre2Organismos: pre2Organismos ? parseInt(pre2Organismos) : undefined,
 
+      fecha3: fecha3 || undefined,
       pre3Kilos: pre3Kilos ? parseFloat(pre3Kilos) : undefined,
       pre3Gramos: pre3Gramos ? parseFloat(pre3Gramos) : undefined,
       pre3Organismos: pre3Organismos ? parseInt(pre3Organismos) : undefined,
 
+      fecha4: fecha4 || undefined,
       pre4Kilos: pre4Kilos ? parseFloat(pre4Kilos) : undefined,
       pre4Gramos: pre4Gramos ? parseFloat(pre4Gramos) : undefined,
       pre4Organismos: pre4Organismos ? parseInt(pre4Organismos) : undefined,
@@ -432,6 +498,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
       totalKilos: Number(totalK.toFixed(2)),
       totalOrganismos: totalO,
+      pesoPromedioPrecosechado: avgP,
+      sobrevivenciaFinal: editingHarvest?.sobrevivenciaFinal ?? surv,
     };
 
     if (editingHarvest) {
@@ -525,8 +593,13 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           <div className="p-3.5 rounded-xl bg-emerald-900/40 border border-emerald-700/40 mb-3 flex items-center justify-center">
             <Sparkles className="w-6 h-6 text-emerald-400" />
           </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Cosechas Registradas</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{kpiStats.totalRegistros}</p>
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Sobrevivencia Promedio</p>
+          <p className="text-2xl font-extrabold text-emerald-400 tracking-tight">
+            {kpiStats.sobrevivenciaPromedio > 0 ? `${kpiStats.sobrevivenciaPromedio.toFixed(1)}%` : `${kpiStats.totalRegistros} Estanques`}
+          </p>
+          {kpiStats.sobrevivenciaPromedio > 0 && (
+            <p className="text-[10px] text-blue-300 mt-0.5">{kpiStats.totalRegistros} estanques cosechados</p>
+          )}
         </div>
       </div>
 
@@ -604,7 +677,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
             
             {/* Stage 1: Pre-Cosecha 1 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
               <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
                 <span>1ra Pre-Cosecha</span>
                 {pondStats && pondStats.sembrados > 0 && (parseInt(pre1Organismos) || calculatedPre1Org) > 0 && (
@@ -613,9 +686,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   </span>
                 )}
               </h4>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1">Fecha 1</label>
+                <input
+                  type="date"
+                  value={fecha1}
+                  onChange={(e) => setFecha1(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -626,7 +708,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -639,7 +721,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               </div>
               <div>
                 <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Organismos calculados</span>
+                  <span>Org Totales (calculados)</span>
                   {calculatedPre1Org > 0 && (
                     <button 
                       type="button" 
@@ -661,7 +743,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             </div>
 
             {/* Stage 2: Pre-Cosecha 2 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
               <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
                 <span>2da Pre-Cosecha</span>
                 {pondStats && pondStats.sembrados > 0 && (parseInt(pre2Organismos) || calculatedPre2Org) > 0 && (
@@ -670,9 +752,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   </span>
                 )}
               </h4>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1">Fecha 2</label>
+                <input
+                  type="date"
+                  value={fecha2}
+                  onChange={(e) => setFecha2(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -683,7 +774,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -696,7 +787,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               </div>
               <div>
                 <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Organismos calculados</span>
+                  <span>Org Totales (calculados)</span>
                   {calculatedPre2Org > 0 && (
                     <button 
                       type="button" 
@@ -718,7 +809,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             </div>
 
             {/* Stage 3: Pre-Cosecha 3 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
               <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
                 <span>3ra Pre-Cosecha</span>
                 {pondStats && pondStats.sembrados > 0 && (parseInt(pre3Organismos) || calculatedPre3Org) > 0 && (
@@ -727,9 +818,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   </span>
                 )}
               </h4>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1">Fecha 3</label>
+                <input
+                  type="date"
+                  value={fecha3}
+                  onChange={(e) => setFecha3(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -740,7 +840,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -753,7 +853,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               </div>
               <div>
                 <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Organismos calculados</span>
+                  <span>Org Totales (calculados)</span>
                   {calculatedPre3Org > 0 && (
                     <button 
                       type="button" 
@@ -775,18 +875,27 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             </div>
 
             {/* Stage 4: Pre-Cosecha 4 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
+            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
               <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span>4ta Pre-Cosecha</span>
+                <span>4ta Pre-Cosecha / Final</span>
                 {pondStats && pondStats.sembrados > 0 && (parseInt(pre4Organismos) || calculatedPre4Org) > 0 && (
                   <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
                     {(((parseInt(pre4Organismos) || calculatedPre4Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
                   </span>
                 )}
               </h4>
+              <div>
+                <label className="block text-[11px] text-blue-200 mb-1">Fecha 4</label>
+                <input
+                  type="date"
+                  value={fecha4}
+                  onChange={(e) => setFecha4(e.target.value)}
+                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -797,7 +906,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
+                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -810,7 +919,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               </div>
               <div>
                 <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Organismos calculados</span>
+                  <span>Org Totales (calculados)</span>
                   {calculatedPre4Org > 0 && (
                     <button 
                       type="button" 
@@ -1027,122 +1136,142 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               <tr className="bg-[#0A345C] text-slate-100 text-[10px] uppercase tracking-wider font-extrabold border-b border-[#125699]">
                 <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-left align-middle font-bold text-slate-200">Acciones</th>
                 <th rowSpan={2} className="px-3 py-3 border-r border-[#125699] text-left align-middle font-bold text-slate-200">Granja</th>
-                <th rowSpan={2} className="px-2 py-3 border-r border-[#125699] text-center align-middle font-bold text-slate-200">Estanque</th>
-                <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-center align-middle font-bold text-slate-200">Fecha</th>
+                <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-center align-middle font-bold text-slate-200">Estanque</th>
                 
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">1ra Pre-Cosecha</th>
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">2da Pre-Cosecha</th>
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">3ra Pre-Cosecha</th>
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">4ta Pre-Cosecha</th>
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">5ta Pre-Cosecha</th>
-                <th colSpan={3} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#a5b4fc]">Cosecha Final</th>
-                <th colSpan={2} className="px-2 py-1.5 bg-indigo-950/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Totales</th>
+                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">1ra Pre-Cosecha</th>
+                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">2da Pre-Cosecha</th>
+                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">3ra Pre-Cosecha</th>
+                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#a5b4fc]">4ta Pre-Cosecha / Final</th>
+                <th colSpan={5} className="px-2 py-1.5 bg-indigo-950/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Precosechado</th>
               </tr>
               <tr className="bg-[#0D4075] text-slate-200 text-[9px] font-bold uppercase tracking-wider border-b border-[#125699] text-center">
                 {/* 1ra Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Fecha 1</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Biomasa (Kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Org Totales</th>
                 
                 {/* 2da Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Fecha 2</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Organismos</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Biomasa (Kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Org Totales</th>
 
                 {/* 3ra Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Fecha 3</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Biomasa (Kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Org Totales</th>
 
                 {/* 4ta Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Kilos (kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Fecha 4</th>
                 <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Organismos</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Biomasa (Kg)</th>
+                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Org Totales</th>
 
-                {/* 5ta Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Kilos (kg)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Organismos</th>
-                
-                {/* Cosecha Final Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 font-medium">Kilos (kg)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 font-medium text-indigo-300">Organismos</th>
-                
                 {/* Totales Column Subheaders */}
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/30 text-indigo-200">Suma Kilos</th>
-                <th className="px-2.5 py-1.5 bg-indigo-950/30 text-indigo-200">Suma Orgs.</th>
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Biomasa (Kg)</th>
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Org Totales</th>
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Peso Prom (g)</th>
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Sobrevivencia</th>
+                <th className="px-2.5 py-1.5 bg-indigo-950/40 text-indigo-200">Rend (Kg/Ha)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#125699]/60">
               {paginatedHarvests.length === 0 ? (
                 <tr>
-                  <td colSpan={23} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
+                  <td colSpan={24} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
                 </tr>
               ) : (
-                paginatedHarvests.map((h) => (
-                  <tr key={h.id} className="hover:bg-[#125699]/20 transition-colors text-center text-[10.5px] whitespace-nowrap text-blue-100/90">
-                    <td className="px-2 py-2 border-r border-[#125699]/40 text-left align-middle">
-                      <div className="flex items-center gap-1 justify-start">
-                        <button 
-                          onClick={() => handleStartEdit(h)}
-                          className="text-blue-300 hover:text-white hover:bg-blue-600 bg-blue-900/30 border border-blue-700/20 p-1 rounded-md transition-colors"
-                          title="Editar Registro"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm('¿Está seguro de eliminar esta cosecha?')) {
-                              onDeleteHarvest(h.id);
-                            }
-                          }}
-                          className="text-red-400 hover:text-white hover:bg-red-600 bg-red-900/30 border border-red-700/20 p-1 rounded-md transition-colors"
-                          title="Eliminar Registro"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 border-r border-[#125699]/40 text-left font-semibold text-slate-100 align-middle truncate max-w-[120px]">{h.granja}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 font-bold text-white align-middle">{h.estanque}</td>
-                    <td className="px-2.5 py-2 border-r border-[#125699]/40 text-blue-200 align-middle">{formatDate(h.fecha)}</td>
-                    
-                    {/* 1ra Pre-cosecha Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre1Kilos ? formatNumber(h.pre1Kilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre1Gramos ? formatNumber(h.pre1Gramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre1Organismos ? formatNumber(h.pre1Organismos) : '-'}</td>
-                    
-                    {/* 2da Pre-cosecha Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{h.pre2Kilos ? formatNumber(h.pre2Kilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{h.pre2Gramos ? formatNumber(h.pre2Gramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{h.pre2Organismos ? formatNumber(h.pre2Organismos) : '-'}</td>
-                    
-                    {/* 3ra Pre-cosecha Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre3Kilos ? formatNumber(h.pre3Kilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre3Gramos ? formatNumber(h.pre3Gramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre3Organismos ? formatNumber(h.pre3Organismos) : '-'}</td>
+                paginatedHarvests.map((h) => {
+                  const pond = getPondData(h.granja, h.estanque);
+                  const pondHa = pond?.hectareas || 0;
+                  const pondSembrados = pond?.sembrados || 0;
+                  
+                  const avgWeight = h.pesoPromedioPrecosechado || (h.totalKilos > 0 && h.totalOrganismos > 0 
+                    ? Number(((h.totalKilos * 1000) / h.totalOrganismos).toFixed(1)) 
+                    : 0);
+                  
+                  const calculatedSurv = h.sobrevivenciaFinal 
+                    ? h.sobrevivenciaFinal 
+                    : (pondSembrados > 0 && h.totalOrganismos > 0 
+                        ? Number(((h.totalOrganismos / pondSembrados) * 100).toFixed(1)) 
+                        : null);
 
-                    {/* 4ta Pre-cosecha Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{h.pre4Kilos ? formatNumber(h.pre4Kilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{h.pre4Gramos ? formatNumber(h.pre4Gramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{h.pre4Organismos ? formatNumber(h.pre4Organismos) : '-'}</td>
+                  const rendKgHa = pondHa > 0 && h.totalKilos > 0 
+                    ? Math.round(h.totalKilos / pondHa) 
+                    : null;
 
-                    {/* 5ta Pre-cosecha Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre5Kilos ? formatNumber(h.pre5Kilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre5Gramos ? formatNumber(h.pre5Gramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre5Organismos ? formatNumber(h.pre5Organismos) : '-'}</td>
+                  return (
+                    <tr key={h.id} className="hover:bg-[#125699]/20 transition-colors text-center text-[10.5px] whitespace-nowrap text-blue-100/90">
+                      <td className="px-2 py-2 border-r border-[#125699]/40 text-left align-middle">
+                        <div className="flex items-center gap-1 justify-start">
+                          <button 
+                            onClick={() => handleStartEdit(h)}
+                            className="text-blue-300 hover:text-white hover:bg-blue-600 bg-blue-900/30 border border-blue-700/20 p-1 rounded-md transition-colors"
+                            title="Editar Registro"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (confirm('¿Está seguro de eliminar esta cosecha?')) {
+                                onDeleteHarvest(h.id);
+                              }
+                            }}
+                            className="text-red-400 hover:text-white hover:bg-red-600 bg-red-900/30 border border-red-700/20 p-1 rounded-md transition-colors"
+                            title="Eliminar Registro"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 border-r border-[#125699]/40 text-left font-semibold text-slate-100 align-middle truncate max-w-[120px]">{h.granja}</td>
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-white align-middle">{h.estanque}</td>
+                      
+                      {/* 1ra Pre-cosecha Cells */}
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-blue-200 text-[10px]">{formatDate(h.fecha1 || h.fecha)}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre1Gramos ? formatNumber(h.pre1Gramos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre1Kilos ? formatNumber(h.pre1Kilos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre1Organismos ? formatNumber(h.pre1Organismos) : '-'}</td>
+                      
+                      {/* 2da Pre-cosecha Cells */}
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-blue-200 text-[10px]">{h.fecha2 ? formatDate(h.fecha2) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{h.pre2Gramos ? formatNumber(h.pre2Gramos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{h.pre2Kilos ? formatNumber(h.pre2Kilos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{h.pre2Organismos ? formatNumber(h.pre2Organismos) : '-'}</td>
+                      
+                      {/* 3ra Pre-cosecha Cells */}
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-blue-200 text-[10px]">{h.fecha3 ? formatDate(h.fecha3) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{h.pre3Gramos ? formatNumber(h.pre3Gramos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{h.pre3Kilos ? formatNumber(h.pre3Kilos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{h.pre3Organismos ? formatNumber(h.pre3Organismos) : '-'}</td>
 
-                    {/* Cosecha Final Cells */}
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#125699]/20 align-middle text-slate-200">{h.finalKilos ? formatNumber(h.finalKilos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#125699]/20 align-middle text-slate-300 font-medium">{h.finalGramos ? formatNumber(h.finalGramos) : '-'}</td>
-                    <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#125699]/30 align-middle text-indigo-300 font-mono text-[10px]">{h.finalOrganismos ? formatNumber(h.finalOrganismos) : '-'}</td>
-                    
-                    {/* Totales Cells */}
-                    <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-emerald-300 bg-indigo-950/25 align-middle">{formatNumber(h.totalKilos)} kg</td>
-                    <td className="px-2.5 py-2 font-extrabold text-[#818cf8] bg-indigo-950/25 align-middle font-mono text-[10px]">{formatNumber(h.totalOrganismos)}</td>
-                  </tr>
-                ))
+                      {/* 4ta Pre-cosecha Cells */}
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-blue-200 text-[10px]">{h.fecha4 ? formatDate(h.fecha4) : (h.fechaFinal ? formatDate(h.fechaFinal) : '-')}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{(h.pre4Gramos || h.finalGramos) ? formatNumber(h.pre4Gramos || h.finalGramos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{(h.pre4Kilos || h.finalKilos) ? formatNumber(h.pre4Kilos || h.finalKilos) : '-'}</td>
+                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{(h.pre4Organismos || h.finalOrganismos) ? formatNumber(h.pre4Organismos || h.finalOrganismos) : '-'}</td>
+
+                      {/* Resumen Precosecha Cells */}
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-emerald-300 bg-indigo-950/30 align-middle">{formatNumber(h.totalKilos)} kg</td>
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-[#818cf8] bg-indigo-950/30 align-middle font-mono text-[10px]">{formatNumber(h.totalOrganismos)}</td>
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-amber-300 bg-indigo-950/30 align-middle">{avgWeight ? `${formatNumber(avgWeight)} g` : '-'}</td>
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold bg-indigo-950/30 align-middle">
+                        {calculatedSurv ? (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${
+                            calculatedSurv >= 65 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                          }`}>
+                            {calculatedSurv}%
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2.5 py-2 bg-indigo-950/30 font-semibold text-cyan-300 align-middle">
+                        {rendKgHa ? `${formatNumber(rendKgHa)}` : '-'}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
