@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
-import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle } from 'lucide-react';
+import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle, TrendingUp } from 'lucide-react';
 import { formatNumber, formatDate, normalizeEstanque, cleanDateString, parseFlexibleNumber } from '../utils';
 import { calculateStageOrganismos, parseHarvestWorksheet, normalizeHarvestRecord } from '../utils/harvestUtils';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
@@ -421,6 +421,11 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     let survSum = 0;
     let survCount = 0;
 
+    let totHectareas = 0;
+    let rendSum = 0;
+    let rendCount = 0;
+    const seenPonds = new Set<string>();
+
     filteredHarvests.forEach(h => {
       const p1K = parseFlexibleNumber(h.pre1Kilos);
       const p1G = parseFlexibleNumber(h.pre1Gramos);
@@ -459,12 +464,25 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       const weightedGrams = (p1K * p1G) + (p2K * p2G) + (p3K * p3G) + (p4K * p4G) + (p5K * p5G) + (fK * fG);
       weightedGramsSum += weightedGrams;
 
+      const pond = getPondData(h.granja, h.estanque);
+      const pondHa = pond?.hectareas || 0;
+      if (pondHa > 0) {
+        const pondKey = `${h.granja}_${h.estanque}`;
+        if (!seenPonds.has(pondKey)) {
+          seenPonds.add(pondKey);
+          totHectareas += pondHa;
+        }
+        if (rowKilos > 0) {
+          rendSum += (rowKilos / pondHa);
+          rendCount++;
+        }
+      }
+
       let surv = parseFlexibleNumber(h.sobrevivenciaFinal);
       if (surv > 0 && surv <= 1) {
         surv = surv * 100;
       }
       if (!surv) {
-        const pond = getPondData(h.granja, h.estanque);
         if (pond && pond.sembrados > 0 && rowOrg > 0) {
           surv = Number(((rowOrg / pond.sembrados) * 100).toFixed(1));
         }
@@ -478,12 +496,18 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     const avgWeight = totKilos > 0 ? (weightedGramsSum / totKilos) : 0;
     const avgSurvival = survCount > 0 ? (survSum / survCount) : 0;
 
+    const rendimientoKgHa = totHectareas > 0 && totKilos > 0 
+      ? Math.round(totKilos / totHectareas) 
+      : (rendCount > 0 ? Math.round(rendSum / rendCount) : 0);
+
     return {
       totalKilos: totKilos,
-      totalOrganismos: totOrganismos,
+      totalOrganismos: Math.round(totOrganismos),
       totalRegistros: filteredHarvests.length,
       pesoPromedio: avgWeight,
-      sobrevivenciaPromedio: avgSurvival
+      sobrevivenciaPromedio: avgSurvival,
+      rendimientoKgHa: rendimientoKgHa,
+      totalHectareas: totHectareas
     };
   }, [filteredHarvests, pondDataMap]);
 
@@ -734,7 +758,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       </div>
 
       {/* KPI Stats Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
           <div className="p-3.5 rounded-xl bg-indigo-900/40 border border-indigo-700/40 mb-3 flex items-center justify-center">
             <Scale className="w-6 h-6 text-indigo-400" />
@@ -770,6 +794,19 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           {kpiStats.sobrevivenciaPromedio > 0 && (
             <p className="text-[10px] text-blue-300 mt-0.5">{kpiStats.totalRegistros} estanques cosechados</p>
           )}
+        </div>
+
+        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-3.5 rounded-xl bg-cyan-900/40 border border-cyan-700/40 mb-3 flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-cyan-400" />
+          </div>
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Rendimiento (Kg/Ha)</p>
+          <p className="text-2xl font-extrabold text-cyan-400 tracking-tight">
+            {kpiStats.rendimientoKgHa > 0 ? `${formatNumber(kpiStats.rendimientoKgHa)}` : '-'}
+          </p>
+          <p className="text-[10px] text-blue-300 mt-0.5">
+            {kpiStats.totalHectareas > 0 ? `${formatNumber(kpiStats.totalHectareas)} ha cosechadas` : 'kg por hectárea'}
+          </p>
         </div>
       </div>
 
