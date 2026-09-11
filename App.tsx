@@ -117,9 +117,14 @@ const App: React.FC = () => {
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
 
-        const prodName = workbook.SheetNames.find(n => n.toLowerCase().includes('produccion') || n.toLowerCase().includes('producción'));
+        let prodName = workbook.SheetNames.find(n => n.toLowerCase().includes('produccion') || n.toLowerCase().includes('producción'));
         const evalsName = workbook.SheetNames.find(n => n.toLowerCase().includes('evaluacion') || n.toLowerCase().includes('evaluación'));
-        const harvestsName = workbook.SheetNames.find(n => n.toLowerCase().includes('cosecha'));
+        const harvestsName = workbook.SheetNames.find(n => n.toLowerCase().includes('cosecha') || n.toLowerCase().includes('precosecha') || n.toLowerCase().includes('raleo'));
+
+        // If no sheet matches by name, fall back to the first sheet for production
+        if (!prodName && !evalsName && !harvestsName && workbook.SheetNames.length > 0) {
+          prodName = workbook.SheetNames[0];
+        }
 
         const importedProduction = prodName ? XLSX.utils.sheet_to_json<PondRecord>(workbook.Sheets[prodName], { raw: false }) : undefined;
         const importedEvaluations = evalsName ? XLSX.utils.sheet_to_json<EvaluationRecord>(workbook.Sheets[evalsName], { raw: false }) : undefined;
@@ -145,10 +150,11 @@ const App: React.FC = () => {
     const fixNumberFromDate = (val: any) => {
       if (typeof val === 'number') return val;
       if (typeof val === 'string') {
-        if (!isNaN(Number(val)) && val.trim() !== '') return Number(val);
+        const trimmed = val.trim();
+        if (!isNaN(Number(trimmed)) && trimmed !== '') return Number(trimmed);
         // Catch 1899 or 1900 dates which are likely numbers formatted as dates
-        if (val.startsWith('1899-') || val.startsWith('1900-')) {
-          const d = new Date(val);
+        if (trimmed.startsWith('1899-') || trimmed.startsWith('1900-')) {
+          const d = new Date(trimmed);
           const base = new Date('1899-12-30T00:00:00.000Z');
           // Approximating the number since timezones might shift it slightly
           const diffDays = (d.getTime() - base.getTime()) / (1000 * 3600 * 24);
@@ -161,29 +167,70 @@ const App: React.FC = () => {
     };
 
     if (importedData.production && importedData.production.length > 0) {
-      const fixedProd = importedData.production.map(p => {
+      const fixedProd = (importedData.production as any[]).map(row => {
+        const rowKeys = Object.keys(row);
+        const getVal = (...keys: string[]) => {
+          for (const k of keys) {
+            if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+          }
+          for (const k of keys) {
+            const cleanTarget = k.toLowerCase().replace(/[\s_()\-.]/g, '');
+            const foundKey = rowKeys.find(rk => rk.toLowerCase().replace(/[\s_()\-.]/g, '') === cleanTarget);
+            if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') {
+              return row[foundKey];
+            }
+          }
+          return undefined;
+        };
+
+        const pesoActual = fixNumberFromDate(getVal('pesoActual', 'peso_actual', 'Peso Actual', 'peso', 'Peso', 'Peso (g)', 'gramos'));
+        const pesoAnterior = fixNumberFromDate(getVal('pesoAnterior', 'peso_anterior', 'Peso Anterior', 'p_ant', 'P.Ant'));
+        const incrementoSemanal = fixNumberFromDate(getVal('incrementoSeman', 'incrementoSemanal', 'incremento_semanal', 'Incremento Semanal', 'IncrementoSeman', 'incremento', 'Inc.S'));
+        const diasCultivo = fixNumberFromDate(getVal('diasCultivo', 'dias_cultivo', 'Dias Cultivo', 'Días Cultivo', 'dias', 'DOC', 'Dias'));
+        
+        let sobrevivencia = fixNumberFromDate(getVal('sobrevivencia', 'Sobrevivencia', 'Supervivencia', 'supervivencia', '% Sobrevivencia', '% sobrevivencia', 'Sobrevivencia (%)', '% Sobr', 'Sobrev'));
+        if (sobrevivencia > 0 && sobrevivencia <= 1) {
+          sobrevivencia = Number((sobrevivencia * 100).toFixed(2));
+        }
+
+        const densidadInicial = fixNumberFromDate(getVal('Densidad Inicial', 'densidadInicial', 'DensidadInicial', 'densidad_inicial', 'Dens.I', 'organismosSembrados', 'Organismos Sembrados', 'organismos_sembrados', 'Poblacion Inicial', 'Población Inicial', 'Siembra', 'sembrados', 'larvas'));
+        const densidadActual = fixNumberFromDate(getVal('Densidad Actual', 'densidadActual', 'DensidadActual', 'densidad_actual', 'Dens.A', 'Poblacion Actual', 'Población Actual', 'poblacion_actual', 'poblacionActual'));
+
+        const granja = String(getVal('granja', 'Granja', 'Empresa', 'empresa', 'farm') || '').trim();
+        const estanque = String(getVal('estanque', 'Estanque', 'Pond', 'pond', 'est') || '').trim();
+        const hectareas = fixNumberFromDate(getVal('hectareas', 'Hectareas', 'Hectáreas', 'ha', 'Ha', 'Has', 'area', 'Area', 'Área')) || 1;
+
         const cleaned: Partial<PondRecord> = {
-          ...p,
-          fecha: cleanDateString(p.fecha),
-          fechaSiembra: cleanDateString(p.fechaSiembra),
-          fechaCosecha: cleanDateString(p.fechaCosecha),
-          orgMt2: fixNumberFromDate(p.orgMt2),
-          pesoAnterior: fixNumberFromDate(p.pesoAnterior),
-          pesoActual: fixNumberFromDate(p.pesoActual),
-          incrementoSemanal: fixNumberFromDate(p.incrementoSemanal),
-          diasCultivo: fixNumberFromDate(p.diasCultivo),
-          sobrevivencia: fixNumberFromDate(p.sobrevivencia),
-          densidadInicial: fixNumberFromDate(p.densidadInicial),
-          densidadActual: fixNumberFromDate(p.densidadActual),
-          biomasaHa: fixNumberFromDate(p.biomasaHa),
-          biomasaTotal: fixNumberFromDate(p.biomasaTotal),
-          alimentoAcumulado: fixNumberFromDate(p.alimentoAcumulado),
-          fca: fixNumberFromDate(p.fca),
-          camM2Inicial: fixNumberFromDate(p.camM2Inicial),
-          camM2Actual: fixNumberFromDate(p.camM2Actual),
-          alimentoProyectadoDia: fixNumberFromDate(p.alimentoProyectadoDia),
-          alimentoProyectadoSemana: fixNumberFromDate(p.alimentoProyectadoSemana),
-          hectareas: fixNumberFromDate(p.hectareas) || (p.hectareas ? Number(p.hectareas) : 1)
+          id: String(getVal('id', 'ID') || Math.random().toString(36).substring(2, 11)),
+          granja,
+          estanque,
+          hectareas,
+          fecha: cleanDateString(getVal('fecha', 'Fecha', 'date')),
+          fechaSiembra: cleanDateString(getVal('fechaSiembra', 'Fecha Siembra', 'fecha_siembra', 'Fecha de Siembra')),
+          fechaCosecha: cleanDateString(getVal('fechaCosecha', 'Fecha Cosecha', 'fecha_cosecha', 'Fecha de Cosecha')),
+          especie: String(getVal('especie', 'Especie') || 'L. Vannamei'),
+          alimento: String(getVal('alimento', 'Alimento', 'tipo_alimento') || ''),
+          laboratorio: String(getVal('laboratorio', 'Laboratorio', 'lab', 'Lab') || ''),
+          alimentadores: String(getVal('alimentadores', 'Alimentadores', 'alimentador') || ''),
+          aditivos: String(getVal('aditivos', 'Aditivos', 'aditivo') || ''),
+          orgMt2: fixNumberFromDate(getVal('orgMt2', 'Org/m2', 'org_m2', 'orgM2', 'camM2Inicial', 'cam_m2_inicial', 'Cam/m2 I')),
+          pesoAnterior,
+          pesoActual,
+          incrementoSemanal,
+          diasCultivo,
+          sobrevivencia,
+          densidadInicial,
+          densidadActual,
+          biomasaHa: fixNumberFromDate(getVal('biomasaHa', 'biomasa_ha', 'Biomasa Ha', 'Biomasa/Ha', 'Bio/Ha')),
+          biomasaTotal: fixNumberFromDate(getVal('biomasaTotal', 'biomasa_total', 'Biomasa Total', 'Biomasa (Kg)', 'biomasa', 'Bio.Tot')),
+          alimentoAcumulado: fixNumberFromDate(getVal('alimentoAcumulado', 'alimento_acumulado', 'Alimento Acumulado', 'Alim.Ac')),
+          alimentoSemanal: fixNumberFromDate(getVal('alimentoSemanal', 'alimento_semanal', 'Alimento Semanal')),
+          fca: fixNumberFromDate(getVal('fca', 'FCA', 'Fca', 'f.c.a.')),
+          camM2Inicial: fixNumberFromDate(getVal('camM2Inicial', 'Cam/m2 I', 'cam_m2_inicial')),
+          camM2Actual: fixNumberFromDate(getVal('camM2Actual', 'Cam/m2 A', 'cam_m2_actual')),
+          alimentoProyectadoDia: fixNumberFromDate(getVal('alimentoProyectadoDia', 'alimento_proyectado_dia')),
+          alimentoProyectadoSemana: fixNumberFromDate(getVal('alimentoProyectadoSemana', 'alimento_proyectado_semana')),
+          organismosSembrados: densidadInicial
         };
         return calculatePondMetrics(cleaned);
       });

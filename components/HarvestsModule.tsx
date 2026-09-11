@@ -71,20 +71,43 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
   // Fast map of pond attributes (hectareas, sembrados, etc.) by key `${granja}_${estanque}`
   const pondDataMap = useMemo(() => {
-    const map = new Map<string, { hectareas: number; sembrados: number; sobrevivencia: number; pesoActual: number; biomasaTotal: number }>();
+    const map = new Map<string, { hectareas: number; sembrados: number; sobrevivencia: number; pesoActual: number; biomasaTotal: number; densidadActual: number }>();
     records.forEach(r => {
       const g = (r.granja || '').toString().trim().toLowerCase();
       const e = normalizeEstanque(r.estanque);
       if (e) {
         const key = `${g}_${e}`;
+        const sembrados = r.densidadInicial || r.organismosSembrados || 0;
+        const hectareas = r.hectareas || 0;
+        let sobrevivencia = r.sobrevivencia || 0;
+        if (sobrevivencia > 0 && sobrevivencia <= 1) {
+          sobrevivencia = Number((sobrevivencia * 100).toFixed(1));
+        }
+        const pesoActual = r.pesoActual || 0;
+        const biomasaTotal = r.biomasaTotal || 0;
+        const densidadActual = r.densidadActual || (sembrados > 0 && sobrevivencia > 0 ? Math.round(sembrados * (sobrevivencia / 100)) : 0);
+
         if (!map.has(key)) {
           map.set(key, {
-            hectareas: r.hectareas || 0,
-            sembrados: r.densidadInicial || 0,
-            sobrevivencia: r.sobrevivencia || 0,
-            pesoActual: r.pesoActual || 0,
-            biomasaTotal: r.biomasaTotal || 0
+            hectareas,
+            sembrados,
+            sobrevivencia,
+            pesoActual,
+            biomasaTotal,
+            densidadActual
           });
+        } else {
+          const existing = map.get(key)!;
+          if ((!existing.sembrados || existing.sembrados === 0) && sembrados > 0) {
+            existing.sembrados = sembrados;
+          }
+          if ((!existing.hectareas || existing.hectareas === 0) && hectareas > 0) {
+            existing.hectareas = hectareas;
+          }
+          if (sobrevivencia > 0) existing.sobrevivencia = sobrevivencia;
+          if (pesoActual > 0) existing.pesoActual = pesoActual;
+          if (biomasaTotal > 0) existing.biomasaTotal = biomasaTotal;
+          if (densidadActual > 0) existing.densidadActual = densidadActual;
         }
       }
     });
@@ -94,7 +117,38 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const getPondData = (granja: string, estanque: string) => {
     const g = (granja || '').toString().trim().toLowerCase();
     const e = normalizeEstanque(estanque);
-    return pondDataMap.get(`${g}_${e}`);
+    if (!e) return undefined;
+
+    // 1. Direct match with granja + estanque
+    if (g && pondDataMap.has(`${g}_${e}`)) {
+      return pondDataMap.get(`${g}_${e}`);
+    }
+
+    // 2. Partial match on granja name
+    if (g) {
+      for (const [k, v] of pondDataMap.entries()) {
+        const [kGranja, kEst] = k.split('_');
+        if (kEst === e && (kGranja.includes(g) || g.includes(kGranja))) {
+          return v;
+        }
+      }
+    }
+
+    // 3. Fallback: match by estanque with sembrados > 0
+    for (const [k, v] of pondDataMap.entries()) {
+      if (k.endsWith(`_${e}`) && v.sembrados > 0) {
+        return v;
+      }
+    }
+
+    // 4. Any match by estanque
+    for (const [k, v] of pondDataMap.entries()) {
+      if (k.endsWith(`_${e}`)) {
+        return v;
+      }
+    }
+
+    return undefined;
   };
 
   // Extract unique options from existing production records for convenience
@@ -250,16 +304,27 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   }, [records, formGranja, formEstanque]);
 
   const pondStats = useMemo(() => {
-    if (!matchingPondRecord) return null;
-    const sembrados = matchingPondRecord.densidadInicial || 0;
-    const surv = matchingPondRecord.sobrevivencia || 100;
-    const pobVivaEst = Math.round(sembrados * (surv / 100));
-    return {
-      sembrados,
-      surv,
-      pobVivaEst
-    };
-  }, [matchingPondRecord]);
+    const pond = getPondData(formGranja, formEstanque);
+    if (pond && pond.sembrados > 0) {
+      return {
+        sembrados: pond.sembrados,
+        surv: pond.sobrevivencia || 100,
+        pobVivaEst: pond.densidadActual || Math.round(pond.sembrados * ((pond.sobrevivencia || 100) / 100))
+      };
+    }
+    if (matchingPondRecord) {
+      const sembrados = matchingPondRecord.densidadInicial || matchingPondRecord.organismosSembrados || 0;
+      let surv = matchingPondRecord.sobrevivencia || 100;
+      if (surv > 0 && surv <= 1) surv = surv * 100;
+      const pobVivaEst = matchingPondRecord.densidadActual || Math.round(sembrados * (surv / 100));
+      return {
+        sembrados,
+        surv,
+        pobVivaEst
+      };
+    }
+    return null;
+  }, [matchingPondRecord, formGranja, formEstanque, pondDataMap]);
 
   // Filter & Search Logic
   const filteredHarvests = useMemo(() => {
@@ -350,9 +415,12 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       weightedGramsSum += weightedGrams;
 
       let surv = h.sobrevivenciaFinal;
+      if (surv !== undefined && surv !== null && surv > 0 && surv <= 1) {
+        surv = surv * 100;
+      }
       if (!surv) {
         const pond = getPondData(h.granja, h.estanque);
-        if (pond && pond.sembrados > 0) {
+        if (pond && pond.sembrados > 0 && h.totalOrganismos > 0) {
           surv = Number(((h.totalOrganismos / pond.sembrados) * 100).toFixed(1));
         }
       }
@@ -655,7 +723,21 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             pesoPromedioPrecosechado = Number(((totalKilos * 1000) / totalOrganismos).toFixed(2));
           }
 
-          const sobrevivenciaFinal = fixNumber(getVal('Sobrevocencia Final', 'Sobrevivencia Final', 'Sobrevivencia', 'sobrevivenciaFinal'));
+          let sobrevivenciaFinal = fixNumber(getVal('Sobrevocencia Final', 'Sobrevivencia Final', 'Sobrevivencia', 'sobrevivenciaFinal', '% Sobrevivencia', '% sobrevivencia', 'Supervivencia'));
+          if (sobrevivenciaFinal > 0 && sobrevivenciaFinal <= 1) {
+            sobrevivenciaFinal = Number((sobrevivenciaFinal * 100).toFixed(1));
+          }
+          if (!sobrevivenciaFinal) {
+            const sembradosRow = fixNumber(getVal('Densidad Inicial', 'densidadInicial', 'sembrados', 'Organismos Sembrados', 'Poblacion Inicial', 'Población Inicial', 'larvas'));
+            if (sembradosRow > 0 && totalOrganismos > 0) {
+              sobrevivenciaFinal = Number(((totalOrganismos / sembradosRow) * 100).toFixed(1));
+            } else {
+              const pond = getPondData(granja, estanque);
+              if (pond && pond.sembrados > 0 && totalOrganismos > 0) {
+                sobrevivenciaFinal = Number(((totalOrganismos / pond.sembrados) * 100).toFixed(1));
+              }
+            }
+          }
 
           const hasAnyData = estanque !== '' || granja !== '' || totalKilos > 0 || (pre1Kilos && pre1Kilos > 0);
           if (!hasAnyData) return;
@@ -1449,8 +1531,13 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                     ? Number(((h.totalKilos * 1000) / h.totalOrganismos).toFixed(1)) 
                     : 0);
                   
-                  const calculatedSurv = h.sobrevivenciaFinal 
-                    ? h.sobrevivenciaFinal 
+                  let rawSurv = h.sobrevivenciaFinal;
+                  if (rawSurv !== undefined && rawSurv !== null && rawSurv > 0 && rawSurv <= 1) {
+                    rawSurv = rawSurv * 100;
+                  }
+
+                  const calculatedSurv = rawSurv 
+                    ? Number(rawSurv.toFixed(1)) 
                     : (pondSembrados > 0 && h.totalOrganismos > 0 
                         ? Number(((h.totalOrganismos / pondSembrados) * 100).toFixed(1)) 
                         : null);

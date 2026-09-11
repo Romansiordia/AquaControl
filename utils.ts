@@ -110,8 +110,11 @@ export const getFeedingRatePercentage = (peso: number): number => {
 export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord => {
   const pesoActual = record.pesoActual || 0;
   const pesoAnterior = record.pesoAnterior || 0;
-  let densidadInicial = record.densidadInicial || 0;
-  const sobrevivencia = record.sobrevivencia || 0;
+  let densidadInicial = record.densidadInicial || record.organismosSembrados || 0;
+  let sobrevivencia = record.sobrevivencia || 0;
+  if (sobrevivencia > 0 && sobrevivencia <= 1) {
+    sobrevivencia = Number((sobrevivencia * 100).toFixed(2));
+  }
   const hectareas = record.hectareas || 1;
   const alimentoAcumulado = record.alimentoAcumulado || 0;
 
@@ -120,11 +123,27 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     densidadInicial = Math.round(rawOrgMt2 * (hectareas * 10000));
   }
 
-  const incrementoSemanal = parseFloat((pesoActual - pesoAnterior).toFixed(2));
-  const densidadActual = Math.round(densidadInicial * (sobrevivencia / 100));
-  const biomasaTotal = parseFloat(((densidadActual * pesoActual) / 1000).toFixed(2));
-  const biomasaHa = hectareas > 0 ? parseFloat((biomasaTotal / hectareas).toFixed(2)) : 0;
-  const fca = biomasaTotal > 0 ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(2)) : 0;
+  // Preserve explicit weekly growth from file (e.g. incrementoSeman = 0.25, 0.38) or calculate from difference
+  const incrementoSemanal = record.incrementoSemanal !== undefined && record.incrementoSemanal !== null && !isNaN(Number(record.incrementoSemanal)) && Number(record.incrementoSemanal) !== 0
+    ? Number(Number(record.incrementoSemanal).toFixed(2))
+    : parseFloat((pesoActual - pesoAnterior).toFixed(2));
+
+  // If Densidad Actual is already provided in file (e.g. 2333103, 2099793), use it directly, or calculate
+  const densidadActual = record.densidadActual && record.densidadActual > 0
+    ? record.densidadActual
+    : Math.round(densidadInicial * (sobrevivencia / 100));
+
+  const biomasaTotal = record.biomasaTotal && record.biomasaTotal > 0
+    ? record.biomasaTotal
+    : parseFloat(((densidadActual * pesoActual) / 1000).toFixed(2));
+
+  const biomasaHa = record.biomasaHa && record.biomasaHa > 0
+    ? record.biomasaHa
+    : (hectareas > 0 ? parseFloat((biomasaTotal / hectareas).toFixed(2)) : 0);
+
+  const fca = record.fca && record.fca > 0
+    ? record.fca
+    : (biomasaTotal > 0 ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(2)) : 0);
   
   const camM2Inicial = hectareas > 0 && densidadInicial > 0 ? parseFloat((densidadInicial / (hectareas * 10000)).toFixed(2)) : (rawOrgMt2 || 0);
   const camM2Actual = hectareas > 0 && densidadActual > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
