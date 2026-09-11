@@ -219,9 +219,33 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   };
 };
 
-export const formatNumber = (num: number) => {
-  if (num === undefined || num === null || isNaN(num)) return '0';
-  return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(num);
+export const parseFlexibleNumber = (val: any): number => {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return 0;
+    // Remove comma thousands separators (e.g. 149,434 or 1,980.50)
+    const noComma = trimmed.replace(/,/g, '');
+    if (!isNaN(Number(noComma))) return Number(noComma);
+    // Remove period as thousands separators (e.g. 149.434,50)
+    const euroClean = trimmed.replace(/\./g, '').replace(/,/g, '.');
+    if (!isNaN(Number(euroClean))) return Number(euroClean);
+    // Catch 1899 or 1900 dates which are numbers formatted as dates in Excel
+    if (trimmed.startsWith('1899-') || trimmed.startsWith('1900-')) {
+      const d = new Date(trimmed);
+      const base = new Date('1899-12-30T00:00:00.000Z');
+      const diffDays = (d.getTime() - base.getTime()) / (1000 * 3600 * 24);
+      if (Math.abs(diffDays - Math.round(diffDays)) < 0.05) return Math.round(diffDays);
+      return Number(diffDays.toFixed(2));
+    }
+  }
+  return 0;
+};
+
+export const formatNumber = (num: number | string | undefined | null) => {
+  const val = parseFlexibleNumber(num);
+  return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(val);
 };
 
 export const formatDate = (dateStr: string) => {
