@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
-import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles } from 'lucide-react';
-import { formatNumber, formatDate, normalizeEstanque } from '../utils';
+import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle } from 'lucide-react';
+import { formatNumber, formatDate, normalizeEstanque, cleanDateString } from '../utils';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
+import * as XLSX from 'xlsx';
 
 interface HarvestsModuleProps {
   records: PondRecord[];
@@ -10,6 +11,9 @@ interface HarvestsModuleProps {
   onAddHarvest: (harvest: HarvestRecord) => void;
   onEditHarvest: (harvest: HarvestRecord) => void;
   onDeleteHarvest: (id: string) => void;
+  onClearAllHarvests?: () => void;
+  onDeleteByGranja?: (granja: string) => void;
+  onImportHarvests?: (newHarvests: HarvestRecord[]) => void;
 }
 
 const HarvestsModule: React.FC<HarvestsModuleProps> = ({
@@ -18,9 +22,13 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   onAddHarvest,
   onEditHarvest,
   onDeleteHarvest,
+  onClearAllHarvests,
+  onDeleteByGranja,
+  onImportHarvests,
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingHarvest, setEditingHarvest] = useState<HarvestRecord | null>(null);
+  const harvestFileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter States
   const [granjaFilter, setGranjaFilter] = useState('');
@@ -529,6 +537,179 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   };
   const fillComputedFinal = () => {
     if (calculatedFinalOrg > 0) setFinalOrganismos(calculatedFinalOrg.toString());
+  };
+
+  const handleHarvestExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+
+        let targetSheetName = workbook.SheetNames.find(n => {
+          const lower = n.toLowerCase();
+          return lower.includes('cosecha') || lower.includes('precosecha') || lower.includes('raleo');
+        });
+
+        if (!targetSheetName) {
+          targetSheetName = workbook.SheetNames[0];
+        }
+
+        const rawRows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheetName], { raw: false });
+        if (!rawRows || rawRows.length === 0) {
+          alert('El archivo Excel no contiene filas con datos legibles.');
+          return;
+        }
+
+        const fixNumber = (val: any) => {
+          if (typeof val === 'number') return val;
+          if (typeof val === 'string') {
+            const cleaned = val.replace(/,/g, '').trim();
+            if (!isNaN(Number(cleaned)) && cleaned !== '') return Number(cleaned);
+          }
+          return 0;
+        };
+
+        const parsedHarvests: HarvestRecord[] = [];
+
+        rawRows.forEach((row, idx) => {
+          const rowKeys = Object.keys(row);
+          const getVal = (...keys: string[]) => {
+            for (const k of keys) {
+              if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+            }
+            for (const k of keys) {
+              const cleanTarget = k.toLowerCase().replace(/[\s_()\-]/g, '');
+              const foundKey = rowKeys.find(rk => rk.toLowerCase().replace(/[\s_()\-]/g, '') === cleanTarget);
+              if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') {
+                return row[foundKey];
+              }
+            }
+            return undefined;
+          };
+
+          const granja = String(getVal('granja', 'Granja', 'Empresa') || '').trim();
+          const estanque = String(getVal('estanque', 'Estanque', 'Pond') || '').trim();
+
+          // Stage 1
+          const fecha1 = cleanDateString(getVal('Fecha 1', 'Fecha1', 'fecha 1', 'fecha1'));
+          const pre1Kilos = fixNumber(getVal('Biomasa 1 (Kg)', 'Biomasa 1', 'Biomasa1', 'pre1Kilos', 'Kilos 1', 'kilos1'));
+          const pre1Gramos = fixNumber(getVal('Peso 1 (g)', 'Peso 1', 'Peso1', 'pre1Gramos', 'Gramos 1', 'gramos1'));
+          let pre1Organismos = fixNumber(getVal('Org Totales 1', 'Org. Totales 1', 'Org Totales1', 'pre1Organismos', 'Organismos 1'));
+          if ((!pre1Organismos || pre1Organismos === 0) && pre1Kilos > 0 && pre1Gramos > 0) {
+            pre1Organismos = Math.round((pre1Kilos * 1000) / pre1Gramos);
+          }
+
+          // Stage 2
+          const fecha2 = cleanDateString(getVal('Fecha 2', 'Fecha2', 'fecha 2', 'fecha2'));
+          const pre2Kilos = fixNumber(getVal('Biomasa 2 (Kg)', 'Biomasa 2', 'Biomasa2', 'pre2Kilos', 'Kilos 2', 'kilos2'));
+          const pre2Gramos = fixNumber(getVal('Peso 2 (g)', 'Peso 2', 'Peso2', 'pre2Gramos', 'Gramos 2', 'gramos2'));
+          let pre2Organismos = fixNumber(getVal('Org Totales 2', 'Org. Totales 2', 'Org Totales2', 'pre2Organismos', 'Organismos 2'));
+          if ((!pre2Organismos || pre2Organismos === 0) && pre2Kilos > 0 && pre2Gramos > 0) {
+            pre2Organismos = Math.round((pre2Kilos * 1000) / pre2Gramos);
+          }
+
+          // Stage 3
+          const fecha3 = cleanDateString(getVal('Fecha 3', 'Fecha3', 'fecha 3', 'fecha3'));
+          const pre3Kilos = fixNumber(getVal('Biomasa 3 (Kg)', 'Biomasa 3', 'Biomasa3', 'pre3Kilos', 'Kilos 3', 'kilos3'));
+          const pre3Gramos = fixNumber(getVal('Peso 3 (g)', 'Peso 3', 'Peso3', 'pre3Gramos', 'Gramos 3', 'gramos3'));
+          let pre3Organismos = fixNumber(getVal('Org Totales 3', 'Org. Totales 3', 'Org Totales3', 'pre3Organismos', 'Organismos 3'));
+          if ((!pre3Organismos || pre3Organismos === 0) && pre3Kilos > 0 && pre3Gramos > 0) {
+            pre3Organismos = Math.round((pre3Kilos * 1000) / pre3Gramos);
+          }
+
+          // Stage 4
+          const fecha4 = cleanDateString(getVal('Fecha 4', 'Fecha4', 'fecha 4', 'fecha4'));
+          const pre4Kilos = fixNumber(getVal('Biomasa 4 (Kg)', 'Biomasa 4', 'Biomasa4', 'pre4Kilos', 'Kilos 4', 'kilos4'));
+          const pre4Gramos = fixNumber(getVal('Peso 4 (g)', 'Peso 4', 'Peso4', 'pre4Gramos', 'Gramos 4', 'gramos4'));
+          let pre4Organismos = fixNumber(getVal('Org Totales 4', 'Org. Totales 4', 'Org Totales4', 'pre4Organismos', 'Organismos 4'));
+          if ((!pre4Organismos || pre4Organismos === 0) && pre4Kilos > 0 && pre4Gramos > 0) {
+            pre4Organismos = Math.round((pre4Kilos * 1000) / pre4Gramos);
+          }
+
+          // Stage 5
+          const fecha5 = cleanDateString(getVal('Fecha 5', 'Fecha5', 'fecha 5', 'fecha5'));
+          const pre5Kilos = fixNumber(getVal('Biomasa 5 (Kg)', 'Biomasa 5', 'Biomasa5', 'pre5Kilos', 'Kilos 5', 'kilos5'));
+          const pre5Gramos = fixNumber(getVal('Peso 5 (g)', 'Peso 5', 'Peso5', 'pre5Gramos', 'Gramos 5', 'gramos5'));
+          let pre5Organismos = fixNumber(getVal('Org Totales 5', 'Org. Totales 5', 'Org Totales5', 'pre5Organismos', 'Organismos 5'));
+          if ((!pre5Organismos || pre5Organismos === 0) && pre5Kilos > 0 && pre5Gramos > 0) {
+            pre5Organismos = Math.round((pre5Kilos * 1000) / pre5Gramos);
+          }
+
+          // Totales
+          let totalKilos = fixNumber(getVal('Biomasa Precosechada Kg', 'Biomasa Precosechada', 'totalKilos', 'Total Kilos', 'total_kilos'));
+          if (!totalKilos || totalKilos === 0) {
+            totalKilos = (pre1Kilos || 0) + (pre2Kilos || 0) + (pre3Kilos || 0) + (pre4Kilos || 0) + (pre5Kilos || 0);
+          }
+
+          let totalOrganismos = fixNumber(getVal('Organismos Precosechados', 'Org Precosechados', 'totalOrganismos', 'Total Organismos', 'total_organismos'));
+          if (!totalOrganismos || totalOrganismos === 0) {
+            totalOrganismos = (pre1Organismos || 0) + (pre2Organismos || 0) + (pre3Organismos || 0) + (pre4Organismos || 0) + (pre5Organismos || 0);
+          }
+
+          let pesoPromedioPrecosechado = fixNumber(getVal('Peso Promedio Precosechado', 'Peso Promedio', 'pesoPromedioPrecosechado'));
+          if ((!pesoPromedioPrecosechado || pesoPromedioPrecosechado === 0) && totalKilos > 0 && totalOrganismos > 0) {
+            pesoPromedioPrecosechado = Number(((totalKilos * 1000) / totalOrganismos).toFixed(2));
+          }
+
+          const sobrevivenciaFinal = fixNumber(getVal('Sobrevocencia Final', 'Sobrevivencia Final', 'Sobrevivencia', 'sobrevivenciaFinal'));
+
+          const hasAnyData = estanque !== '' || granja !== '' || totalKilos > 0 || (pre1Kilos && pre1Kilos > 0);
+          if (!hasAnyData) return;
+
+          const effectiveFecha = fecha4 || fecha3 || fecha2 || fecha1 || cleanDateString(getVal('fecha', 'Fecha')) || new Date().toISOString().split('T')[0];
+
+          parsedHarvests.push({
+            id: `h_${Date.now()}_${idx}`,
+            granja: granja || 'Granja Principal',
+            estanque: estanque || String(idx + 1),
+            fecha: effectiveFecha,
+            fecha1: fecha1 || undefined,
+            pre1Kilos: pre1Kilos || undefined,
+            pre1Gramos: pre1Gramos || undefined,
+            pre1Organismos: pre1Organismos || undefined,
+            fecha2: fecha2 || undefined,
+            pre2Kilos: pre2Kilos || undefined,
+            pre2Gramos: pre2Gramos || undefined,
+            pre2Organismos: pre2Organismos || undefined,
+            fecha3: fecha3 || undefined,
+            pre3Kilos: pre3Kilos || undefined,
+            pre3Gramos: pre3Gramos || undefined,
+            pre3Organismos: pre3Organismos || undefined,
+            fecha4: fecha4 || undefined,
+            pre4Kilos: pre4Kilos || undefined,
+            pre4Gramos: pre4Gramos || undefined,
+            pre4Organismos: pre4Organismos || undefined,
+            fecha5: fecha5 || undefined,
+            pre5Kilos: pre5Kilos || undefined,
+            pre5Gramos: pre5Gramos || undefined,
+            pre5Organismos: pre5Organismos || undefined,
+            totalKilos: Number(totalKilos.toFixed(2)),
+            totalOrganismos,
+            pesoPromedioPrecosechado: pesoPromedioPrecosechado || undefined,
+            sobrevivenciaFinal: sobrevivenciaFinal || undefined,
+          });
+        });
+
+        if (parsedHarvests.length === 0) {
+          alert('No se encontraron filas con registros válidos en el archivo Excel.');
+          return;
+        }
+
+        if (onImportHarvests) {
+          onImportHarvests(parsedHarvests);
+          alert(`✅ Se importaron exitosamente ${parsedHarvests.length} registros desde el archivo Excel. Se han limpiado los registros anteriores de la memoria virtual.`);
+        }
+      } catch (err) {
+        console.error('Error al procesar archivo Excel de cosecha:', err);
+        alert('Hubo un error al leer el archivo Excel.');
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = '';
   };
 
   return (
@@ -1110,6 +1291,49 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
         </form>
       )}
 
+      {/* Hidden File Input for Excel Import */}
+      <input 
+        type="file" 
+        ref={harvestFileInputRef} 
+        onChange={handleHarvestExcelUpload} 
+        accept=".xlsx, .xls, .csv" 
+        className="hidden" 
+      />
+
+      {/* Multiple Farms / Phantom Data Alert Banner */}
+      {uniqueGranjas.length > 1 && (
+        <div className="bg-amber-950/40 border border-amber-500/40 p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              Se detectaron registros de más de una granja en la memoria virtual: <strong>{uniqueGranjas.join(', ')}</strong>.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {uniqueGranjas.map(g => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => {
+                  if (confirm(`¿Deseas eliminar todos los registros guardados de la granja "${g}" de la memoria?`)) {
+                    if (onDeleteByGranja) {
+                      onDeleteByGranja(g);
+                    } else {
+                      harvests.filter(h => h.granja === g).forEach(h => onDeleteHarvest(h.id));
+                    }
+                  }
+                }}
+                className="bg-amber-900/60 hover:bg-amber-700 border border-amber-600/50 text-amber-100 px-2.5 py-1 rounded text-xs transition-colors flex items-center gap-1 active:scale-95"
+                title={`Eliminar registros de ${g}`}
+              >
+                <Trash2 className="w-3 h-3 text-amber-300" />
+                <span>Borrar registros de {g}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Table Actions Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0A345C] p-4 rounded-xl border border-[#125699] shadow-sm">
         <div className="flex items-center gap-2">
@@ -1119,13 +1343,46 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             <p className="text-xs text-blue-300">Historial completo y controles de captura para pre-cosechas y cosechas finales.</p>
           </div>
         </div>
-        <button 
-          onClick={() => { handleResetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-md hover:shadow-lg active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Registrar Cosecha</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          <button 
+            type="button"
+            onClick={() => harvestFileInputRef.current?.click()}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all shadow-md active:scale-95"
+            title="Importar y reemplazar directamente desde archivo Excel (.xlsx, .csv)"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Cargar Excel de Cosechas</span>
+          </button>
+
+          {harvests.length > 0 && (
+            <button 
+              type="button"
+              onClick={() => {
+                if (confirm('¿Deseas vaciar todos los registros de cosecha guardados en la memoria virtual para dejar la tabla limpia?')) {
+                  if (onClearAllHarvests) {
+                    onClearAllHarvests();
+                  } else {
+                    harvests.forEach(h => onDeleteHarvest(h.id));
+                  }
+                }
+              }}
+              className="flex items-center gap-1.5 bg-rose-950/60 hover:bg-rose-800 border border-rose-600/40 text-rose-200 hover:text-white px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all shadow-md active:scale-95"
+              title="Vaciar todas las cosechas guardadas en memoria"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Vaciar Tabla</span>
+            </button>
+          )}
+
+          <button 
+            type="button"
+            onClick={() => { handleResetForm(); setShowForm(true); }}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-md hover:shadow-lg active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Registrar Cosecha</span>
+          </button>
+        </div>
       </div>
 
       {/* Harvest records Table */}

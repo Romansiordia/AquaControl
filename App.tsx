@@ -68,7 +68,26 @@ const App: React.FC = () => {
   });
   const [actualHarvests, setHarvests] = useState<HarvestRecord[]>(() => {
     const saved = localStorage.getItem('camaronera_harvests');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filtrar registros fantasma de prueba duplicados (ej: registros idénticos con 2380 kg y 14.7 g)
+          const cleaned = parsed.filter((r: any) => {
+            const isPhantomBojorquez = (r.granja?.toUpperCase().includes('BOJORQUEZ') || r.granja?.toUpperCase().includes('BOJ')) && 
+              Number(r.pre1Kilos) === 2380 && Number(r.pre1Gramos) === 14.7;
+            return !isPhantomBojorquez;
+          });
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('camaronera_harvests', JSON.stringify(cleaned));
+          }
+          return cleaned;
+        }
+      } catch (e) {
+        console.error("Error parsing camaronera_harvests:", e);
+      }
+    }
+    return [];
   });
 
   const [isLocalMode, setIsLocalMode] = useState(false);
@@ -429,7 +448,33 @@ const App: React.FC = () => {
     if (checkLocalModeBlock()) return;
     const updatedHarvests = harvests.filter(h => h.id !== id);
     setHarvests(updatedHarvests);
+    localStorage.setItem('camaronera_harvests', JSON.stringify(updatedHarvests));
     syncDataToSheets(records, evaluations, updatedHarvests);
+  };
+
+  const handleClearAllHarvests = () => {
+    if (checkLocalModeBlock()) return;
+    setHarvests([]);
+    localStorage.removeItem('camaronera_harvests');
+    syncDataToSheets(records, evaluations, []);
+  };
+
+  const handleSetHarvests = (newHarvests: HarvestRecord[]) => {
+    if (isLocalMode) {
+      setLocalHarvests(newHarvests);
+    } else {
+      setHarvests(newHarvests);
+      localStorage.setItem('camaronera_harvests', JSON.stringify(newHarvests));
+      syncDataToSheets(records, evaluations, newHarvests);
+    }
+  };
+
+  const handleDeleteHarvestsByGranja = (granjaName: string) => {
+    if (checkLocalModeBlock()) return;
+    const filtered = harvests.filter(h => h.granja?.toLowerCase().trim() !== granjaName.toLowerCase().trim());
+    setHarvests(filtered);
+    localStorage.setItem('camaronera_harvests', JSON.stringify(filtered));
+    syncDataToSheets(records, evaluations, filtered);
   };
 
   const handleAddRecord = (newRecord: Partial<PondRecord>) => {
@@ -914,6 +959,9 @@ const App: React.FC = () => {
               onAddHarvest={handleAddHarvest}
               onEditHarvest={handleEditHarvest}
               onDeleteHarvest={handleDeleteHarvest}
+              onClearAllHarvests={handleClearAllHarvests}
+              onDeleteByGranja={handleDeleteHarvestsByGranja}
+              onImportHarvests={handleSetHarvests}
             />
           )}
           {activeView === 'googleSync' && (
