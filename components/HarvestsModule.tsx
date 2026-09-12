@@ -3,7 +3,7 @@ import { HarvestRecord, PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle, TrendingUp } from 'lucide-react';
 import { formatNumber, formatDate, normalizeEstanque, cleanDateString, parseFlexibleNumber } from '../utils';
 import { calculateStageOrganismos, parseHarvestWorksheet, normalizeHarvestRecord } from '../utils/harvestUtils';
-import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
 import * as XLSX from 'xlsx';
 
 interface HarvestsModuleProps {
@@ -347,6 +347,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   }, [harvests, granjaFilter, estanqueFilter]);
 
   const [chartView, setChartView] = useState<'kilos' | 'organismos' | 'etapas' | 'tallas'>('kilos');
+  const [etapasChartType, setEtapasChartType] = useState<'stacked' | 'line'>('stacked');
+  const [organismosChartType, setOrganismosChartType] = useState<'line' | 'bar'>('line');
 
   const harvestChartData = useMemo(() => {
     return [...filteredHarvests]
@@ -365,39 +367,91 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
         const p3G = parseFlexibleNumber(h.pre3Gramos);
         const p3Org = calculateStageOrganismos(p3K, p3G, h.pre3Organismos);
 
-        const p4K = parseFlexibleNumber(h.pre4Kilos || h.finalKilos);
-        const p4G = parseFlexibleNumber(h.pre4Gramos || h.finalGramos);
-        const p4Org = calculateStageOrganismos(p4K, p4G, h.pre4Organismos || h.finalOrganismos);
+        const p4K = parseFlexibleNumber(h.pre4Kilos);
+        const p4G = parseFlexibleNumber(h.pre4Gramos);
+        const p4Org = calculateStageOrganismos(p4K, p4G, h.pre4Organismos);
 
         const p5K = parseFlexibleNumber(h.pre5Kilos);
         const p5G = parseFlexibleNumber(h.pre5Gramos);
         const p5Org = calculateStageOrganismos(p5K, p5G, h.pre5Organismos);
 
+        const fK = parseFlexibleNumber(h.finalKilos);
+        const fG = parseFlexibleNumber(h.finalGramos);
+        const fOrg = calculateStageOrganismos(fK, fG, h.finalOrganismos);
+
         const rowKilos = (h.totalKilos && parseFlexibleNumber(h.totalKilos) > 0)
           ? parseFlexibleNumber(h.totalKilos)
-          : (p1K + p2K + p3K + p4K + p5K);
+          : (p1K + p2K + p3K + p4K + p5K + fK);
         const rowOrg = (h.totalOrganismos && parseFlexibleNumber(h.totalOrganismos) > 0)
           ? parseFlexibleNumber(h.totalOrganismos)
-          : (p1Org + p2Org + p3Org + p4Org + p5Org);
+          : (p1Org + p2Org + p3Org + p4Org + p5Org + fOrg);
 
         return {
           label: `${h.granja} - E${h.estanque} (${formattedDate})`,
           totalKilos: rowKilos,
           totalOrganismos: rowOrg,
-          pre1Kilos: p1K,
-          pre2Kilos: p2K,
-          pre3Kilos: p3K,
-          pre4Kilos: p4K,
-          pre5Kilos: p5K,
-          finalKilos: parseFlexibleNumber(h.finalKilos),
-          pre1Gramos: p1G,
-          pre2Gramos: p2G,
-          pre3Gramos: p3G,
-          pre4Gramos: p4G,
-          pre5Gramos: p5G,
-          finalGramos: parseFlexibleNumber(h.finalGramos),
+          pre1Kilos: p1K > 0 ? p1K : null,
+          pre2Kilos: p2K > 0 ? p2K : null,
+          pre3Kilos: p3K > 0 ? p3K : null,
+          pre4Kilos: p4K > 0 ? p4K : null,
+          pre5Kilos: p5K > 0 ? p5K : null,
+          finalKilos: fK > 0 ? fK : null,
+          pre1Gramos: p1G > 0 ? p1G : null,
+          pre2Gramos: p2G > 0 ? p2G : null,
+          pre3Gramos: p3G > 0 ? p3G : null,
+          pre4Gramos: p4G > 0 ? p4G : null,
+          pre5Gramos: p5G > 0 ? p5G : null,
+          finalGramos: fG > 0 ? fG : null,
         };
       });
+  }, [filteredHarvests]);
+
+  const isSinglePond = filteredHarvests.length === 1;
+
+  const singlePondTimelineData = useMemo(() => {
+    if (filteredHarvests.length !== 1) return [];
+    const h = filteredHarvests[0];
+    const stages: Array<{
+      etapa: string;
+      etapaCompleta: string;
+      fecha: string;
+      label: string;
+      kilos: number;
+      gramos: number;
+      organismos: number;
+      color: string;
+    }> = [];
+
+    let runningOrg = 0;
+    const addStage = (name: string, shortName: string, dateStr: string | undefined, kilos: any, gramos: any, rawOrg: any, color: string) => {
+      const k = parseFlexibleNumber(kilos);
+      const g = parseFlexibleNumber(gramos);
+      const org = calculateStageOrganismos(k, g, rawOrg);
+      if (k > 0 || g > 0 || org > 0) {
+        runningOrg += org;
+        const formattedDate = dateStr ? formatDate(dateStr) : '';
+        stages.push({
+          etapa: shortName,
+          etapaCompleta: name,
+          fecha: formattedDate,
+          label: formattedDate ? `${shortName} (${formattedDate})` : shortName,
+          kilos: k,
+          gramos: g,
+          organismos: org,
+          organismosAcumulados: runningOrg,
+          color,
+        });
+      }
+    };
+
+    addStage('1ra Pre-Cosecha', '1ra Pre', h.fecha1 || h.fecha, h.pre1Kilos, h.pre1Gramos, h.pre1Organismos, '#60a5fa');
+    addStage('2da Pre-Cosecha', '2da Pre', h.fecha2, h.pre2Kilos, h.pre2Gramos, h.pre2Organismos, '#34d399');
+    addStage('3ra Pre-Cosecha', '3ra Pre', h.fecha3, h.pre3Kilos, h.pre3Gramos, h.pre3Organismos, '#a78bfa');
+    addStage('4ta Pre-Cosecha', '4ta Pre', h.fecha4, h.pre4Kilos, h.pre4Gramos, h.pre4Organismos, '#f472b6');
+    addStage('5ta Pre-Cosecha', '5ta Pre', '', h.pre5Kilos, h.pre5Gramos, h.pre5Organismos, '#fbbf24');
+    addStage('Cosecha Final', 'Final', h.fecha, h.finalKilos, h.finalGramos, h.finalOrganismos, '#f97316');
+
+    return stages;
   }, [filteredHarvests]);
 
   // Pagination Logic
@@ -1686,19 +1740,19 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               onClick={() => setChartView('organismos')} 
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'organismos' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
             >
-              🔢 Organismos
+              📈 Organismos
             </button>
             <button 
               onClick={() => setChartView('etapas')} 
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'etapas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
             >
-              📊 Desglose Etapas
+              📈 Desglose Etapas
             </button>
             <button 
               onClick={() => setChartView('tallas')} 
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'tallas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
             >
-              🦐 Tallas Promedio
+              📈 Tallas Promedio
             </button>
           </div>
         </div>
@@ -1740,31 +1794,116 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           {chartView === 'organismos' && (
             <>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span className="text-emerald-400">🔢</span> Organismos Cosechados Totales
-                </h3>
-                <span className="text-xs text-blue-300">Total de camarones cosechados</span>
-              </div>
-              <div className="flex-1 min-h-0">
-                {harvestChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(15, 76, 138, 0.4)' }} 
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
-                        formatter={(value: number) => [`${formatNumber(value)} org`, 'Organismos']} 
-                      />
-                      <Bar dataKey="totalOrganismos" name="Organismos" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                    <span>Sin registros de cosechas para los filtros seleccionados</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span className="text-emerald-400">📈</span> 
+                    {isSinglePond 
+                      ? `Línea de Tiempo de Organismos por Etapa (${filteredHarvests[0]?.granja} - Estanque ${filteredHarvests[0]?.estanque})`
+                      : 'Organismos Cosechados Totales'}
+                  </h3>
+                  <span className="text-xs text-blue-300">
+                    {isSinglePond 
+                      ? 'Evolución de camarones cosechados en cada sacada a lo largo de las fechas'
+                      : (organismosChartType === 'line' ? 'Línea de tiempo cronológica de organismos cosechados por fecha' : 'Comparativa de organismos cosechados por estanque')}
+                  </span>
+                </div>
+
+                {!isSinglePond && (
+                  <div className="flex items-center bg-[#093661] p-1 rounded-lg border border-[#1a6ebd] text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setOrganismosChartType('line')}
+                      className={`px-2.5 py-1 rounded transition-colors font-medium ${organismosChartType === 'line' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+                    >
+                      📈 Línea
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrganismosChartType('bar')}
+                      className={`px-2.5 py-1 rounded transition-colors font-medium ${organismosChartType === 'bar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+                    >
+                      📊 Barras
+                    </button>
                   </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-h-0">
+                {isSinglePond ? (
+                  singlePondTimelineData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={singlePondTimelineData} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                          formatter={(value: any, name: string, item: any) => {
+                            return [
+                              `${formatNumber(value)} org`,
+                              `Organismos (${item.payload.etapaCompleta})`
+                            ];
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="organismos"
+                          name="Organismos Cosechados"
+                          stroke="#10b981"
+                          strokeWidth={3}
+                          dot={{ r: 6, fill: '#059669', stroke: '#ffffff', strokeWidth: 2 }}
+                          activeDot={{ r: 8, fill: '#34d399' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                      <span>Sin datos de organismos para este estanque</span>
+                    </div>
+                  )
+                ) : (
+                  harvestChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      {organismosChartType === 'line' ? (
+                        <LineChart data={harvestChartData} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
+                          <Tooltip
+                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                            formatter={(value: number) => [`${formatNumber(value)} org`, 'Total Organismos']}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="totalOrganismos"
+                            name="Organismos Totales"
+                            stroke="#10b981"
+                            strokeWidth={2.5}
+                            dot={{ r: 4, fill: '#10b981', stroke: '#0B4075', strokeWidth: 1.5 }}
+                            activeDot={{ r: 7, fill: '#34d399' }}
+                          />
+                        </LineChart>
+                      ) : (
+                        <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(15, 76, 138, 0.4)' }}
+                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                            formatter={(value: number) => [`${formatNumber(value)} org`, 'Organismos']}
+                          />
+                          <Bar dataKey="totalOrganismos" name="Organismos" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      )}
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                      <span>Sin registros de cosechas para los filtros seleccionados</span>
+                    </div>
+                  )
                 )}
               </div>
             </>
@@ -1773,36 +1912,121 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           {chartView === 'etapas' && (
             <>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span className="text-indigo-400">📊</span> Desglose de Kilos por Etapa (kg)
-                </h3>
-                <span className="text-xs text-blue-300">Pre-cosechas y Cosecha Final apiladas</span>
-              </div>
-              <div className="flex-1 min-h-0">
-                {harvestChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
-                        formatter={(value: number) => [`${formatNumber(value)} kg`, '']} 
-                      />
-                      <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
-                      <Bar dataKey="pre1Kilos" stackId="a" name="1ra Pre (kg)" fill="#60a5fa" />
-                      <Bar dataKey="pre2Kilos" stackId="a" name="2da Pre (kg)" fill="#34d399" />
-                      <Bar dataKey="pre3Kilos" stackId="a" name="3ra Pre (kg)" fill="#a78bfa" />
-                      <Bar dataKey="pre4Kilos" stackId="a" name="4ta Pre (kg)" fill="#f472b6" />
-                      <Bar dataKey="pre5Kilos" stackId="a" name="5ta Pre (kg)" fill="#fbbf24" />
-                      <Bar dataKey="finalKilos" stackId="a" name="Final (kg)" fill="#f97316" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                    <span>Sin registros de cosechas para los filtros seleccionados</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span className="text-indigo-400">📊</span> 
+                    {isSinglePond 
+                      ? `Kilos Extraídos por Etapa (${filteredHarvests[0]?.granja} - Estanque ${filteredHarvests[0]?.estanque})`
+                      : 'Desglose de Kilos por Etapa (kg)'}
+                  </h3>
+                  <span className="text-xs text-blue-300">
+                    {isSinglePond 
+                      ? 'Biomasa cosechada en cada sacada a lo largo del tiempo'
+                      : (etapasChartType === 'stacked' ? 'Barras apiladas: Aporte de cada etapa al volumen total' : 'Líneas de evolución comparativa por etapa')}
+                  </span>
+                </div>
+
+                {!isSinglePond && (
+                  <div className="flex items-center bg-[#093661] p-1 rounded-lg border border-[#1a6ebd] text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setEtapasChartType('stacked')}
+                      className={`px-2.5 py-1 rounded transition-colors font-medium ${etapasChartType === 'stacked' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+                    >
+                      📊 Barras Apiladas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEtapasChartType('line')}
+                      className={`px-2.5 py-1 rounded transition-colors font-medium ${etapasChartType === 'line' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
+                    >
+                      📈 Líneas
+                    </button>
                   </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-h-0">
+                {isSinglePond ? (
+                  singlePondTimelineData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={singlePondTimelineData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                          formatter={(value: any, name: string, item: any) => {
+                            return [
+                              `${formatNumber(value)} kg (${formatNumber(item.payload.organismos)} org)`,
+                              item.payload.etapaCompleta
+                            ];
+                          }}
+                        />
+                        <Bar dataKey="kilos" name="Kilos" radius={[6, 6, 0, 0]}>
+                          {singlePondTimelineData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                      <span>Sin datos de etapas para este estanque</span>
+                    </div>
+                  )
+                ) : (
+                  harvestChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      {etapasChartType === 'stacked' ? (
+                        <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
+                          <Tooltip
+                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                            formatter={(value: any, name: string) => {
+                              if (!value) return ['-', name];
+                              return [`${formatNumber(value)} kg`, name];
+                            }}
+                          />
+                          <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
+                          <Bar dataKey="pre1Kilos" stackId="a" name="1ra Pre (kg)" fill="#60a5fa" />
+                          <Bar dataKey="pre2Kilos" stackId="a" name="2da Pre (kg)" fill="#34d399" />
+                          <Bar dataKey="pre3Kilos" stackId="a" name="3ra Pre (kg)" fill="#a78bfa" />
+                          <Bar dataKey="pre4Kilos" stackId="a" name="4ta Pre (kg)" fill="#f472b6" />
+                          <Bar dataKey="pre5Kilos" stackId="a" name="5ta Pre (kg)" fill="#fbbf24" />
+                          <Bar dataKey="finalKilos" stackId="a" name="Final (kg)" fill="#f97316" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      ) : (
+                        <LineChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
+                          <Tooltip
+                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                            formatter={(value: any, name: string) => {
+                              if (value === null || value === undefined) return ['-', name];
+                              return [`${formatNumber(value)} kg`, name];
+                            }}
+                          />
+                          <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
+                          <Line type="monotone" dataKey="pre1Kilos" name="1ra Pre (kg)" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 4, fill: '#60a5fa', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                          <Line type="monotone" dataKey="pre2Kilos" name="2da Pre (kg)" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                          <Line type="monotone" dataKey="pre3Kilos" name="3ra Pre (kg)" stroke="#a78bfa" strokeWidth={2.5} dot={{ r: 4, fill: '#a78bfa', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                          <Line type="monotone" dataKey="pre4Kilos" name="4ta Pre (kg)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4, fill: '#f472b6', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                          <Line type="monotone" dataKey="pre5Kilos" name="5ta Pre (kg)" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 4, fill: '#fbbf24', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                          <Line type="monotone" dataKey="finalKilos" name="Final (kg)" stroke="#f97316" strokeWidth={2.5} dot={{ r: 4, fill: '#f97316', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                        </LineChart>
+                      )}
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                      <span>Sin registros de cosechas para los filtros seleccionados</span>
+                    </div>
+                  )
                 )}
               </div>
             </>
@@ -1811,36 +2035,84 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           {chartView === 'tallas' && (
             <>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span className="text-orange-400">🦐</span> Tallas Promedio por Etapa (g)
-                </h3>
-                <span className="text-xs text-blue-300">Peso individual de camarón</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span className="text-orange-400">📈</span> 
+                    {isSinglePond 
+                      ? `Curva de Crecimiento - Talla por Etapa (${filteredHarvests[0]?.granja} - Estanque ${filteredHarvests[0]?.estanque})`
+                      : 'Tallas Promedio por Etapa (g)'}
+                  </h3>
+                  <span className="text-xs text-blue-300">
+                    {isSinglePond 
+                      ? 'Evolución del peso individual del camarón entre etapas de pre-cosecha'
+                      : 'Comparativa lineal de pesos promedio de camarón por estanque'}
+                  </span>
+                </div>
               </div>
+
               <div className="flex-1 min-h-0">
-                {harvestChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
-                        formatter={(value: number) => [`${formatNumber(value)} g`, '']} 
-                      />
-                      <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
-                      <Bar dataKey="pre1Gramos" name="1ra Pre (g)" fill="#818cf8" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="pre2Gramos" name="2da Pre (g)" fill="#a78bfa" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="pre3Gramos" name="3ra Pre (g)" fill="#c084fc" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="pre4Gramos" name="4ta Pre (g)" fill="#f472b6" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="pre5Gramos" name="5ta Pre (g)" fill="#fbbf24" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="finalGramos" name="Final (g)" fill="#f43f5e" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                {isSinglePond ? (
+                  singlePondTimelineData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={singlePondTimelineData} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => `${val} g`} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                          formatter={(value: any, name: string, item: any) => {
+                            return [
+                              `${formatNumber(value)} g`,
+                              `Talla Promedio (${item.payload.etapaCompleta})`
+                            ];
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="gramos"
+                          name="Talla Promedio"
+                          stroke="#38bdf8"
+                          strokeWidth={3}
+                          dot={{ r: 6, fill: '#0284c7', stroke: '#ffffff', strokeWidth: 2 }}
+                          activeDot={{ r: 8, fill: '#38bdf8' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                      <span>Sin datos de tallas para este estanque</span>
+                    </div>
+                  )
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                    <span>Sin registros de cosechas para los filtros seleccionados</span>
-                  </div>
+                  harvestChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => `${val} g`} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
+                          formatter={(value: any, name: string) => {
+                            if (value === null || value === undefined) return ['-', name];
+                            return [`${formatNumber(value)} g`, name];
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
+                        <Line type="monotone" dataKey="pre1Gramos" name="1ra Pre (g)" stroke="#818cf8" strokeWidth={2.5} dot={{ r: 4, fill: '#818cf8', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="pre2Gramos" name="2da Pre (g)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4, fill: '#38bdf8', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="pre3Gramos" name="3ra Pre (g)" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="pre4Gramos" name="4ta Pre (g)" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 4, fill: '#fbbf24', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="pre5Gramos" name="5ta Pre (g)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4, fill: '#f472b6', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                        <Line type="monotone" dataKey="finalGramos" name="Final (g)" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 4, fill: '#f43f5e', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
+                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
+                      <span>Sin registros de cosechas para los filtros seleccionados</span>
+                    </div>
+                  )
                 )}
               </div>
             </>
