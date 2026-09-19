@@ -874,6 +874,8 @@ const App: React.FC = () => {
                   historicalChartData={historicalChartData}
                   uniqueEstanquesInHistory={uniqueEstanquesInHistory}
                   lineColors={lineColors}
+                  harvests={harvests}
+                  onSelectPond={handlePondSelect}
                 />
              </div>
           )}
@@ -919,7 +921,7 @@ const App: React.FC = () => {
 
         {showForm && <PondForm initialData={editingRecord || undefined} existingRecords={records} evaluations={evaluations} onAdd={handleAddRecord} onCancel={() => { setShowForm(false); setEditingRecord(null); }} />}
         
-        {selectedPond && <PondDetailModal pondId={selectedPond} records={records} onClose={handleCloseModal} />}
+        {selectedPond && <PondDetailModal pondId={selectedPond} records={records} harvests={harvests} onClose={handleCloseModal} />}
 
         <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-8 pt-8 border-t border-slate-200">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-slate-400 text-sm">

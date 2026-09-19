@@ -1,36 +1,78 @@
 
 import React from 'react';
-import { PondRecord } from '../types';
-import { formatNumber } from '../utils';
+import { PondRecord, HarvestRecord } from '../types';
+import { formatNumber, calculatePondNetMetrics } from '../utils';
 
 interface Props {
   records: PondRecord[];
+  harvests?: HarvestRecord[];
 }
 
 interface StatRow {
   label: string;
-  key: keyof PondRecord;
+  key?: keyof PondRecord;
+  customValues?: number[];
   unit: string;
 }
 
-const StatisticsTable: React.FC<Props> = ({ records }) => {
+const StatisticsTable: React.FC<Props> = ({ records, harvests = [] }) => {
   if (records.length === 0) return null;
+
+  const hasExtractions = harvests.length > 0;
+  
+  // Calculate net metrics per record if harvests exist
+  const netMetricsList = hasExtractions ? records.map(r => calculatePondNetMetrics(r, harvests)) : [];
+  const anyPondHasExtraction = netMetricsList.some(m => m.tieneExtracciones);
 
   const rows: StatRow[] = [
     { label: 'Peso Actual', key: 'pesoActual', unit: 'g' },
     { label: 'Incremento Semanal', key: 'incrementoSemanal', unit: 'g' },
     { label: 'Supervivencia', key: 'sobrevivencia', unit: '%' },
-    { label: 'Biomasa Total', key: 'biomasaTotal', unit: 'kg' },
+    { label: 'Biomasa Total Teórica', key: 'biomasaTotal', unit: 'kg' },
+    ...(anyPondHasExtraction ? [
+      { 
+        label: 'Biomasa Activa en Agua', 
+        customValues: netMetricsList.map(m => m.biomasaEnAgua), 
+        unit: 'kg' 
+      },
+      { 
+        label: 'Pre-Cosechado Extraído', 
+        customValues: netMetricsList.map(m => m.kilosExtraidos), 
+        unit: 'kg' 
+      },
+    ] : []),
     { label: 'FCA', key: 'fca', unit: '' },
-    { label: 'Densidad Actual', key: 'densidadActual', unit: 'ind' },
+    { label: 'Densidad Actual Teórica', key: 'densidadActual', unit: 'ind' },
+    ...(anyPondHasExtraction ? [
+      { 
+        label: 'Población Activa en Agua', 
+        customValues: netMetricsList.map(m => m.poblacionEnAgua), 
+        unit: 'ind' 
+      },
+      { 
+        label: 'Densidad Activa Cam/m²', 
+        customValues: netMetricsList.map(m => m.camM2EnAgua), 
+        unit: 'cam/m²' 
+      },
+    ] : []),
     { label: 'Alimento Proy. Diario', key: 'alimentoProyectadoDia', unit: 'kg' },
+    ...(anyPondHasExtraction ? [
+      { 
+        label: 'Alimento Diario Ajustado (Agua)', 
+        customValues: netMetricsList.map(m => m.alimentoProyectadoDiaAjustado), 
+        unit: 'kg' 
+      },
+    ] : []),
     { label: 'Alimento Proy. Semanal', key: 'alimentoProyectadoSemana', unit: 'kg' },
   ];
 
-  const calculateStats = (key: keyof PondRecord) => {
-    const values = records
-      .map(r => Number(r[key]))
-      .filter(v => typeof v === 'number' && !isNaN(v));
+  const calculateStats = (row: StatRow) => {
+    const values = row.customValues !== undefined 
+      ? row.customValues.filter(v => typeof v === 'number' && !isNaN(v))
+      : (row.key ? records
+          .map(r => Number(r[row.key!]))
+          .filter(v => typeof v === 'number' && !isNaN(v)) : []);
+
     if (values.length === 0) return { avg: 0, max: 0, min: 0, std: 0 };
 
     const sum = values.reduce((a, b) => a + b, 0);
@@ -68,9 +110,9 @@ const StatisticsTable: React.FC<Props> = ({ records }) => {
           </thead>
           <tbody className="divide-y divide-[#125699]">
             {rows.map((row) => {
-              const stats = calculateStats(row.key);
+              const stats = calculateStats(row);
               return (
-                <tr key={row.key} className="hover:bg-[#0E4680] transition-colors">
+                <tr key={row.label} className="hover:bg-[#0E4680] transition-colors">
                   <td className="px-6 py-4 font-semibold text-white">{row.label}</td>
                   <td className="px-6 py-4 text-blue-100">{formatNumber(stats.avg)} {row.unit}</td>
                   <td className="px-6 py-4 text-emerald-400 font-medium">{formatNumber(stats.max)} {row.unit}</td>

@@ -118,3 +118,37 @@ export interface HarvestRecord {
   sobrevivenciaFinal?: number;
 }
 
+export interface PondExtractionStage {
+  etapa: string;
+  fecha: string;
+  kilos: number;
+  gramos: number;
+  organismos: number;
+}
+
+export interface PondHarvestSummary {
+  totalKilos: number;
+  totalOrganismos: number;
+  stages: PondExtractionStage[];
+  pesoPromedio: number;
+  sobrevivenciaFinal?: number;
+  tieneExtracciones: boolean;
+}
+
+export interface PondNetMetrics {
+  kilosExtraidos: number;
+  organismosExtraidos: number;
+  biomasaTeorica: number;
+  biomasaEnAgua: number;
+  biomasaHaEnAgua: number;
+  poblacionTeorica: number;
+  poblacionEnAgua: number;
+  camM2EnAgua: number;
+  alimentoProyectadoDiaAjustado: number;
+  alimentoProyectadoSemanaAjustado: number;
+  porcentajeExtraidoBiomasa: number;
+  porcentajeRestanteBiomasa: number;
+  tieneExtracciones: boolean;
+  stages: PondExtractionStage[];
+}
+

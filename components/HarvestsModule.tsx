@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
-import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle, TrendingUp, Layers, Fish } from 'lucide-react';
 import { formatNumber, formatDate, normalizeEstanque, cleanDateString, parseFlexibleNumber } from '../utils';
 import { calculateStageOrganismos, parseHarvestWorksheet, normalizeHarvestRecord } from '../utils/harvestUtils';
 import { ResponsiveContainer, BarChart, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
@@ -476,6 +476,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     let survCount = 0;
 
     let totHectareas = 0;
+    let totBiomasaTeorica = 0;
+    let totDensidadTeorica = 0;
     let rendSum = 0;
     let rendCount = 0;
     const seenPonds = new Set<string>();
@@ -520,16 +522,16 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
       const pond = getPondData(h.granja, h.estanque);
       const pondHa = pond?.hectareas || 0;
-      if (pondHa > 0) {
-        const pondKey = `${h.granja}_${h.estanque}`;
-        if (!seenPonds.has(pondKey)) {
-          seenPonds.add(pondKey);
-          totHectareas += pondHa;
-        }
-        if (rowKilos > 0) {
-          rendSum += (rowKilos / pondHa);
-          rendCount++;
-        }
+      const pondKey = `${h.granja}_${h.estanque}`;
+      if (!seenPonds.has(pondKey) && pond) {
+        seenPonds.add(pondKey);
+        if (pondHa > 0) totHectareas += pondHa;
+        totBiomasaTeorica += (Number(pond.biomasaTotal) || 0);
+        totDensidadTeorica += (Number(pond.densidadActual) || Number(pond.sembrados) || 0);
+      }
+      if (pondHa > 0 && rowKilos > 0) {
+        rendSum += (rowKilos / pondHa);
+        rendCount++;
       }
 
       let surv = parseFlexibleNumber(h.sobrevivenciaFinal);
@@ -554,6 +556,11 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       ? Math.round(totKilos / totHectareas) 
       : (rendCount > 0 ? Math.round(rendSum / rendCount) : 0);
 
+    const biomasaRemanente = Math.max(0, totBiomasaTeorica - totKilos);
+    const orgsRemanentes = Math.max(0, totDensidadTeorica - totOrganismos);
+    const pctRestante = totBiomasaTeorica > 0 ? Number(((biomasaRemanente / totBiomasaTeorica) * 100).toFixed(1)) : 0;
+    const pctExtraido = totBiomasaTeorica > 0 ? Number(((totKilos / totBiomasaTeorica) * 100).toFixed(1)) : 0;
+
     return {
       totalKilos: totKilos,
       totalOrganismos: Math.round(totOrganismos),
@@ -561,7 +568,12 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       pesoPromedio: avgWeight,
       sobrevivenciaPromedio: avgSurvival,
       rendimientoKgHa: rendimientoKgHa,
-      totalHectareas: totHectareas
+      totalHectareas: totHectareas,
+      totBiomasaTeorica,
+      biomasaRemanente,
+      orgsRemanentes,
+      pctRestante,
+      pctExtraido
     };
   }, [filteredHarvests, pondDataMap]);
 
@@ -812,50 +824,60 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       </div>
 
       {/* KPI Stats Panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-indigo-900/40 border border-indigo-700/40 mb-3 flex items-center justify-center">
-            <Scale className="w-6 h-6 text-indigo-400" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-2.5 rounded-xl bg-indigo-900/40 border border-indigo-700/40 mb-2 flex items-center justify-center">
+            <Scale className="w-5 h-5 text-indigo-400" />
           </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Total Kilos Cosechados</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalKilos)} kg</p>
+          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Kilos Pre-Cosechados</p>
+          <p className="text-xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalKilos)} kg</p>
+          <p className="text-[10px] text-orange-300 mt-0.5">Extraído: {kpiStats.pctExtraido}%</p>
         </div>
 
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-blue-900/40 border border-blue-700/40 mb-3 flex items-center justify-center">
-            <Hash className="w-6 h-6 text-blue-400" />
+        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-2.5 rounded-xl bg-blue-900/40 border border-blue-700/40 mb-2 flex items-center justify-center">
+            <Hash className="w-5 h-5 text-blue-400" />
           </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Total Organismos</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalOrganismos)}</p>
+          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Organismos Retirados</p>
+          <p className="text-xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalOrganismos)}</p>
+          <p className="text-[10px] text-blue-300 mt-0.5">{kpiStats.totalRegistros} registros</p>
         </div>
 
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-orange-900/40 border border-orange-700/40 mb-3 flex items-center justify-center">
-            <BarChart2 className="w-6 h-6 text-orange-400" />
+        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-emerald-500/40 bg-gradient-to-b from-[#0B4075] to-emerald-950/30 flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-2.5 rounded-xl bg-emerald-900/50 border border-emerald-600/40 mb-2 flex items-center justify-center">
+            <Layers className="w-5 h-5 text-emerald-400" />
           </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Peso Promedio de Venta</p>
-          <p className="text-2xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.pesoPromedio)} g</p>
+          <p className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider mb-0.5">Biomasa en Agua</p>
+          <p className="text-xl font-black text-emerald-400 tracking-tight">{formatNumber(kpiStats.biomasaRemanente)} kg</p>
+          <span className="text-[9px] font-bold bg-emerald-900/60 text-emerald-200 px-2 py-0.5 rounded border border-emerald-500/30 mt-0.5">
+            {kpiStats.pctRestante}% remanente
+          </span>
         </div>
 
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-emerald-900/40 border border-emerald-700/40 mb-3 flex items-center justify-center">
-            <Sparkles className="w-6 h-6 text-emerald-400" />
+        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-cyan-500/40 bg-gradient-to-b from-[#0B4075] to-cyan-950/30 flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-2.5 rounded-xl bg-cyan-900/50 border border-cyan-600/40 mb-2 flex items-center justify-center">
+            <Fish className="w-5 h-5 text-cyan-400" />
           </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Sobrevivencia Promedio</p>
-          <p className="text-2xl font-extrabold text-emerald-400 tracking-tight">
-            {kpiStats.sobrevivenciaPromedio > 0 ? `${kpiStats.sobrevivenciaPromedio.toFixed(1)}%` : `${kpiStats.totalRegistros} Estanques`}
-          </p>
-          {kpiStats.sobrevivenciaPromedio > 0 && (
-            <p className="text-[10px] text-blue-300 mt-0.5">{kpiStats.totalRegistros} estanques cosechados</p>
-          )}
+          <p className="text-[11px] font-semibold text-cyan-300 uppercase tracking-wider mb-0.5">Población en Agua</p>
+          <p className="text-xl font-black text-cyan-300 tracking-tight">{formatNumber(kpiStats.orgsRemanentes)}</p>
+          <p className="text-[10px] text-cyan-300/80 mt-0.5">Activos en estanques</p>
         </div>
 
-        <div className="bg-[#0B4075] p-5 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-3.5 rounded-xl bg-cyan-900/40 border border-cyan-700/40 mb-3 flex items-center justify-center">
-            <TrendingUp className="w-6 h-6 text-cyan-400" />
+        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-2.5 rounded-xl bg-orange-900/40 border border-orange-700/40 mb-2 flex items-center justify-center">
+            <BarChart2 className="w-5 h-5 text-orange-400" />
           </div>
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider mb-1">Rendimiento (Kg/Ha)</p>
-          <p className="text-2xl font-extrabold text-cyan-400 tracking-tight">
+          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Peso Promedio Venta</p>
+          <p className="text-xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.pesoPromedio)} g</p>
+          <p className="text-[10px] text-blue-300 mt-0.5">Cosecha ponderada</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
+          <div className="p-2.5 rounded-xl bg-cyan-900/40 border border-cyan-700/40 mb-2 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-cyan-400" />
+          </div>
+          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Rendimiento</p>
+          <p className="text-xl font-extrabold text-cyan-400 tracking-tight">
             {kpiStats.rendimientoKgHa > 0 ? `${formatNumber(kpiStats.rendimientoKgHa)}` : '-'}
           </p>
           <p className="text-[10px] text-blue-300 mt-0.5">
@@ -1479,7 +1501,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">2da Pre-Cosecha</th>
                 <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">3ra Pre-Cosecha</th>
                 <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#a5b4fc]">4ta Pre-Cosecha / Final</th>
-                <th colSpan={5} className="px-2 py-1.5 bg-indigo-950/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Precosechado</th>
+                <th colSpan={7} className="px-2 py-1.5 bg-indigo-950/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Precosechado y Balance</th>
               </tr>
               <tr className="bg-[#0D4075] text-slate-200 text-[9px] font-bold uppercase tracking-wider border-b border-[#125699] text-center">
                 {/* 1ra Pre-cosecha Column Subheaders */}
@@ -1510,6 +1532,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Biomasa (Kg)</th>
                 <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Org Totales</th>
                 <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Peso Prom (g)</th>
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-emerald-950/60 text-emerald-300">Biomasa en Agua</th>
+                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-cyan-950/60 text-cyan-300">Org en Agua</th>
                 <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Sobrevivencia</th>
                 <th className="px-2.5 py-1.5 bg-indigo-950/40 text-indigo-200">Rend (Kg/Ha)</th>
               </tr>
@@ -1517,7 +1541,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             <tbody className="divide-y divide-[#125699]/60">
               {paginatedHarvests.length === 0 ? (
                 <tr>
-                  <td colSpan={24} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
+                  <td colSpan={26} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
                 </tr>
               ) : (
                 paginatedHarvests.map((h) => {
@@ -1571,6 +1595,13 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   const rendKgHa = pondHa > 0 && effectiveTotalKilos > 0 
                     ? Math.round(effectiveTotalKilos / pondHa) 
                     : null;
+
+                  const bioInicial = Number(pond?.biomasaTotal) || 0;
+                  const bioEnAgua = bioInicial > 0 ? Math.max(0, bioInicial - effectiveTotalKilos) : null;
+                  const pctBioEnAgua = bioInicial > 0 ? Math.round((bioEnAgua! / bioInicial) * 100) : null;
+
+                  const orgInicial = Number(pond?.densidadActual) || Number(pond?.sembrados) || 0;
+                  const orgEnAgua = orgInicial > 0 ? Math.max(0, orgInicial - effectiveTotalOrg) : null;
 
                   return (
                     <tr key={h.id} className="hover:bg-[#125699]/20 transition-colors text-center text-[10.5px] whitespace-nowrap text-blue-100/90">
@@ -1627,6 +1658,19 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-emerald-300 bg-indigo-950/30 align-middle">{formatNumber(effectiveTotalKilos)} kg</td>
                       <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-[#818cf8] bg-indigo-950/30 align-middle font-mono text-[10px]">{formatNumber(effectiveTotalOrg)}</td>
                       <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-amber-300 bg-indigo-950/30 align-middle">{avgWeight ? `${formatNumber(avgWeight)} g` : '-'}</td>
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-black text-emerald-400 bg-emerald-950/40 align-middle">
+                        {bioEnAgua !== null ? (
+                          <div>
+                            <span>{formatNumber(bioEnAgua)} kg</span>
+                            {pctBioEnAgua !== null && (
+                              <span className="block text-[9px] text-emerald-300/80 font-normal">{pctBioEnAgua}% remanente</span>
+                            )}
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-cyan-300 bg-cyan-950/40 align-middle font-mono text-[10px]">
+                        {orgEnAgua !== null ? formatNumber(orgEnAgua) : '-'}
+                      </td>
                       <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold bg-indigo-950/30 align-middle">
                         {calculatedSurv ? (
                           <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${

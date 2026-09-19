@@ -1,5 +1,5 @@
 
-import { PondRecord } from './types';
+import { PondRecord, HarvestRecord, PondExtractionStage, PondHarvestSummary, PondNetMetrics } from './types';
 
 export const cleanDateString = (val: any): string => {
   if (val === undefined || val === null || val === '' || val === 'Invalid Date' || val === 'null' || val === 'undefined') {
@@ -281,4 +281,155 @@ export const normalizeEstanque = (val: any): string => {
     return num.toString();
   }
   return cleaned.toLowerCase();
+};
+
+export const matchPondAndHarvest = (
+  pondGranja: string | undefined, 
+  pondEstanque: any, 
+  harvestGranja: string | undefined, 
+  harvestEstanque: any
+): boolean => {
+  const normPondEst = normalizeEstanque(pondEstanque);
+  const normHarvEst = normalizeEstanque(harvestEstanque);
+  if (!normPondEst || normPondEst !== normHarvEst) return false;
+
+  const gP = (pondGranja || '').toString().trim().toLowerCase();
+  const gH = (harvestGranja || '').toString().trim().toLowerCase();
+  
+  if (!gP || !gH) return true;
+  if (gP === gH) return true;
+  if (gP.includes(gH) || gH.includes(gP)) return true;
+
+  return false;
+};
+
+export const getPondExtractions = (
+  granja: string | undefined,
+  estanque: any,
+  harvests: HarvestRecord[]
+): PondHarvestSummary => {
+  if (!harvests || harvests.length === 0) {
+    return {
+      totalKilos: 0,
+      totalOrganismos: 0,
+      stages: [],
+      pesoPromedio: 0,
+      tieneExtracciones: false
+    };
+  }
+
+  const matching = harvests.filter(h => matchPondAndHarvest(granja, estanque, h.granja, h.estanque));
+  let totalK = 0;
+  let totalOrg = 0;
+  let weightedGrams = 0;
+  const stages: PondExtractionStage[] = [];
+  let finalSurv: number | undefined = undefined;
+
+  matching.forEach(h => {
+    const checkStage = (name: string, dateStr: string | undefined, kilos: any, gramos: any, rawOrg: any) => {
+      const k = parseFlexibleNumber(kilos);
+      const g = parseFlexibleNumber(gramos);
+      let org = parseFlexibleNumber(rawOrg);
+      if (org === 0 && k > 0 && g > 0) {
+        org = Math.round((k * 1000) / g);
+      }
+      if (k > 0 || org > 0) {
+        stages.push({
+          etapa: name,
+          fecha: cleanDateString(dateStr) || cleanDateString(h.fecha),
+          kilos: k,
+          gramos: g,
+          organismos: org
+        });
+        totalK += k;
+        totalOrg += org;
+        if (k > 0 && g > 0) {
+          weightedGrams += k * g;
+        }
+      }
+    };
+
+    checkStage('Pre-Cosecha 1', h.fecha1 || h.fecha, h.pre1Kilos, h.pre1Gramos, h.pre1Organismos);
+    checkStage('Pre-Cosecha 2', h.fecha2, h.pre2Kilos, h.pre2Gramos, h.pre2Organismos);
+    checkStage('Pre-Cosecha 3', h.fecha3, h.pre3Kilos, h.pre3Gramos, h.pre3Organismos);
+    checkStage('Pre-Cosecha 4', h.fecha4, h.pre4Kilos, h.pre4Gramos, h.pre4Organismos);
+    checkStage('Pre-Cosecha 5', h.fecha5, h.pre5Kilos, h.pre5Gramos, h.pre5Organismos);
+    checkStage('Cosecha Final', h.fechaFinal || h.fecha, h.finalKilos, h.finalGramos, h.finalOrganismos);
+
+    const declaredKilos = parseFlexibleNumber(h.totalKilos);
+    const declaredOrg = parseFlexibleNumber(h.totalOrganismos);
+    if (stages.length === 0 && (declaredKilos > 0 || declaredOrg > 0)) {
+      totalK += declaredKilos;
+      totalOrg += declaredOrg;
+      stages.push({
+        etapa: 'Cosecha Total',
+        fecha: cleanDateString(h.fecha),
+        kilos: declaredKilos,
+        gramos: declaredOrg > 0 && declaredKilos > 0 ? Number(((declaredKilos * 1000) / declaredOrg).toFixed(2)) : 0,
+        organismos: declaredOrg
+      });
+    }
+
+    if (h.sobrevivenciaFinal) {
+      finalSurv = parseFlexibleNumber(h.sobrevivenciaFinal);
+    }
+  });
+
+  const pesoPromedio = totalK > 0 && totalOrg > 0 
+    ? Number(((totalK * 1000) / totalOrg).toFixed(2)) 
+    : (totalK > 0 && weightedGrams > 0 ? Number((weightedGrams / totalK).toFixed(2)) : 0);
+
+  return {
+    totalKilos: Number(totalK.toFixed(2)),
+    totalOrganismos: Math.round(totalOrg),
+    stages,
+    pesoPromedio,
+    sobrevivenciaFinal: finalSurv,
+    tieneExtracciones: totalK > 0 || totalOrg > 0
+  };
+};
+
+export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecord[]): PondNetMetrics => {
+  const summary = getPondExtractions(pond.granja, pond.estanque, harvests);
+  const biomasaTeorica = Number(pond.biomasaTotal) || 0;
+  const poblacionTeorica = Number(pond.densidadActual) || 0;
+  const hectareas = Number(pond.hectareas) || 0;
+  const pesoActual = Number(pond.pesoActual) || 0;
+
+  const kilosExtraidos = summary.totalKilos;
+  const organismosExtraidos = summary.totalOrganismos;
+
+  const biomasaEnAgua = Math.max(0, Number((biomasaTeorica - kilosExtraidos).toFixed(2)));
+  const biomasaHaEnAgua = hectareas > 0 ? Number((biomasaEnAgua / hectareas).toFixed(2)) : 0;
+  
+  const poblacionEnAgua = Math.max(0, Math.round(poblacionTeorica - organismosExtraidos));
+  const camM2EnAgua = hectareas > 0 ? Number((poblacionEnAgua / (hectareas * 10000)).toFixed(2)) : 0;
+
+  let alimentoProyectadoDiaAjustado = 0;
+  let alimentoProyectadoSemanaAjustado = 0;
+  if (biomasaEnAgua > 0 && pesoActual > 0) {
+    const bwPercentage = getFeedingRatePercentage(pesoActual);
+    alimentoProyectadoDiaAjustado = parseFloat(((biomasaEnAgua * bwPercentage) / 100).toFixed(2));
+    alimentoProyectadoSemanaAjustado = parseFloat((alimentoProyectadoDiaAjustado * 7).toFixed(2));
+  }
+
+  const porcentajeExtraidoBiomasa = biomasaTeorica > 0 ? Number(((kilosExtraidos / biomasaTeorica) * 100).toFixed(1)) : 0;
+  const porcentajeRestanteBiomasa = biomasaTeorica > 0 ? Number(((biomasaEnAgua / biomasaTeorica) * 100).toFixed(1)) : 100;
+
+  return {
+    kilosExtraidos,
+    organismosExtraidos,
+    biomasaTeorica,
+    biomasaEnAgua,
+    biomasaHaEnAgua,
+    poblacionTeorica,
+    poblacionEnAgua,
+    camM2EnAgua,
+    alimentoProyectadoDiaAjustado,
+    alimentoProyectadoSemanaAjustado,
+    porcentajeExtraidoBiomasa,
+    porcentajeRestanteBiomasa,
+    tieneExtracciones: summary.tieneExtracciones,
+    stages: summary.stages
+  };
 };
