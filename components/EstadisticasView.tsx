@@ -70,6 +70,13 @@ const EstadisticasView: React.FC<Props> = ({
     const totalAlimentoTeorico = records.reduce((s, r) => s + (Number(r.alimentoProyectadoDia) || 0), 0);
     const pondsWithExtractions = netPondList.filter(item => item.net.tieneExtracciones);
 
+    // Alimento acumulado total y FCA global sin precosecha vs poscosecha
+    const totalAlimentoAcumulado = records.reduce((s, r) => s + (Number(r.alimentoAcumulado) || 0), 0);
+    const fcaSinPrecosecha = totalTeorica > 0 ? (totalAlimentoAcumulado / totalTeorica) : 0;
+    const fcaEnAgua = totalAguaBiomasa > 0 ? (totalAlimentoAcumulado / totalAguaBiomasa) : fcaSinPrecosecha;
+    const totalBiomasaGenerada = totalAguaBiomasa + totalExtKilos;
+    const fcaPoscosecha = totalBiomasaGenerada > 0 ? (totalAlimentoAcumulado / totalBiomasaGenerada) : fcaSinPrecosecha;
+
     return {
       totalTeorica,
       totalExtKilos,
@@ -81,6 +88,10 @@ const EstadisticasView: React.FC<Props> = ({
       camM2Agua,
       totalAlimentoAjustado,
       totalAlimentoTeorico,
+      totalAlimentoAcumulado,
+      fcaSinPrecosecha,
+      fcaEnAgua,
+      fcaPoscosecha,
       hasExtractions: totalExtKilos > 0 || totalExtOrg > 0,
       pondsWithExtractionsCount: pondsWithExtractions.length,
       pctExtraido: totalTeorica > 0 ? Number(((totalExtKilos / totalTeorica) * 100).toFixed(1)) : 0,
@@ -263,9 +274,9 @@ const EstadisticasView: React.FC<Props> = ({
                   <table className="w-full text-xs text-left">
                     <thead>
                       <tr className="bg-gradient-to-r from-orange-950/80 via-[#0E4680] to-cyan-950/80 text-orange-300 font-semibold whitespace-nowrap text-center">
-                        <th colSpan={8} className="px-3 py-2 border-b border-[#125699] text-sm uppercase tracking-wider flex items-center justify-center gap-2">
+                        <th colSpan={10} className="px-3 py-2 border-b border-[#125699] text-sm uppercase tracking-wider flex items-center justify-center gap-2">
                           <Scale className="w-4 h-4 text-orange-400" />
-                          Balance Dinámico de Biomasa y Población en Agua (Descuento por Pre-Cosechas)
+                          Balance Dinámico de Biomasa, Población y FCA (Descuento por Pre-Cosechas)
                         </th>
                       </tr>
                       <tr className="bg-[#093561] text-white font-semibold whitespace-nowrap text-center">
@@ -276,7 +287,9 @@ const EstadisticasView: React.FC<Props> = ({
                         <th className="px-3 py-2 border-r border-[#125699] text-blue-300">POBLACIÓN TEÓRICA</th>
                         <th className="px-3 py-2 border-r border-[#125699] text-orange-400">ORG. EXTRAÍDOS</th>
                         <th className="px-3 py-2 border-r border-[#125699] text-cyan-300 bg-cyan-950/40">POBLACIÓN EN AGUA (CAM/M²)</th>
-                        <th className="px-3 py-2 text-amber-300">ALIMENTO DÍA AJUSTADO</th>
+                        <th className="px-3 py-2 border-r border-[#125699] text-amber-300">ALIMENTO DÍA AJUSTADO</th>
+                        <th className="px-3 py-2 border-r border-[#125699] text-amber-300" title="FCA calculado sobre el muestreo teórico sin incorporar pre-cosechas">FCA S/ PRE-COSECHA</th>
+                        <th className="px-3 py-2 text-emerald-300 bg-emerald-950/40" title="FCA real global incorporando los kilos extraídos de camarón">FCA POSCOSECHA (REAL)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -302,8 +315,14 @@ const EstadisticasView: React.FC<Props> = ({
                         <td className="px-3 py-3 border-r border-[#125699] text-cyan-300 bg-cyan-950/30 font-bold">
                           {formatNumber(extractionSummary.totalAguaOrg)} <span className="text-xs text-cyan-400 font-semibold">({formatNumber(extractionSummary.camM2Agua)} cam/m²)</span>
                         </td>
-                        <td className="px-3 py-3 text-amber-300 font-bold">
+                        <td className="px-3 py-3 border-r border-[#125699] text-amber-300 font-bold">
                           {formatNumber(extractionSummary.totalAlimentoAjustado)} kg/día
+                        </td>
+                        <td className="px-3 py-3 border-r border-[#125699] text-amber-300 font-bold">
+                          {formatNumber(extractionSummary.fcaSinPrecosecha)}
+                        </td>
+                        <td className="px-3 py-3 text-emerald-400 bg-emerald-950/30 font-black text-sm">
+                          {formatNumber(extractionSummary.fcaPoscosecha)}
                         </td>
                       </tr>
                     </tbody>
@@ -574,6 +593,7 @@ const EstadisticasView: React.FC<Props> = ({
                   <th className="px-3 py-3 border-r border-[#125699] text-emerald-300 bg-emerald-950/20">Biomasa en Agua</th>
                   <th className="px-3 py-3 border-r border-[#125699] text-cyan-300">Población en Agua</th>
                   <th className="px-3 py-3 border-r border-[#125699] text-amber-300">Alim. Día Ajustado</th>
+                  <th className="px-3 py-3 border-r border-[#125699] text-emerald-300 bg-emerald-950/20" title="FCA Real Global con Pre-Cosechas vs Teórico inicial">FCA Poscosecha</th>
                   <th className="px-3 py-3 border-r border-[#125699] min-w-[130px]">Balance Visual</th>
                   <th className="px-2 py-3 text-center">Acción</th>
                 </tr>
@@ -581,7 +601,7 @@ const EstadisticasView: React.FC<Props> = ({
               <tbody className="divide-y divide-[#125699]/60">
                 {displayExtractionPonds.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-400 italic">
+                    <td colSpan={11} className="py-8 text-center text-slate-400 italic">
                       No hay estanques que coincidan con el filtro seleccionado.
                     </td>
                   </tr>
@@ -619,11 +639,16 @@ const EstadisticasView: React.FC<Props> = ({
                                 <span 
                                   key={sIdx}
                                   className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-[#072C52] border border-blue-500/40 text-blue-100 font-medium"
-                                  title={`${stg.etapa} - Fecha: ${stg.fecha || 'S/F'} - Kilos: ${formatNumber(stg.kilos)} kg - Gramos: ${formatNumber(stg.gramos)}g - Organismos: ${formatNumber(stg.organismos)}`}
+                                  title={`${stg.etapa} - Fecha: ${stg.fecha || 'S/F'} - Kilos: ${formatNumber(stg.kilos)} kg - Gramos: ${formatNumber(stg.gramos)}g - Organismos: ${formatNumber(stg.organismos)} - FCA Acum: ${stg.fcaEtapa !== undefined && stg.fcaEtapa > 0 ? stg.fcaEtapa.toFixed(3) : '-'}`}
                                 >
                                   <span className="text-orange-400 font-bold">{stg.etapa.replace('Pre-Cosecha ', 'P')}:</span>
                                   <span>{formatNumber(stg.kilos)} kg</span>
                                   {stg.gramos > 0 && <span className="text-emerald-400">({stg.gramos}g)</span>}
+                                  {stg.fcaEtapa !== undefined && stg.fcaEtapa > 0 && (
+                                    <span className="text-amber-300 font-bold border-l border-blue-400/40 pl-1">
+                                      FCA {stg.fcaEtapa.toFixed(2)}
+                                    </span>
+                                  )}
                                 </span>
                               ))}
                             </div>
@@ -667,6 +692,19 @@ const EstadisticasView: React.FC<Props> = ({
                             {net.tieneExtracciones && r.alimentoProyectadoDia > 0 && (
                               <p className="text-[10px] text-slate-400 line-through">
                                 {formatNumber(r.alimentoProyectadoDia)} kg/d
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-3 border-r border-[#125699] text-center whitespace-nowrap bg-emerald-950/10">
+                          <div>
+                            <span className="text-xs font-black text-emerald-400" title="FCA Real Global con Pre-Cosechas">
+                              {net.fcaAjustado > 0 ? net.fcaAjustado.toFixed(2) : '-'}
+                            </span>
+                            {net.tieneExtracciones && net.fcaSinPrecosecha > 0 && (
+                              <p className="text-[10px] text-amber-300/80 font-medium" title="FCA Teórico sin pre-cosechas">
+                                S/Pre: {net.fcaSinPrecosecha.toFixed(2)}
                               </p>
                             )}
                           </div>

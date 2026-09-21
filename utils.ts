@@ -395,6 +395,7 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
   const poblacionTeorica = Number(pond.densidadActual) || 0;
   const hectareas = Number(pond.hectareas) || 0;
   const pesoActual = Number(pond.pesoActual) || 0;
+  const alimentoAcumulado = Number(pond.alimentoAcumulado) || 0;
 
   const kilosExtraidos = summary.totalKilos;
   const organismosExtraidos = summary.totalOrganismos;
@@ -416,6 +417,39 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
   const porcentajeExtraidoBiomasa = biomasaTeorica > 0 ? Number(((kilosExtraidos / biomasaTeorica) * 100).toFixed(1)) : 0;
   const porcentajeRestanteBiomasa = biomasaTeorica > 0 ? Number(((biomasaEnAgua / biomasaTeorica) * 100).toFixed(1)) : 100;
 
+  // Cálculos de FCA: Sin pre-cosecha vs En Agua vs Ajustado (Real Poscosecha)
+  const fcaSinPrecosecha = pond.fca && pond.fca > 0
+    ? Number(pond.fca)
+    : (biomasaTeorica > 0 ? parseFloat((alimentoAcumulado / biomasaTeorica).toFixed(3)) : 0);
+
+  // Si solo consideráramos la biomasa remanente en agua (el FCA se distorsiona/infla al ignorar lo extraído)
+  const fcaEnAgua = biomasaEnAgua > 0 
+    ? parseFloat((alimentoAcumulado / biomasaEnAgua).toFixed(3)) 
+    : fcaSinPrecosecha;
+
+  // Biomasa total biológica producida (Biomasa viva en agua + Kilos extraídos en pre-cosechas)
+  const biomasaTotalProducida = biomasaEnAgua + kilosExtraidos;
+  const fcaAjustado = biomasaTotalProducida > 0 
+    ? parseFloat((alimentoAcumulado / biomasaTotalProducida).toFixed(3)) 
+    : fcaSinPrecosecha;
+
+  const diferenciaFca = parseFloat((fcaEnAgua - fcaAjustado).toFixed(3));
+
+  // Enriquecer cada etapa de extracción con el impacto acumulado en el FCA
+  let cumKilos = 0;
+  const enrichedStages: PondExtractionStage[] = summary.stages.map((stg) => {
+    cumKilos += stg.kilos;
+    const bioAcum = biomasaEnAgua + cumKilos;
+    const fcaEtapa = bioAcum > 0 && alimentoAcumulado > 0 
+      ? parseFloat((alimentoAcumulado / bioAcum).toFixed(3)) 
+      : fcaAjustado;
+    return {
+      ...stg,
+      kilosAcumulados: Number(cumKilos.toFixed(2)),
+      fcaEtapa
+    };
+  });
+
   return {
     kilosExtraidos,
     organismosExtraidos,
@@ -430,6 +464,11 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
     porcentajeExtraidoBiomasa,
     porcentajeRestanteBiomasa,
     tieneExtracciones: summary.tieneExtracciones,
-    stages: summary.stages
+    stages: enrichedStages,
+    alimentoAcumulado,
+    fcaSinPrecosecha,
+    fcaEnAgua,
+    fcaAjustado,
+    diferenciaFca
   };
 };

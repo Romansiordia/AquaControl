@@ -124,6 +124,8 @@ export interface PondExtractionStage {
   kilos: number;
   gramos: number;
   organismos: number;
+  kilosAcumulados?: number;
+  fcaEtapa?: number;
 }
 
 export interface PondHarvestSummary {
@@ -150,5 +152,10 @@ export interface PondNetMetrics {
   porcentajeRestanteBiomasa: number;
   tieneExtracciones: boolean;
   stages: PondExtractionStage[];
+  alimentoAcumulado: number;
+  fcaSinPrecosecha: number;
+  fcaEnAgua: number;
+  fcaAjustado: number;
+  diferenciaFca: number;
 }
 

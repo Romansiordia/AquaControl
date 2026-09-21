@@ -41,7 +41,20 @@ const StatisticsTable: React.FC<Props> = ({ records, harvests = [] }) => {
         unit: 'kg' 
       },
     ] : []),
-    { label: 'FCA', key: 'fca', unit: '' },
+    ...(anyPondHasExtraction ? [
+      { 
+        label: 'FCA s/ Pre-cosecha (Teórico)', 
+        customValues: netMetricsList.map(m => m.fcaSinPrecosecha), 
+        unit: '' 
+      },
+      { 
+        label: 'FCA Poscosecha (Ajustado)', 
+        customValues: netMetricsList.map(m => m.fcaAjustado), 
+        unit: '' 
+      },
+    ] : [
+      { label: 'FCA', key: 'fca', unit: '' }
+    ]),
     { label: 'Densidad Actual Teórica', key: 'densidadActual', unit: 'ind' },
     ...(anyPondHasExtraction ? [
       { 

@@ -101,7 +101,7 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
               <div className="bg-[#0B4075] p-2.5 rounded-lg border border-[#125699]">
                 <p className="text-[10px] text-blue-300 uppercase font-semibold">Biomasa Teórica</p>
                 <p className="text-base font-bold text-white mt-0.5">{formatNumber(netMetrics.biomasaTeorica)} kg</p>
@@ -123,7 +123,19 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
               <div className="bg-cyan-950/40 p-2.5 rounded-lg border border-cyan-600/40">
                 <p className="text-[10px] text-cyan-300 uppercase font-semibold">Densidad en Agua</p>
                 <p className="text-base font-bold text-cyan-300 mt-0.5">{formatNumber(netMetrics.camM2EnAgua)} cam/m²</p>
-                <p className="text-[10px] text-cyan-300/80">Alim: {formatNumber(netMetrics.alimentoProyectadoDiaAjustado)} kg/día</p>
+                <p className="text-[10px] text-cyan-300/80">Alim: {formatNumber(netMetrics.alimentoProyectadoDiaAjustado)} kg/d</p>
+              </div>
+
+              <div className="bg-amber-950/30 p-2.5 rounded-lg border border-amber-600/40">
+                <p className="text-[10px] text-amber-300 uppercase font-semibold">FCA S/ Pre-Cosecha</p>
+                <p className="text-base font-bold text-amber-300 mt-0.5">{netMetrics.fcaSinPrecosecha.toFixed(2)}</p>
+                <p className="text-[10px] text-slate-400">Teórico inicial</p>
+              </div>
+
+              <div className="bg-emerald-950/50 p-2.5 rounded-lg border border-emerald-500/60 shadow-sm">
+                <p className="text-[10px] text-emerald-300 uppercase font-semibold">FCA Poscosecha</p>
+                <p className="text-base font-black text-emerald-400 mt-0.5">{netMetrics.fcaAjustado.toFixed(2)}</p>
+                <p className="text-[10px] text-emerald-300/80">Global Real</p>
               </div>
             </div>
           </div>
@@ -142,9 +154,19 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
             <p className="text-[10px] text-blue-300">Días: {latestRecord.diasCultivo} d</p>
           </div>
           <div className="bg-[#072C52] p-3 rounded-xl border border-[#125699]">
-            <p className="text-[11px] text-blue-300 font-semibold uppercase">FCA Estimado</p>
-            <p className="text-xl font-black text-amber-400">{formatNumber(latestRecord.fca)}</p>
-            <p className="text-[10px] text-blue-300">Alim Acum: {formatNumber(latestRecord.alimentoAcumulado)} kg</p>
+            <p className="text-[11px] text-blue-300 font-semibold uppercase">
+              {netMetrics?.tieneExtracciones ? 'FCA Poscosecha' : 'FCA Estimado'}
+            </p>
+            <p className="text-xl font-black text-emerald-400">
+              {netMetrics?.tieneExtracciones 
+                ? netMetrics.fcaAjustado.toFixed(2) 
+                : formatNumber(latestRecord.fca)}
+            </p>
+            <p className="text-[10px] text-blue-300">
+              {netMetrics?.tieneExtracciones 
+                ? `S/ Pre-cosecha: ${netMetrics.fcaSinPrecosecha.toFixed(2)}`
+                : `Alim Acum: ${formatNumber(latestRecord.alimentoAcumulado)} kg`}
+            </p>
           </div>
           <div className="bg-[#072C52] p-3 rounded-xl border border-[#125699]">
             <p className="text-[11px] text-blue-300 font-semibold uppercase">Población Activa</p>
@@ -201,7 +223,9 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
                     <th className="px-3 py-2 border-b border-r border-[#125699]">Fecha</th>
                     <th className="px-3 py-2 border-b border-r border-[#125699]">Kilos Sacados</th>
                     <th className="px-3 py-2 border-b border-r border-[#125699]">Peso Prom. (g)</th>
-                    <th className="px-3 py-2 border-b border-[#125699]">Organismos Retirados</th>
+                    <th className="px-3 py-2 border-b border-r border-[#125699]">Organismos Retirados</th>
+                    <th className="px-3 py-2 border-b border-r border-[#125699]">Kilos Acum.</th>
+                    <th className="px-3 py-2 border-b border-[#125699] text-emerald-300">FCA Acumulado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#125699]">
@@ -211,14 +235,18 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
                       <td className="px-3 py-2 border-r border-[#125699]">{stage.fecha || 'S/F'}</td>
                       <td className="px-3 py-2 border-r border-[#125699] font-bold text-white">{formatNumber(stage.kilos)} kg</td>
                       <td className="px-3 py-2 border-r border-[#125699] text-emerald-400">{formatNumber(stage.gramos)} g</td>
-                      <td className="px-3 py-2 font-semibold text-blue-300">{formatNumber(stage.organismos)} orgs</td>
+                      <td className="px-3 py-2 border-r border-[#125699] font-semibold text-blue-300">{formatNumber(stage.organismos)} orgs</td>
+                      <td className="px-3 py-2 border-r border-[#125699] text-slate-200">{formatNumber(stage.kilosAcumulados || stage.kilos)} kg</td>
+                      <td className="px-3 py-2 font-bold text-emerald-400">{stage.fcaEtapa ? stage.fcaEtapa.toFixed(2) : '-'}</td>
                     </tr>
                   ))}
                   <tr className="bg-[#093561] font-bold text-white">
                     <td colSpan={2} className="px-3 py-2 border-r border-[#125699] text-right uppercase text-[10px] text-orange-200">Total Extraído:</td>
                     <td className="px-3 py-2 border-r border-[#125699] text-orange-400">{formatNumber(netMetrics.kilosExtraidos)} kg</td>
                     <td className="px-3 py-2 border-r border-[#125699] text-emerald-400">-</td>
-                    <td className="px-3 py-2 text-blue-300">{formatNumber(netMetrics.organismosExtraidos)} orgs</td>
+                    <td className="px-3 py-2 border-r border-[#125699] text-blue-300">{formatNumber(netMetrics.organismosExtraidos)} orgs</td>
+                    <td className="px-3 py-2 border-r border-[#125699] text-slate-200">{formatNumber(netMetrics.kilosExtraidos)} kg</td>
+                    <td className="px-3 py-2 font-black text-emerald-400">{netMetrics.fcaAjustado.toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>
