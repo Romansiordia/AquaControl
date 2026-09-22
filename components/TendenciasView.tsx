@@ -162,7 +162,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         sobrevivencia: d.count > 0 ? Number((d.sumSobrevivencia / d.count).toFixed(1)) : 0,
         alimentoDia: Math.round(d.sumAlimentoDia),
         alimentoAcumulado: Math.round(d.sumAlimentoAcum),
-        fca: d.count > 0 ? Number((d.sumFca / d.count).toFixed(2)) : 0,
+        fca: d.sumBiomasaTotal > 0 ? Number((d.sumAlimentoAcum / d.sumBiomasaTotal).toFixed(2)) : (d.count > 0 ? Number((d.sumFca / d.count).toFixed(2)) : 0),
         biomasaAgua: Math.round(d.sumBiomasaAgua),
         precosechaExtraida: Math.round(d.sumPreKilos),
         biomasaTotal: Math.round(d.sumBiomasaTotal)
@@ -226,25 +226,63 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
   // Active chart data based on view mode
   const activeChartData = viewMode === 'temporal' ? temporalTrendData : pondTrendData;
 
-  // Executive summary values
+  // Active production records for executive summary (exact match with EstadisticasView & Pre-cosechas)
+  const activeCycleRecords = useMemo(() => {
+    return records.filter(r => {
+      const matchGranja = selectedGranja === 'all' || r.granja?.toLowerCase().trim() === selectedGranja.toLowerCase().trim();
+      const matchEstanque = selectedEstanque === 'all' || normalizeEstanque(r.estanque) === selectedEstanque;
+      return matchGranja && matchEstanque;
+    });
+  }, [records, selectedGranja, selectedEstanque]);
+
+  // Net metrics mapped for the active cycle ponds
+  const activeNetPonds = useMemo(() => {
+    return activeCycleRecords.map(r => {
+      const net = calculatePondNetMetrics(r, harvests);
+      return { record: r, net };
+    });
+  }, [activeCycleRecords, harvests]);
+
+  // Executive summary values - EXACTLY matching EstadisticasView & Pre-cosechas cards
   const summary = useMemo(() => {
-    if (activeChartData.length === 0) return null;
-    const avgInc = activeChartData.reduce((s, i) => s + i.incrementoSemanal, 0) / activeChartData.length;
-    const avgSurv = activeChartData.reduce((s, i) => s + i.sobrevivencia, 0) / activeChartData.length;
-    const totalAlimDia = activeChartData.reduce((s, i) => s + i.alimentoDia, 0);
-    const avgFca = activeChartData.reduce((s, i) => s + i.fca, 0) / activeChartData.length;
-    const totalPreKilos = activeChartData.reduce((s, i) => s + i.precosechaExtraida, 0);
-    const totalBioTotal = activeChartData.reduce((s, i) => s + i.biomasaTotal, 0);
+    if (activeCycleRecords.length === 0) return null;
+
+    const count = activeCycleRecords.length;
+    
+    // 1. Ganancia de peso semanal promedio de los estanques activos del ciclo
+    const avgInc = activeCycleRecords.reduce((s, r) => s + (Number(r.incrementoSemanal) || 0), 0) / count;
+    
+    // 2. Sobrevivencia promedio de los estanques activos del ciclo
+    const avgSurv = activeCycleRecords.reduce((s, r) => s + (Number(r.sobrevivencia) || 0), 0) / count;
+    
+    // 3. Alimento diario ajustado total de los estanques activos
+    const totalAlimDiaAjustado = activeNetPonds.reduce((s, item) => {
+      return s + (item.net.alimentoProyectadoDiaAjustado > 0 
+        ? item.net.alimentoProyectadoDiaAjustado 
+        : (Number(item.record.alimentoProyectadoDia) || 0));
+    }, 0);
+    
+    // 4. Biomasa Total Generada (Agua + Pre-cosechas) y Kilos extraídos
+    const totalAguaBiomasa = activeNetPonds.reduce((s, item) => s + item.net.biomasaEnAgua, 0);
+    const totalExtKilos = activeNetPonds.reduce((s, item) => s + item.net.kilosExtraidos, 0);
+    const totalBiomasaTotal = activeNetPonds.reduce((s, item) => s + item.net.biomasaTotal, 0);
+    const totalBiomasaGenerada = totalBiomasaTotal > 0 ? totalBiomasaTotal : (totalAguaBiomasa + totalExtKilos);
+    const sumBiomasaTotalTeorica = activeCycleRecords.reduce((s, r) => s + (Number(r.biomasaTotal) || 0), 0);
+    
+    // 5. Alimento acumulado total y FCA Poscosecha ponderado real (Alimento Acumulado / Biomasa Total Generada)
+    const totalAlimentoAcumulado = activeCycleRecords.reduce((s, r) => s + (Number(r.alimentoAcumulado) || 0), 0);
+    const divisorBiomasa = totalBiomasaGenerada > 0 ? totalBiomasaGenerada : sumBiomasaTotalTeorica;
+    const fcaPoscosecha = divisorBiomasa > 0 ? (totalAlimentoAcumulado / divisorBiomasa) : 0;
 
     return {
       avgInc: avgInc.toFixed(2),
       avgSurv: avgSurv.toFixed(1),
-      totalAlimDia: Math.round(totalAlimDia),
-      avgFca: avgFca.toFixed(2),
-      totalPreKilos: Math.round(totalPreKilos),
-      totalBioTotal: Math.round(totalBioTotal)
+      totalAlimDia: Math.round(totalAlimDiaAjustado),
+      avgFca: fcaPoscosecha.toFixed(2),
+      totalPreKilos: Math.round(totalExtKilos),
+      totalBioTotal: Math.round(divisorBiomasa)
     };
-  }, [activeChartData]);
+  }, [activeCycleRecords, activeNetPonds]);
 
   return (
     <div className="space-y-6">
