@@ -362,7 +362,18 @@ export const getPondExtractions = (
   const stages: PondExtractionStage[] = [];
   let finalSurv: number | undefined = undefined;
 
-  matching.forEach(h => {
+  // Si existen múltiples registros para el mismo estanque, tomar el más completo/representativo
+  // para evitar sumar dos veces el mismo ciclo de cosechas/precosechas.
+  const targetHarvests = matching.length <= 1 ? matching : [
+    matching.reduce((best, curr) => {
+      const bestK = parseFlexibleNumber(best.totalKilos) || (parseFlexibleNumber(best.pre1Kilos) + parseFlexibleNumber(best.pre2Kilos));
+      const currK = parseFlexibleNumber(curr.totalKilos) || (parseFlexibleNumber(curr.pre1Kilos) + parseFlexibleNumber(curr.pre2Kilos));
+      return currK >= bestK ? curr : best;
+    }, matching[0])
+  ];
+
+  targetHarvests.forEach(h => {
+    const rawStages: { name: string; dateStr?: string; kilos: number; gramos: number; org: number }[] = [];
     const checkStage = (name: string, dateStr: string | undefined, kilos: any, gramos: any, rawOrg: any) => {
       const k = parseFlexibleNumber(kilos);
       const g = parseFlexibleNumber(gramos);
@@ -371,18 +382,7 @@ export const getPondExtractions = (
         org = Math.round((k * 1000) / g);
       }
       if (k > 0 || org > 0) {
-        stages.push({
-          etapa: name,
-          fecha: cleanDateString(dateStr) || cleanDateString(h.fecha),
-          kilos: k,
-          gramos: g,
-          organismos: org
-        });
-        totalK += k;
-        totalOrg += org;
-        if (k > 0 && g > 0) {
-          weightedGrams += k * g;
-        }
+        rawStages.push({ name, dateStr, kilos: k, gramos: g, org });
       }
     };
 
@@ -395,6 +395,49 @@ export const getPondExtractions = (
 
     const declaredKilos = parseFlexibleNumber(h.totalKilos);
     const declaredOrg = parseFlexibleNumber(h.totalOrganismos);
+
+    // Detectar si las etapas registradas fueron acumulativas (e.g. etapa 1 = 2520, etapa 2 = 3767 y total declarado = 3767)
+    // O si la suma excede el total declarado
+    let processedStages = [...rawStages];
+    if (rawStages.length > 1 && declaredKilos > 0) {
+      const rawSum = rawStages.reduce((s, st) => s + st.kilos, 0);
+      if (rawSum > declaredKilos) {
+        // Verificar si los valores fueron guardados como totales acumulados
+        let isCumulative = true;
+        for (let i = 1; i < rawStages.length; i++) {
+          if (rawStages[i].kilos < rawStages[i - 1].kilos) {
+            isCumulative = false;
+            break;
+          }
+        }
+        if (isCumulative && Math.abs(rawStages[rawStages.length - 1].kilos - declaredKilos) < 1) {
+          // Convertir a incrementos reales
+          let prev = 0;
+          processedStages = rawStages.map(st => {
+            const delta = st.kilos - prev;
+            prev = st.kilos;
+            const org = st.gramos > 0 ? Math.round((delta * 1000) / st.gramos) : 0;
+            return { ...st, kilos: Math.max(0, delta), org };
+          }).filter(st => st.kilos > 0);
+        }
+      }
+    }
+
+    processedStages.forEach(st => {
+      stages.push({
+        etapa: st.name,
+        fecha: cleanDateString(st.dateStr) || cleanDateString(h.fecha),
+        kilos: st.kilos,
+        gramos: st.gramos,
+        organismos: st.org
+      });
+      totalK += st.kilos;
+      totalOrg += st.org;
+      if (st.kilos > 0 && st.gramos > 0) {
+        weightedGrams += st.kilos * st.gramos;
+      }
+    });
+
     if (stages.length === 0 && (declaredKilos > 0 || declaredOrg > 0)) {
       totalK += declaredKilos;
       totalOrg += declaredOrg;
@@ -433,25 +476,32 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
   const alimentoAcumulado = Number(pond.alimentoAcumulado) || 0;
   const poblacionTeorica = Number(pond.densidadActual) || 0;
 
-  // Extractions: check HarvestRecords first, then fallback to pond.precosechas or (biomasaTotal - biomasaActual)
-  let kilosExtraidos = summary.totalKilos;
-  let organismosExtraidos = summary.totalOrganismos;
-
   const pondPrecosechas = Number(pond.precosechas) || 0;
   const rawBioActual = pond.biomasaActual !== undefined && pond.biomasaActual !== null && Number(pond.biomasaActual) > 0 
     ? Number(pond.biomasaActual) 
     : undefined;
   const rawBioTotal = Number(pond.biomasaTotal) || 0;
 
-  if (kilosExtraidos === 0) {
-    if (pondPrecosechas > 0) {
-      kilosExtraidos = pondPrecosechas;
-    } else if (rawBioTotal > 0 && rawBioActual !== undefined && rawBioTotal > rawBioActual) {
-      kilosExtraidos = parseFloat((rawBioTotal - rawBioActual).toFixed(2));
-    }
-    if (organismosExtraidos === 0 && kilosExtraidos > 0 && pesoActual > 0) {
-      organismosExtraidos = Math.round((kilosExtraidos * 1000) / pesoActual);
-    }
+  // Extractions:
+  // Si en el archivo de Excel existe la columna explícita 'precosechas' (o raleos),
+  // ese es el valor oficial declarado para el estanque en el muestreo.
+  // En las hojas acuícolas: Biomasa Total = Biomasa en Agua + Precosechas.
+  let kilosExtraidos = 0;
+  let organismosExtraidos = 0;
+
+  if (pondPrecosechas > 0) {
+    kilosExtraidos = pondPrecosechas;
+  } else if (rawBioTotal > 0 && rawBioActual !== undefined && rawBioTotal > rawBioActual) {
+    kilosExtraidos = parseFloat((rawBioTotal - rawBioActual).toFixed(2));
+  } else if (summary.totalKilos > 0) {
+    kilosExtraidos = summary.totalKilos;
+  }
+
+  // Organismos extraídos
+  if (summary.totalOrganismos > 0 && Math.abs(summary.totalKilos - kilosExtraidos) < 0.5) {
+    organismosExtraidos = summary.totalOrganismos;
+  } else if (kilosExtraidos > 0 && pesoActual > 0) {
+    organismosExtraidos = Math.round((kilosExtraidos * 1000) / pesoActual);
   }
 
   // Biomasa viva que queda en el agua
@@ -502,31 +552,47 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
 
   // Enriquecer cada etapa de extracción con el impacto acumulado en el FCA
   let enrichedStages: PondExtractionStage[] = summary.stages;
-  if (enrichedStages.length === 0 && kilosExtraidos > 0) {
-    enrichedStages = [{
-      etapa: 'Pre-Cosecha',
-      fecha: pond.fecha,
-      kilos: kilosExtraidos,
-      gramos: pesoActual,
-      organismos: organismosExtraidos,
-      kilosAcumulados: kilosExtraidos,
-      fcaEtapa: fcaPoscosecha
-    }];
-  } else {
-    let cumKilos = 0;
-    enrichedStages = summary.stages.map((stg) => {
-      cumKilos += stg.kilos;
-      const bioAcum = biomasaEnAgua + cumKilos;
-      const fcaEtapa = bioAcum > 0 && alimentoAcumulado > 0 
-        ? parseFloat((alimentoAcumulado / bioAcum).toFixed(3)) 
-        : fcaAjustado;
-      return {
-        ...stg,
-        kilosAcumulados: Number(cumKilos.toFixed(2)),
-        fcaEtapa
-      };
-    });
+  const stagesSum = enrichedStages.reduce((s, st) => s + st.kilos, 0);
+
+  // Si no hay etapas o si la suma de etapas difiere significativamente del valor oficial de precosechas
+  if (kilosExtraidos > 0 && (enrichedStages.length === 0 || Math.abs(stagesSum - kilosExtraidos) > 1)) {
+    if (enrichedStages.length > 1 && stagesSum > kilosExtraidos) {
+      // Si las etapas eran valores acumulados (e.g. 2520 y 3767), convertirlas en deltas
+      let prev = 0;
+      enrichedStages = enrichedStages.map(st => {
+        const delta = Math.max(0, st.kilos - prev);
+        prev = st.kilos;
+        return { ...st, kilos: delta, organismos: st.gramos > 0 ? Math.round((delta * 1000) / st.gramos) : 0 };
+      }).filter(st => st.kilos > 0);
+    }
+
+    const recheckSum = enrichedStages.reduce((s, st) => s + st.kilos, 0);
+    if (enrichedStages.length === 0 || Math.abs(recheckSum - kilosExtraidos) > 1) {
+      enrichedStages = [{
+        etapa: 'Pre-Cosecha',
+        fecha: pond.fecha,
+        kilos: kilosExtraidos,
+        gramos: pesoActual,
+        organismos: organismosExtraidos,
+        kilosAcumulados: kilosExtraidos,
+        fcaEtapa: fcaPoscosecha
+      }];
+    }
   }
+
+  let cumKilos = 0;
+  enrichedStages = enrichedStages.map((stg) => {
+    cumKilos += stg.kilos;
+    const bioAcum = biomasaEnAgua + cumKilos;
+    const fcaEtapa = bioAcum > 0 && alimentoAcumulado > 0 
+      ? parseFloat((alimentoAcumulado / bioAcum).toFixed(3)) 
+      : fcaAjustado;
+    return {
+      ...stg,
+      kilosAcumulados: Number(cumKilos.toFixed(2)),
+      fcaEtapa
+    };
+  });
 
   return {
     kilosExtraidos,

@@ -18,10 +18,8 @@ interface StatRow {
 const StatisticsTable: React.FC<Props> = ({ records, harvests = [] }) => {
   if (records.length === 0) return null;
 
-  const hasExtractions = harvests.length > 0;
-  
-  // Calculate net metrics per record if harvests exist
-  const netMetricsList = hasExtractions ? records.map(r => calculatePondNetMetrics(r, harvests)) : [];
+  // Calculate net metrics per record
+  const netMetricsList = records.map(r => calculatePondNetMetrics(r, harvests));
   const anyPondHasExtraction = netMetricsList.some(m => m.tieneExtracciones);
 
   const rows: StatRow[] = [

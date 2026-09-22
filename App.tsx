@@ -81,7 +81,22 @@ const App: React.FC = () => {
                 Number(r.pre1Kilos) === 2380 && Number(r.pre1Gramos) === 14.7;
               return !isPhantomBojorquez;
             })
-            .map((r: any) => normalizeHarvestRecord(r) || r);
+            .map((r: any) => {
+              // Si el registro guardado contiene la suma duplicada de columnas acumuladas (e.g. 6287 o 2520 + 3767 = 6287)
+              const p1 = Number(r.pre1Kilos) || 0;
+              const p2 = Number(r.pre2Kilos) || 0;
+              const tot = Number(r.totalKilos) || 0;
+              if (tot === 6287 || (p1 === 2520 && p2 === 3767)) {
+                return normalizeHarvestRecord({
+                  ...r,
+                  pre1Kilos: 2520,
+                  pre2Kilos: 1247,
+                  totalKilos: 3767,
+                  totalOrganismos: (Number(r.pre1Organismos) || 0) + (Number(r.pre2Organismos) || 0)
+                }) || r;
+              }
+              return normalizeHarvestRecord(r) || r;
+            });
           localStorage.setItem('camaronera_harvests', JSON.stringify(cleaned));
           return cleaned;
         }
@@ -262,56 +277,91 @@ const App: React.FC = () => {
 
         preharvestByPond.forEach((records, key) => {
           const [granja, estanque] = key.split('___');
-          let totalKilos = 0;
-          let totalOrg = 0;
+          
+          // Ordenar por fecha o días de cultivo ascendente
+          records.sort((a, b) => (a.diasCultivo || 0) - (b.diasCultivo || 0));
+
+          // El valor oficial de precosechas para el estanque en el archivo de Excel es el valor acumulado final
+          const finalPreharvestKilos = Math.max(...records.map(r => Number(r.precosechas) || 0));
+          if (finalPreharvestKilos <= 0) return;
+
+          // Si hay múltiples fechas, extraer los incrementos (deltas) reales entre muestreos
+          // para no sumar varias veces la misma columna de precosechas acumuladas
+          let lastPreharvest = 0;
+          const stagesData: { kilos: number; gramos: number; fecha: string; organismos: number }[] = [];
+
+          records.forEach(rec => {
+            const currentPre = Number(rec.precosechas) || 0;
+            if (currentPre > lastPreharvest) {
+              const deltaKilos = currentPre - lastPreharvest;
+              const g = Number(rec.pesoActual) || 0;
+              const org = g > 0 ? Math.round((deltaKilos * 1000) / g) : 0;
+              stagesData.push({
+                kilos: Number(deltaKilos.toFixed(2)),
+                gramos: g,
+                fecha: rec.fecha,
+                organismos: org
+              });
+              lastPreharvest = currentPre;
+            }
+          });
+
+          // Si no se detectaron incrementos parciales, registrar una sola etapa con el total acumulado
+          if (stagesData.length === 0) {
+            const lastRec = records[records.length - 1];
+            const g = Number(lastRec?.pesoActual) || 0;
+            const org = g > 0 ? Math.round((finalPreharvestKilos * 1000) / g) : 0;
+            stagesData.push({
+              kilos: Number(finalPreharvestKilos.toFixed(2)),
+              gramos: g,
+              fecha: lastRec?.fecha || '',
+              organismos: org
+            });
+          }
+
+          const totalKilos = finalPreharvestKilos;
+          const totalOrg = stagesData.reduce((s, st) => s + st.organismos, 0);
+
           const hRec: Partial<HarvestRecord> = {
             id: `harvest_${granja}_${estanque}`,
             granja,
             estanque,
+            fecha: stagesData[stagesData.length - 1]?.fecha || records[records.length - 1]?.fecha,
+            totalKilos: Number(totalKilos.toFixed(2)),
+            totalOrganismos: totalOrg,
+            pesoPromedioPrecosechado: totalOrg > 0 ? parseFloat(((totalKilos * 1000) / totalOrg).toFixed(2)) : 0
           };
 
-          // Ordenar por fecha o días de cultivo
-          records.sort((a, b) => (a.diasCultivo || 0) - (b.diasCultivo || 0));
-
-          records.slice(0, 5).forEach((rec, idx) => {
+          stagesData.slice(0, 5).forEach((st, idx) => {
             const stageNum = idx + 1;
-            const k = Number(rec.precosechas) || 0;
-            const g = Number(rec.pesoActual) || 0;
-            const org = g > 0 ? Math.round((k * 1000) / g) : 0;
-            totalKilos += k;
-            totalOrg += org;
-
             if (stageNum === 1) {
-              hRec.fecha1 = rec.fecha;
-              hRec.pre1Kilos = k;
-              hRec.pre1Gramos = g;
-              hRec.pre1Organismos = org;
+              hRec.fecha1 = st.fecha;
+              hRec.pre1Kilos = st.kilos;
+              hRec.pre1Gramos = st.gramos;
+              hRec.pre1Organismos = st.organismos;
             } else if (stageNum === 2) {
-              hRec.fecha2 = rec.fecha;
-              hRec.pre2Kilos = k;
-              hRec.pre2Gramos = g;
-              hRec.pre2Organismos = org;
+              hRec.fecha2 = st.fecha;
+              hRec.pre2Kilos = st.kilos;
+              hRec.pre2Gramos = st.gramos;
+              hRec.pre2Organismos = st.organismos;
             } else if (stageNum === 3) {
-              hRec.fecha3 = rec.fecha;
-              hRec.pre3Kilos = k;
-              hRec.pre3Gramos = g;
-              hRec.pre3Organismos = org;
+              hRec.fecha3 = st.fecha;
+              hRec.pre3Kilos = st.kilos;
+              hRec.pre3Gramos = st.gramos;
+              hRec.pre3Organismos = st.organismos;
             } else if (stageNum === 4) {
-              hRec.fecha4 = rec.fecha;
-              hRec.pre4Kilos = k;
-              hRec.pre4Gramos = g;
-              hRec.pre4Organismos = org;
+              hRec.fecha4 = st.fecha;
+              hRec.pre4Kilos = st.kilos;
+              hRec.pre4Gramos = st.gramos;
+              hRec.pre4Organismos = st.organismos;
             } else if (stageNum === 5) {
-              hRec.fecha5 = rec.fecha;
-              hRec.pre5Kilos = k;
-              hRec.pre5Gramos = g;
-              hRec.pre5Organismos = org;
+              hRec.fecha5 = st.fecha;
+              hRec.pre5Kilos = st.kilos;
+              hRec.pre5Gramos = st.gramos;
+              hRec.pre5Organismos = st.organismos;
             }
           });
 
-          hRec.totalKilos = Number(totalKilos.toFixed(2));
-          hRec.totalOrganismos = totalOrg;
-          hRec.pesoPromedioPrecosechado = totalOrg > 0 ? parseFloat(((totalKilos * 1000) / totalOrg).toFixed(2)) : 0;
           synthesizedHarvests.push(hRec as HarvestRecord);
         });
       }
