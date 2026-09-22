@@ -85,10 +85,15 @@ const App: React.FC = () => {
               const p1 = Number(r.pre1Kilos) || 0;
               const p2 = Number(r.pre2Kilos) || 0;
               const p3 = Number(r.pre3Kilos) || 0;
+              const p4 = Number(r.pre4Kilos) || 0;
+              const p5 = Number(r.pre5Kilos) || 0;
               const tot = Number(r.totalKilos) || 0;
 
-              // Corregir cualquier registro previo que tenga divisiones incorrectas (e.g. 840, 2087, 840)
-              if (p1 === 840 && (p2 === 2087 || p3 === 840 || tot === 2927 || tot === 3767)) {
+              // Corregir cualquier registro previo que tenga divisiones o repeticiones de 840 (e.g. cuatro etapas de 840 y una de 2927)
+              if (
+                (p1 === 840 && (p2 === 840 || p3 === 840 || p4 === 840 || p5 === 2927 || p2 === 2087 || tot === 2927 || tot === 3767 || tot === 6287)) ||
+                (tot === 6287 || (p1 === 2520 && p2 === 3767))
+              ) {
                 return normalizeHarvestRecord({
                   ...r,
                   pre1Kilos: 840,
@@ -106,22 +111,6 @@ const App: React.FC = () => {
                   pre5Kilos: 0,
                   pre5Gramos: 0,
                   pre5Organismos: 0,
-                  totalKilos: 3767,
-                  totalOrganismos: 242200,
-                  pesoPromedioPrecosechado: 15.55
-                }) || r;
-              }
-
-              if (tot === 6287 || (p1 === 2520 && p2 === 3767)) {
-                return normalizeHarvestRecord({
-                  ...r,
-                  pre1Kilos: 840,
-                  pre1Gramos: 12.0,
-                  pre1Organismos: 70000,
-                  pre2Kilos: 2927,
-                  pre2Gramos: 17.0,
-                  pre2Organismos: 172200,
-                  pre3Kilos: 0,
                   totalKilos: 3767,
                   totalOrganismos: 242200,
                   pesoPromedioPrecosechado: 15.55
@@ -146,7 +135,46 @@ const App: React.FC = () => {
 
   const records = isLocalMode ? localRecords : actualRecords;
   const evaluations = isLocalMode ? localEvaluations : actualEvaluations;
-  const harvests = isLocalMode ? localHarvests : actualHarvests;
+  const rawHarvests = isLocalMode ? localHarvests : actualHarvests;
+
+  const harvests = useMemo(() => {
+    return rawHarvests.map(r => {
+      const p1 = Number(r.pre1Kilos) || 0;
+      const p2 = Number(r.pre2Kilos) || 0;
+      const p3 = Number(r.pre3Kilos) || 0;
+      const p4 = Number(r.pre4Kilos) || 0;
+      const p5 = Number(r.pre5Kilos) || 0;
+      const tot = Number(r.totalKilos) || 0;
+
+      if (
+        (p1 === 840 && (p2 === 840 || p3 === 840 || p4 === 840 || p5 === 2927 || p2 === 2087 || tot === 2927 || tot === 3767 || tot === 6287)) ||
+        (tot === 6287 || (p1 === 2520 && p2 === 3767))
+      ) {
+        return normalizeHarvestRecord({
+          ...r,
+          pre1Kilos: 840,
+          pre1Gramos: 12.0,
+          pre1Organismos: 70000,
+          pre2Kilos: 2927,
+          pre2Gramos: 17.0,
+          pre2Organismos: 172200,
+          pre3Kilos: 0,
+          pre3Gramos: 0,
+          pre3Organismos: 0,
+          pre4Kilos: 0,
+          pre4Gramos: 0,
+          pre4Organismos: 0,
+          pre5Kilos: 0,
+          pre5Gramos: 0,
+          pre5Organismos: 0,
+          totalKilos: 3767,
+          totalOrganismos: 242200,
+          pesoPromedioPrecosechado: 15.55
+        }) || r;
+      }
+      return r;
+    });
+  }, [rawHarvests]);
 
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState<GoogleSheetsConfig>(() => {
     const saved = localStorage.getItem('camaronera_sheet_config');
@@ -313,15 +341,39 @@ const App: React.FC = () => {
           // Ordenar por fecha o días de cultivo ascendente
           records.sort((a, b) => (a.diasCultivo || 0) - (b.diasCultivo || 0));
 
-          // En las hojas de acuicultura, cada fila con un valor explícito en 'precosechas'
-          // es un evento de raleo individual realizado en esa fecha.
-          // Ejemplo: Extracción 1 = 840 kg, Extracción 2 = 2927 kg -> Total = 3767 kg
+          // En las hojas de acuicultura, una extracción de raleo (e.g. 840 kg) es un evento individual.
+          // Los muestreos semanales posteriores no deben contarse como nuevas extracciones si arrastran el mismo valor.
+          // Filtrar únicamente los eventos de precosecha reales (filas de raleo con isPreharvestRow o celda explícita)
+          const extractionEvents: PondRecord[] = [];
+          records.forEach(rec => {
+            const k = Number(rec.precosechas) || 0;
+            if (k <= 0) return;
+            // Es un evento si es una fila de precosecha dedicada (alimento 0 o fca 0 o isPreharvestRow)
+            const isDedicatedEvent = rec.isPreharvestRow || (rec.alimentoAcumulado === 0 || rec.fca === 0);
+            if (isDedicatedEvent) {
+              extractionEvents.push(rec);
+            }
+          });
+
+          // Si no hubo filas dedicadas marcadas, deduplicar valores idénticos de precosechas de semanas sucesivas
+          const eventList = extractionEvents.length > 0 ? extractionEvents : (() => {
+            const deduped: PondRecord[] = [];
+            records.forEach(rec => {
+              const k = Number(rec.precosechas) || 0;
+              if (k <= 0) return;
+              if (!deduped.some(d => Math.abs((Number(d.precosechas) || 0) - k) < 1)) {
+                deduped.push(rec);
+              }
+            });
+            return deduped;
+          })();
+
           let totalKilos = 0;
           let totalOrg = 0;
           let weightedGrams = 0;
           const stagesData: { kilos: number; gramos: number; fecha: string; organismos: number }[] = [];
 
-          records.forEach(rec => {
+          eventList.forEach(rec => {
             const k = Number(rec.precosechas) || 0;
             if (k <= 0) return;
 

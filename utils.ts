@@ -241,7 +241,8 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     biomasaActual: biomasaActual,
     biomasaTotal: biomasaTotal,
     precosechas: precosechas,
-    isPreharvestRow: record.isPreharvestRow || (precosechas > 0 && (alimentoAcumulado === 0 || fca === 0)),
+    hasExplicitPrecosecha: record.hasExplicitPrecosecha !== undefined ? record.hasExplicitPrecosecha : (rawPrecosechas > 0),
+    isPreharvestRow: record.isPreharvestRow || (rawPrecosechas > 0 && (alimentoAcumulado === 0 || fca === 0)),
     alimentoSemanal: record.alimentoSemanal || 0,
     alimentoAcumulado: alimentoAcumulado,
     fca: fca,
@@ -396,36 +397,51 @@ export const getPondExtractions = (
     const declaredKilos = parseFlexibleNumber(h.totalKilos);
     const declaredOrg = parseFlexibleNumber(h.totalOrganismos);
 
-    // Detectar si las etapas registradas fueron acumulativas (e.g. etapa 1 = 2520, etapa 2 = 3767 y total declarado = 3767)
-    // O si la suma excede el total declarado
+    // Detectar si las etapas registradas fueron acumulativas o repetidas por muestreos semanales
     let processedStages = [...rawStages];
     if (rawStages.length > 1 && declaredKilos > 0) {
       const rawSum = rawStages.reduce((s, st) => s + st.kilos, 0);
       if (rawSum > declaredKilos) {
-        // Verificar si los valores fueron guardados como totales acumulados
-        let isCumulative = true;
-        for (let i = 1; i < rawStages.length; i++) {
-          if (rawStages[i].kilos < rawStages[i - 1].kilos) {
-            isCumulative = false;
-            break;
+        // Caso A: Detección de etapas repetidas por arrastre en muestreos semanales (e.g. cuatro etapas de 840kg y una de 2927kg)
+        const deduped: typeof rawStages = [];
+        rawStages.forEach(st => {
+          const already = deduped.find(d => Math.abs(d.kilos - st.kilos) < 1);
+          if (!already) {
+            deduped.push(st);
           }
-        }
-        if (isCumulative && Math.abs(rawStages[rawStages.length - 1].kilos - declaredKilos) < 1) {
-          // Convertir a incrementos reales
-          let prev = 0;
-          processedStages = rawStages.map(st => {
-            const delta = st.kilos - prev;
-            prev = st.kilos;
-            const org = st.gramos > 0 ? Math.round((delta * 1000) / st.gramos) : 0;
-            return { ...st, kilos: Math.max(0, delta), org };
-          }).filter(st => st.kilos > 0);
+        });
+        const dedupedSum = deduped.reduce((s, st) => s + st.kilos, 0);
+        if (Math.abs(dedupedSum - declaredKilos) < 2) {
+          processedStages = deduped;
+        } else {
+          // Caso B: Verificar si los valores fueron guardados como totales acumulados
+          let isCumulative = true;
+          for (let i = 1; i < rawStages.length; i++) {
+            if (rawStages[i].kilos < rawStages[i - 1].kilos) {
+              isCumulative = false;
+              break;
+            }
+          }
+          if (isCumulative && Math.abs(rawStages[rawStages.length - 1].kilos - declaredKilos) < 1) {
+            // Convertir a incrementos reales
+            let prev = 0;
+            processedStages = rawStages.map(st => {
+              const delta = st.kilos - prev;
+              prev = st.kilos;
+              const org = st.gramos > 0 ? Math.round((delta * 1000) / st.gramos) : 0;
+              return { ...st, kilos: Math.max(0, delta), org };
+            }).filter(st => st.kilos > 0);
+          }
         }
       }
     }
 
-    processedStages.forEach(st => {
+    processedStages.forEach((st, idx) => {
+      const stageLabel = st.name.includes('Cosecha Final') 
+        ? 'Cosecha Final' 
+        : `Pre-Cosecha ${idx + 1}`;
       stages.push({
-        etapa: st.name,
+        etapa: stageLabel,
         fecha: cleanDateString(st.dateStr) || cleanDateString(h.fecha),
         kilos: st.kilos,
         gramos: st.gramos,

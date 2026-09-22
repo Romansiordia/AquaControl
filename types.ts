@@ -23,6 +23,7 @@ export interface PondRecord {
   biomasaTotal: number;
   precosechas?: number;
   isPreharvestRow?: boolean;
+  hasExplicitPrecosecha?: boolean;
   alimentoSemanal: number;
   alimentoAcumulado: number;
   fca: number;
