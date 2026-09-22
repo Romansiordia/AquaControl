@@ -485,7 +485,11 @@ export const getPondExtractions = (
   };
 };
 
-export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecord[]): PondNetMetrics => {
+export const calculatePondNetMetrics = (
+  pond: PondRecord, 
+  harvests: HarvestRecord[],
+  options?: { asOfDate?: string; isHistorical?: boolean }
+): PondNetMetrics => {
   const summary = getPondExtractions(pond.granja, pond.estanque, harvests);
   const hectareas = Number(pond.hectareas) || 0;
   const pesoActual = Number(pond.pesoActual) || 0;
@@ -498,23 +502,64 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
     : undefined;
   const rawBioTotal = Number(pond.biomasaTotal) || 0;
 
-  // Extractions:
-  // Si en el archivo de Excel existe la columna explícita 'precosechas' (o raleos),
-  // ese es el valor oficial declarado para el estanque en el muestreo.
-  // En las hojas acuícolas: Biomasa Total = Biomasa en Agua + Precosechas.
+  const recordDate = options?.asOfDate || cleanDateString(pond.fecha) || cleanDateString(pond.fechaSiembra);
+  const isHistorical = options?.isHistorical ?? false;
+
+  // Extractions to date:
+  // Si se evalúa históricamente a lo largo del tiempo, únicamente contar las etapas ocurridas
+  // en o antes de la fecha del muestreo actual.
+  let stageKilosToDate = 0;
+  let stageOrgToDate = 0;
+  let hasStageDates = false;
+
+  if (summary.stages && summary.stages.length > 0) {
+    summary.stages.forEach(st => {
+      const stDate = cleanDateString(st.fecha);
+      if (stDate) {
+        hasStageDates = true;
+        if (!isHistorical || !recordDate || stDate <= recordDate) {
+          stageKilosToDate += st.kilos;
+          stageOrgToDate += st.organismos;
+        }
+      } else {
+        if (!isHistorical) {
+          stageKilosToDate += st.kilos;
+          stageOrgToDate += st.organismos;
+        }
+      }
+    });
+  }
+
   let kilosExtraidos = 0;
   let organismosExtraidos = 0;
 
-  if (pondPrecosechas > 0) {
-    kilosExtraidos = pondPrecosechas;
-  } else if (rawBioTotal > 0 && rawBioActual !== undefined && rawBioTotal > rawBioActual) {
-    kilosExtraidos = parseFloat((rawBioTotal - rawBioActual).toFixed(2));
-  } else if (summary.totalKilos > 0) {
-    kilosExtraidos = summary.totalKilos;
+  if (isHistorical && hasStageDates) {
+    // Si estamos graficando en línea de tiempo y las etapas tienen fechas específicas:
+    // Sólo contar los kilos acumulados a esa fecha
+    if (pondPrecosechas > 0) {
+      kilosExtraidos = Math.max(pondPrecosechas, stageKilosToDate);
+    } else if (rawBioTotal > 0 && rawBioActual !== undefined && rawBioTotal > rawBioActual) {
+      kilosExtraidos = Math.max(parseFloat((rawBioTotal - rawBioActual).toFixed(2)), stageKilosToDate);
+    } else {
+      kilosExtraidos = stageKilosToDate;
+    }
+  } else {
+    // Modo estándar / corte actual:
+    if (pondPrecosechas > 0) {
+      kilosExtraidos = pondPrecosechas;
+    } else if (rawBioTotal > 0 && rawBioActual !== undefined && rawBioTotal > rawBioActual) {
+      kilosExtraidos = parseFloat((rawBioTotal - rawBioActual).toFixed(2));
+    } else if (!isHistorical && summary.totalKilos > 0) {
+      kilosExtraidos = summary.totalKilos;
+    } else if (isHistorical) {
+      kilosExtraidos = stageKilosToDate;
+    }
   }
 
   // Organismos extraídos
-  if (summary.totalOrganismos > 0 && Math.abs(summary.totalKilos - kilosExtraidos) < 0.5) {
+  if (stageOrgToDate > 0 && Math.abs(kilosExtraidos - stageKilosToDate) < 1) {
+    organismosExtraidos = stageOrgToDate;
+  } else if (summary.totalOrganismos > 0 && Math.abs(summary.totalKilos - kilosExtraidos) < 0.5) {
     organismosExtraidos = summary.totalOrganismos;
   } else if (kilosExtraidos > 0 && pesoActual > 0) {
     organismosExtraidos = Math.round((kilosExtraidos * 1000) / pesoActual);
@@ -526,7 +571,7 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
     : Math.max(0, Number((rawBioTotal - kilosExtraidos).toFixed(2)));
 
   // Biomasa Total producida en el ciclo (Biomasa viva en agua + Kilos extraídos en pre-cosechas)
-  const biomasaTotal = (rawBioTotal > 0 && rawBioTotal >= biomasaEnAgua)
+  const biomasaTotal = (rawBioTotal > 0 && rawBioTotal >= biomasaEnAgua + kilosExtraidos)
     ? rawBioTotal
     : parseFloat((biomasaEnAgua + kilosExtraidos).toFixed(2));
 

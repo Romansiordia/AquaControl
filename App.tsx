@@ -96,9 +96,11 @@ const App: React.FC = () => {
               ) {
                 return normalizeHarvestRecord({
                   ...r,
+                  fecha1: r.fecha1 || '2026-05-06',
                   pre1Kilos: 840,
                   pre1Gramos: 12.0,
                   pre1Organismos: 70000,
+                  fecha2: r.fecha2 || '2026-05-27',
                   pre2Kilos: 2927,
                   pre2Gramos: 17.0,
                   pre2Organismos: 172200,
@@ -152,9 +154,11 @@ const App: React.FC = () => {
       ) {
         return normalizeHarvestRecord({
           ...r,
+          fecha1: r.fecha1 || '2026-05-06',
           pre1Kilos: 840,
           pre1Gramos: 12.0,
           pre1Organismos: 70000,
+          fecha2: r.fecha2 || '2026-05-27',
           pre2Kilos: 2927,
           pre2Gramos: 17.0,
           pre2Organismos: 172200,

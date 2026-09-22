@@ -83,10 +83,11 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
     });
   }, [dataset, selectedGranja, selectedEstanque]);
 
-  // Net metrics mapped per record
+  // Net metrics mapped per record (con evaluación cronológica histórica para la línea de tiempo)
   const enrichedRecords = useMemo(() => {
     return filteredData.map(r => {
-      const net = calculatePondNetMetrics(r, harvests);
+      const recordDate = cleanDateString(r.fecha) || cleanDateString(r.fechaSiembra);
+      const net = calculatePondNetMetrics(r, harvests, { asOfDate: recordDate, isHistorical: true });
       return {
         record: r,
         net
@@ -99,15 +100,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
     const dateMap = new Map<string, {
       fechaRaw: string;
       fechaLabel: string;
-      count: number;
-      sumIncremento: number;
-      sumSobrevivencia: number;
-      sumAlimentoDia: number;
-      sumAlimentoAcum: number;
-      sumFca: number;
-      sumBiomasaAgua: number;
-      sumPreKilos: number;
-      sumBiomasaTotal: number;
+      pondsMap: Map<string, { record: PondRecord; net: any }>;
     }>();
 
     enrichedRecords.forEach(({ record, net }) => {
@@ -129,44 +122,64 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         dateMap.set(dateStr, {
           fechaRaw: dateStr,
           fechaLabel: label,
-          count: 0,
-          sumIncremento: 0,
-          sumSobrevivencia: 0,
-          sumAlimentoDia: 0,
-          sumAlimentoAcum: 0,
-          sumFca: 0,
-          sumBiomasaAgua: 0,
-          sumPreKilos: 0,
-          sumBiomasaTotal: 0
+          pondsMap: new Map()
         });
       }
 
-      const item = dateMap.get(dateStr)!;
-      item.count += 1;
-      item.sumIncremento += Number(record.incrementoSemanal) || 0;
-      item.sumSobrevivencia += Number(record.sobrevivencia) || 0;
-      item.sumAlimentoDia += (net.alimentoProyectadoDiaAjustado > 0 ? net.alimentoProyectadoDiaAjustado : Number(record.alimentoProyectadoDia) || 0);
-      item.sumAlimentoAcum += Number(record.alimentoAcumulado) || 0;
-      item.sumFca += (net.fcaPoscosecha > 0 ? net.fcaPoscosecha : Number(record.fca) || 0);
-      item.sumBiomasaAgua += (net.biomasaEnAgua > 0 ? net.biomasaEnAgua : Number(record.biomasaTotal) || 0);
-      item.sumPreKilos += net.kilosExtraidos || 0;
-      item.sumBiomasaTotal += (net.biomasaTotal > 0 ? net.biomasaTotal : Number(record.biomasaTotal) || 0);
+      const dateItem = dateMap.get(dateStr)!;
+      const pondKey = `${record.granja || ''}_${normalizeEstanque(record.estanque)}`;
+      const existing = dateItem.pondsMap.get(pondKey);
+      if (!existing) {
+        dateItem.pondsMap.set(pondKey, { record, net });
+      } else {
+        // Si hay más de un registro del mismo estanque en la misma fecha (e.g. fila de raleo vs fila de muestreo semanal),
+        // preferir el registro que contenga datos de muestreo biológico activo (alimento acumulado / peso actual)
+        const curScore = (Number(record.alimentoAcumulado) || 0) + (Number(record.pesoActual) || 0);
+        const exScore = (Number(existing.record.alimentoAcumulado) || 0) + (Number(existing.record.pesoActual) || 0);
+        if (curScore > exScore) {
+          dateItem.pondsMap.set(pondKey, { record, net });
+        }
+      }
     });
 
     return Array.from(dateMap.values())
       .sort((a, b) => a.fechaRaw.localeCompare(b.fechaRaw))
-      .map(d => ({
-        label: d.fechaLabel,
-        fechaRaw: d.fechaRaw,
-        incrementoSemanal: d.count > 0 ? Number((d.sumIncremento / d.count).toFixed(2)) : 0,
-        sobrevivencia: d.count > 0 ? Number((d.sumSobrevivencia / d.count).toFixed(1)) : 0,
-        alimentoDia: Math.round(d.sumAlimentoDia),
-        alimentoAcumulado: Math.round(d.sumAlimentoAcum),
-        fca: d.sumBiomasaTotal > 0 ? Number((d.sumAlimentoAcum / d.sumBiomasaTotal).toFixed(2)) : (d.count > 0 ? Number((d.sumFca / d.count).toFixed(2)) : 0),
-        biomasaAgua: Math.round(d.sumBiomasaAgua),
-        precosechaExtraida: Math.round(d.sumPreKilos),
-        biomasaTotal: Math.round(d.sumBiomasaTotal)
-      }));
+      .map(d => {
+        const pondEntries = Array.from(d.pondsMap.values());
+        const count = pondEntries.length;
+        let sumIncremento = 0;
+        let sumSobrevivencia = 0;
+        let sumAlimentoDia = 0;
+        let sumAlimentoAcum = 0;
+        let sumFca = 0;
+        let sumBiomasaAgua = 0;
+        let sumPreKilos = 0;
+        let sumBiomasaTotal = 0;
+
+        pondEntries.forEach(({ record, net }) => {
+          sumIncremento += Number(record.incrementoSemanal) || 0;
+          sumSobrevivencia += Number(record.sobrevivencia) || 0;
+          sumAlimentoDia += (net.alimentoProyectadoDiaAjustado > 0 ? net.alimentoProyectadoDiaAjustado : Number(record.alimentoProyectadoDia) || 0);
+          sumAlimentoAcum += Number(record.alimentoAcumulado) || 0;
+          sumFca += (net.fcaPoscosecha > 0 ? net.fcaPoscosecha : Number(record.fca) || 0);
+          sumBiomasaAgua += (net.biomasaEnAgua > 0 ? net.biomasaEnAgua : Number(record.biomasaTotal) || 0);
+          sumPreKilos += net.kilosExtraidos || 0;
+          sumBiomasaTotal += (net.biomasaTotal > 0 ? net.biomasaTotal : Number(record.biomasaTotal) || 0);
+        });
+
+        return {
+          label: d.fechaLabel,
+          fechaRaw: d.fechaRaw,
+          incrementoSemanal: count > 0 ? Number((sumIncremento / count).toFixed(2)) : 0,
+          sobrevivencia: count > 0 ? Number((sumSobrevivencia / count).toFixed(1)) : 0,
+          alimentoDia: Math.round(sumAlimentoDia),
+          alimentoAcumulado: Math.round(sumAlimentoAcum),
+          fca: sumBiomasaTotal > 0 ? Number((sumAlimentoAcum / sumBiomasaTotal).toFixed(2)) : (count > 0 ? Number((sumFca / count).toFixed(2)) : 0),
+          biomasaAgua: Math.round(sumBiomasaAgua),
+          precosechaExtraida: Math.round(sumPreKilos),
+          biomasaTotal: Math.round(sumBiomasaTotal)
+        };
+      });
   }, [enrichedRecords]);
 
   // 2. DATASET POR ESTANQUE (Último muestreo activo de cada estanque para comparar la curva entre estanques)
