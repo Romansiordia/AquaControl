@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PondRecord, GoogleSheetsConfig } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Share2, AlertCircle, RefreshCw } from 'lucide-react';
-import { formatNumber, formatDate, normalizeEstanque, cleanDateString, calculateDaysBetween, isExtractionRecord } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque, cleanDateString, calculateDaysBetween } from '../utils';
 
 interface ProductionProgramProps {
     records: PondRecord[];
@@ -183,13 +183,6 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                         <span>{syncMessage}</span>
                     </div>
                 )}
-
-                {filteredRecords.some(isExtractionRecord) && (
-                    <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-400/30 px-3 py-1.5 rounded-lg">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm inline-block animate-pulse"></span>
-                        <span>Franja ámbar destacada señala eventos de <strong>Pre-cosecha / Raleo</strong> en la tabla.</span>
-                    </div>
-                )}
             </div>
 
             <div className="bg-[#0B4075] rounded-xl border border-[#125699] shadow-sm overflow-hidden">
@@ -233,93 +226,61 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                     <td colSpan={28} className="px-4 py-10 text-center text-slate-400 italic">No hay registros de producción.</td>
                                 </tr>
                             ) : (
-                                paginatedRecords.map((record) => {
-                                    const isExtraction = isExtractionRecord(record);
-                                    return (
-                                        <tr 
-                                            key={record.id} 
-                                            className={
-                                                isExtraction
-                                                    ? "bg-amber-500/25 hover:bg-amber-500/35 border-y-2 border-amber-400 text-center text-[10px] whitespace-nowrap text-amber-50 transition-colors shadow-inner font-medium"
-                                                    : "hover:bg-[#0E4680] transition-colors text-center text-[10px] whitespace-nowrap text-blue-100"
-                                            }
-                                        >
-                                            <td className="px-3 py-3 border-r border-[#125699]">
-                                                <div className="flex items-center gap-1 justify-center">
-                                                    {isExtraction && (
-                                                        <span 
-                                                            className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-400 text-slate-900 shadow-sm mr-1"
-                                                            title={`Evento de Pre-cosecha / Raleo: ${formatNumber(record.precosechas || record.biomasaTotal)} kg`}
-                                                        >
-                                                            Raleo
-                                                        </span>
-                                                    )}
-                                                    <button 
-                                                        onClick={() => onEdit(record)}
-                                                        className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition-colors"
-                                                        title="Editar Registro"
-                                                    >
-                                                        <Edit2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => onDelete(record.id)}
-                                                        className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors"
-                                                        title="Eliminar Registro"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                            <td className={`px-3 py-3 border-r border-[#125699] font-medium ${isExtraction ? 'text-amber-200 font-bold' : 'text-white'}`}>{record.granja}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699] font-medium text-emerald-300">
-                                                {formatNumber(record.orgMt2 || record.camM2Inicial || (record.hectareas > 0 && record.densidadInicial > 0 ? (record.densidadInicial / (record.hectareas * 10000)) : 0))}
-                                            </td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.especie}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fecha)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fechaCosecha)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fechaSiembra)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.alimento}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.alimentadores}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.aditivos}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.laboratorio}</td>
-                                            <td className={`px-3 py-3 border-r border-[#125699] font-bold ${isExtraction ? 'text-amber-300 font-extrabold' : 'text-white'}`}>
-                                                {record.estanque}
-                                                {isExtraction && (
-                                                    <span className="ml-1.5 inline-block px-1 py-0.2 rounded text-[8px] font-black uppercase bg-amber-400 text-slate-900 shadow-sm">
-                                                        Pre-Cosecha
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.hectareas}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699] text-blue-300">{record.pesoAnterior}</td>
-                                            <td className={`px-3 py-3 border-r border-[#125699] font-bold ${isExtraction ? 'text-amber-300' : 'text-emerald-400'}`}>{record.pesoActual}</td>
-                                            <td className={`px-3 py-3 border-r border-[#125699] ${isExtraction ? 'text-amber-300 font-semibold' : 'text-emerald-400'}`}>+{record.incrementoSemanal}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">
-                                                {!isNaN(Number(record.diasCultivo)) && record.diasCultivo !== '' && Number(record.diasCultivo) >= 0 
-                                                    ? Number(record.diasCultivo) 
-                                                    : (record.fechaSiembra && record.fecha ? calculateDaysBetween(record.fechaSiembra, record.fecha) : 0)}
-                                            </td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{record.sobrevivencia}%</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadInicial)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadActual)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699] text-blue-400">{formatNumber(record.biomasaHa)}</td>
-                                            <td className={`px-3 py-3 border-r border-[#125699] font-bold ${isExtraction ? 'text-amber-300 font-black' : 'text-indigo-400'}`}>
-                                                {formatNumber(record.precosechas && record.precosechas > 0 ? record.precosechas : record.biomasaTotal)}
-                                                {isExtraction && (
-                                                    <span className="block text-[8px] text-amber-200/80 font-normal">
-                                                        (Salida)
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.alimentoAcumulado)}</td>
-                                            <td className={`px-3 py-3 border-r border-[#125699] font-bold ${isExtraction ? 'text-amber-300' : 'text-amber-500'}`}>{formatNumber(record.fca)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.camM2Inicial)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.camM2Actual)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699] font-medium">{formatNumber(record.alimentoProyectadoDia)}</td>
-                                            <td className="px-3 py-3 border-r border-[#125699] font-medium">{formatNumber(record.alimentoProyectadoSemana)}</td>
-                                        </tr>
-                                    );
-                                })
+                                paginatedRecords.map((record) => (
+                                    <tr key={record.id} className="hover:bg-[#0E4680] transition-colors text-center text-[10px] whitespace-nowrap text-blue-100">
+                                        <td className="px-3 py-3 border-r border-[#125699]">
+                                            <div className="flex items-center gap-1">
+                                                <button 
+                                                    onClick={() => onEdit(record)}
+                                                    className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition-colors"
+                                                    title="Editar Registro"
+                                                >
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => onDelete(record.id)}
+                                                    className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors"
+                                                    title="Eliminar Registro"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">{record.granja}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium text-emerald-300">
+                                            {formatNumber(record.orgMt2 || record.camM2Inicial || (record.hectareas > 0 && record.densidadInicial > 0 ? (record.densidadInicial / (record.hectareas * 10000)) : 0))}
+                                        </td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.especie}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fecha)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fechaCosecha)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fechaSiembra)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.alimento}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.alimentadores}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.aditivos}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.laboratorio}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-bold text-white">{record.estanque}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.hectareas}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] text-blue-300">{record.pesoAnterior}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-bold text-emerald-400">{record.pesoActual}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] text-emerald-400">+{record.incrementoSemanal}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">
+                                            {!isNaN(Number(record.diasCultivo)) && record.diasCultivo !== '' && Number(record.diasCultivo) >= 0 
+                                                ? Number(record.diasCultivo) 
+                                                : (record.fechaSiembra && record.fecha ? calculateDaysBetween(record.fechaSiembra, record.fecha) : 0)}
+                                        </td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{record.sobrevivencia}%</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadInicial)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadActual)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] text-blue-400">{formatNumber(record.biomasaHa)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-bold text-indigo-400">{formatNumber(record.biomasaTotal)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.alimentoAcumulado)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-bold text-amber-500">{formatNumber(record.fca)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.camM2Inicial)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.camM2Actual)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium">{formatNumber(record.alimentoProyectadoDia)}</td>
+                                        <td className="px-3 py-3 border-r border-[#125699] font-medium">{formatNumber(record.alimentoProyectadoSemana)}</td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>

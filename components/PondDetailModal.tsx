@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { PondRecord, HarvestRecord } from '../types';
-import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics, cleanDateString, isExtractionRecord } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics, cleanDateString } from '../utils';
 import { 
   LineChart, 
   Line, 
@@ -275,36 +275,17 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
               </tr>
             </thead>
             <tbody className="divide-y divide-[#125699]">
-              {pondHistory.slice().reverse().map(r => {
-                const isExt = isExtractionRecord(r);
-                return (
-                  <tr 
-                    key={r.id} 
-                    className={
-                      isExt 
-                        ? "bg-amber-500/20 hover:bg-amber-500/30 border-y border-amber-400 text-amber-100 font-medium" 
-                        : "hover:bg-[#0B4075]/70 text-slate-200"
-                    }
-                  >
-                    <td className="p-2 border-r border-[#125699] font-medium">
-                      {r.diasCultivo}
-                      {isExt && (
-                        <span className="ml-1 text-[8px] px-1 py-0.2 bg-amber-400 text-slate-900 rounded font-black tracking-tight uppercase">
-                          RALEO
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-2 border-r border-[#125699]">{cleanDateString(r.fecha) || cleanDateString(r.fechaSiembra)}</td>
-                    <td className={`p-2 border-r border-[#125699] font-bold ${isExt ? 'text-amber-300' : 'text-emerald-400'}`}>{formatNumber(r.pesoActual)}</td>
-                    <td className={`p-2 border-r border-[#125699] ${isExt ? 'text-amber-300' : 'text-blue-300'}`}>+{formatNumber(r.incrementoSemanal)}</td>
-                    <td className="p-2 border-r border-[#125699]">{formatNumber(r.sobrevivencia)}%</td>
-                    <td className={`p-2 border-r border-[#125699] font-semibold ${isExt ? 'text-amber-300 font-bold' : 'text-white'}`}>
-                      {formatNumber(r.precosechas && r.precosechas > 0 ? r.precosechas : r.biomasaTotal)}
-                    </td>
-                    <td className="p-2 text-amber-400">{formatNumber(r.fca)}</td>
-                  </tr>
-                );
-              })}
+              {pondHistory.slice().reverse().map(r => (
+                <tr key={r.id} className="hover:bg-[#0B4075]/70 text-slate-200">
+                  <td className="p-2 border-r border-[#125699] font-medium">{r.diasCultivo}</td>
+                  <td className="p-2 border-r border-[#125699]">{cleanDateString(r.fecha) || cleanDateString(r.fechaSiembra)}</td>
+                  <td className="p-2 border-r border-[#125699] text-emerald-400 font-bold">{formatNumber(r.pesoActual)}</td>
+                  <td className="p-2 border-r border-[#125699] text-blue-300">+{formatNumber(r.incrementoSemanal)}</td>
+                  <td className="p-2 border-r border-[#125699]">{formatNumber(r.sobrevivencia)}%</td>
+                  <td className="p-2 border-r border-[#125699] font-semibold text-white">{formatNumber(r.biomasaTotal)}</td>
+                  <td className="p-2 text-amber-400">{formatNumber(r.fca)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -284,11 +284,10 @@ const App: React.FC = () => {
         const biomasaHa = fixNumberFromDate(getVal('biomasaHa', 'biomasa_ha', 'Biomasa Ha', 'Biomasa/Ha', 'Bio/Ha'));
         const biomasaActual = fixNumberFromDate(getVal('biomasa Actual', 'biomasaActual', 'biomasa_actual', 'Biomasa Actual', 'biomasa actual', 'biomasa en agua', 'biomasaEnAgua', 'Bio.Act', 'Bio Act'));
         const biomasaTotal = fixNumberFromDate(getVal('Biomasa Total', 'biomasaTotal', 'biomasa_total', 'Biomasa Total', 'biomasa total', 'Biomasa (Kg)', 'biomasa', 'Bio.Tot'));
-        const precosechas = fixNumberFromDate(getVal('Precosechas', 'precosechas', 'Pre-cosechas', 'pre_cosechas', 'Pre-cosecha', 'Precosecha', 'precosecha', 'Raleo', 'raleo', 'Raleos', 'Salida', 'salida', 'Extraccion', 'extraccion', 'Extracción', 'extracciones'));
+        const precosechas = fixNumberFromDate(getVal('Precosechas', 'precosechas', 'Pre-cosechas', 'pre_cosechas', 'Pre-cosecha', 'Precosecha', 'precosecha', 'Raleo', 'raleo', 'Raleos'));
         const alimentoAcumulado = fixNumberFromDate(getVal('alimentoAcumulado', 'alimento_acumulado', 'Alimento Acumulado', 'Alim.Ac'));
         const fca = fixNumberFromDate(getVal('fca', 'FCA', 'Fca', 'f.c.a.'));
-        const isPreharvestRow = precosechas > 0 || (alimentoAcumulado === 0 && fca === 0 && Number(pesoActual) > 0 && Number(diasCultivo) > 0);
-        const hasExplicitPrecosecha = precosechas > 0;
+        const isPreharvestRow = precosechas > 0 && (alimentoAcumulado === 0 || fca === 0);
 
         const cleaned: Partial<PondRecord> = {
           id: String(getVal('id', 'ID') || Math.random().toString(36).substring(2, 11)),
@@ -316,7 +315,6 @@ const App: React.FC = () => {
           biomasaTotal,
           precosechas,
           isPreharvestRow,
-          hasExplicitPrecosecha,
           alimentoAcumulado,
           alimentoSemanal: fixNumberFromDate(getVal('alimentoSemanal', 'alimento_semanal', 'Alimento Semanal')),
           fca,

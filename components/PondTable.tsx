@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { PondRecord } from '../types';
-import { formatNumber, formatDate, cleanDateString, calculateDaysBetween, isExtractionRecord } from '../utils';
+import { formatNumber, formatDate, cleanDateString, calculateDaysBetween } from '../utils';
 
 interface Props {
   records: PondRecord[];
@@ -44,25 +44,9 @@ const PondTable: React.FC<Props> = ({ records, onDelete, onSelectPond }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {records.map((record) => {
-                const isExt = isExtractionRecord(record);
-                return (
-                  <tr 
-                    key={record.id} 
-                    className={
-                      isExt 
-                        ? "bg-amber-50/80 hover:bg-amber-100/80 transition-colors border-y-2 border-amber-300 text-[12px] font-medium" 
-                        : "hover:bg-slate-50 transition-colors border-b border-slate-50 text-[12px]"
-                    }
-                  >
-                    <td className="px-4 py-3 font-medium border-r border-slate-50">
-                      {record.granja}
-                      {isExt && (
-                        <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-200 text-amber-900 border border-amber-300 uppercase">
-                          Raleo
-                        </span>
-                      )}
-                    </td>
+              {records.map((record) => (
+                <tr key={record.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50 text-[12px]">
+                  <td className="px-4 py-3 font-medium border-r border-slate-50">{record.granja}</td>
                   <td className="px-4 py-3 whitespace-nowrap border-r border-slate-50">{cleanDateString(record.fechaCosecha)}</td>
                   <td className="px-4 py-3 whitespace-nowrap border-r border-slate-50 font-bold text-slate-900">{cleanDateString(record.fechaSiembra)}</td>
                   <td className="px-4 py-3 border-r border-slate-50">{record.alimento}</td>

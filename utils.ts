@@ -257,28 +257,6 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
   };
 };
 
-/**
- * Determina si un registro corresponde a un evento de pre-cosecha o raleo/extracción
- */
-export const isExtractionRecord = (record: PondRecord): boolean => {
-  if (!record) return false;
-  if (record.isPreharvestRow) return true;
-  const pre = Number(record.precosechas) || 0;
-  if (pre > 0) return true;
-  if (record.hasExplicitPrecosecha) return true;
-
-  // Detección complementaria para filas de extracción según la estructura acuícola:
-  // días de cultivo avanzados, alimento acumulado en 0, fca en 0 y peso actual > 0
-  const alim = Number(record.alimentoAcumulado) || 0;
-  const fca = Number(record.fca) || 0;
-  const doc = Number(record.diasCultivo) || 0;
-  const pAct = Number(record.pesoActual) || 0;
-  if (doc > 0 && alim === 0 && fca === 0 && pAct > 0) {
-    return true;
-  }
-  return false;
-};
-
 export const parseFlexibleNumber = (val: any): number => {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
