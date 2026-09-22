@@ -28,31 +28,34 @@ const StatisticsTable: React.FC<Props> = ({ records, harvests = [] }) => {
     { label: 'Peso Actual', key: 'pesoActual', unit: 'g' },
     { label: 'Incremento Semanal', key: 'incrementoSemanal', unit: 'g' },
     { label: 'Supervivencia', key: 'sobrevivencia', unit: '%' },
-    { label: 'Biomasa Total Teórica', key: 'biomasaTotal', unit: 'kg' },
+    { 
+      label: 'Biomasa Actual (en Agua)', 
+      customValues: netMetricsList.map(m => m.biomasaEnAgua), 
+      unit: 'kg' 
+    },
     ...(anyPondHasExtraction ? [
       { 
-        label: 'Biomasa Activa en Agua', 
-        customValues: netMetricsList.map(m => m.biomasaEnAgua), 
-        unit: 'kg' 
-      },
-      { 
-        label: 'Pre-Cosechado Extraído', 
+        label: 'Pre-cosechas (Extraído)', 
         customValues: netMetricsList.map(m => m.kilosExtraidos), 
         unit: 'kg' 
       },
-    ] : []),
-    ...(anyPondHasExtraction ? [
       { 
-        label: 'FCA s/ Pre-cosecha (Teórico)', 
+        label: 'Biomasa Total Producida', 
+        customValues: netMetricsList.map(m => m.biomasaTotal), 
+        unit: 'kg' 
+      },
+      { 
+        label: 'FCA s/ Pre-cosecha (en Agua)', 
         customValues: netMetricsList.map(m => m.fcaSinPrecosecha), 
         unit: '' 
       },
       { 
-        label: 'FCA Poscosecha (Ajustado)', 
-        customValues: netMetricsList.map(m => m.fcaAjustado), 
+        label: 'FCA Poscosecha (Biomasa Total)', 
+        customValues: netMetricsList.map(m => m.fcaPoscosecha), 
         unit: '' 
       },
     ] : [
+      { label: 'Biomasa Total', key: 'biomasaTotal', unit: 'kg' },
       { label: 'FCA', key: 'fca', unit: '' }
     ]),
     { label: 'Densidad Actual Teórica', key: 'densidadActual', unit: 'ind' },

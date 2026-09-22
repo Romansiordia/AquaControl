@@ -102,22 +102,22 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
-              <div className="bg-[#0B4075] p-2.5 rounded-lg border border-[#125699]">
-                <p className="text-[10px] text-blue-300 uppercase font-semibold">Biomasa Teórica</p>
-                <p className="text-base font-bold text-white mt-0.5">{formatNumber(netMetrics.biomasaTeorica)} kg</p>
-                <p className="text-[10px] text-slate-400">{formatNumber(netMetrics.poblacionTeorica)} orgs</p>
+              <div className="bg-emerald-950/40 p-2.5 rounded-lg border border-emerald-600/40">
+                <p className="text-[10px] text-emerald-300 uppercase font-semibold">Biomasa Actual (Agua)</p>
+                <p className="text-base font-bold text-emerald-400 mt-0.5">{formatNumber(netMetrics.biomasaEnAgua)} kg</p>
+                <p className="text-[10px] text-emerald-300/80">{netMetrics.porcentajeRestanteBiomasa}% remanente</p>
               </div>
 
               <div className="bg-orange-950/40 p-2.5 rounded-lg border border-orange-700/40">
-                <p className="text-[10px] text-orange-300 uppercase font-semibold">Total Pre-Cosechado</p>
-                <p className="text-base font-bold text-orange-400 mt-0.5">-{formatNumber(netMetrics.kilosExtraidos)} kg</p>
-                <p className="text-[10px] text-orange-300/80">-{formatNumber(netMetrics.organismosExtraidos)} orgs</p>
+                <p className="text-[10px] text-orange-300 uppercase font-semibold">Pre-cosechas</p>
+                <p className="text-base font-bold text-orange-400 mt-0.5">+{formatNumber(netMetrics.kilosExtraidos)} kg</p>
+                <p className="text-[10px] text-orange-300/80">+{formatNumber(netMetrics.organismosExtraidos)} orgs</p>
               </div>
 
-              <div className="bg-emerald-950/40 p-2.5 rounded-lg border border-emerald-600/40">
-                <p className="text-[10px] text-emerald-300 uppercase font-semibold">Biomasa en Agua</p>
-                <p className="text-base font-bold text-emerald-400 mt-0.5">{formatNumber(netMetrics.biomasaEnAgua)} kg</p>
-                <p className="text-[10px] text-emerald-300/80">{netMetrics.porcentajeRestanteBiomasa}% remanente</p>
+              <div className="bg-[#0B4075] p-2.5 rounded-lg border border-[#125699]">
+                <p className="text-[10px] text-blue-300 uppercase font-semibold">Biomasa Total</p>
+                <p className="text-base font-bold text-white mt-0.5">{formatNumber(netMetrics.biomasaTotal)} kg</p>
+                <p className="text-[10px] text-slate-400">{formatNumber(netMetrics.poblacionTeorica)} orgs</p>
               </div>
 
               <div className="bg-cyan-950/40 p-2.5 rounded-lg border border-cyan-600/40">
@@ -129,13 +129,13 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
               <div className="bg-amber-950/30 p-2.5 rounded-lg border border-amber-600/40">
                 <p className="text-[10px] text-amber-300 uppercase font-semibold">FCA S/ Pre-Cosecha</p>
                 <p className="text-base font-bold text-amber-300 mt-0.5">{netMetrics.fcaSinPrecosecha.toFixed(2)}</p>
-                <p className="text-[10px] text-slate-400">Teórico inicial</p>
+                <p className="text-[10px] text-slate-400">Solo en agua</p>
               </div>
 
               <div className="bg-emerald-950/50 p-2.5 rounded-lg border border-emerald-500/60 shadow-sm">
                 <p className="text-[10px] text-emerald-300 uppercase font-semibold">FCA Poscosecha</p>
-                <p className="text-base font-black text-emerald-400 mt-0.5">{netMetrics.fcaAjustado.toFixed(2)}</p>
-                <p className="text-[10px] text-emerald-300/80">Global Real</p>
+                <p className="text-base font-black text-emerald-400 mt-0.5">{netMetrics.fcaPoscosecha.toFixed(2)}</p>
+                <p className="text-[10px] text-emerald-300/80">Biomasa Total</p>
               </div>
             </div>
           </div>
@@ -159,7 +159,7 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
             </p>
             <p className="text-xl font-black text-emerald-400">
               {netMetrics?.tieneExtracciones 
-                ? netMetrics.fcaAjustado.toFixed(2) 
+                ? netMetrics.fcaPoscosecha.toFixed(2) 
                 : formatNumber(latestRecord.fca)}
             </p>
             <p className="text-[10px] text-blue-300">

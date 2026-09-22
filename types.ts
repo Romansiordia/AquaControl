@@ -19,10 +19,14 @@ export interface PondRecord {
   densidadInicial: number;
   densidadActual: number;
   biomasaHa: number;
+  biomasaActual?: number;
   biomasaTotal: number;
+  precosechas?: number;
+  isPreharvestRow?: boolean;
   alimentoSemanal: number;
   alimentoAcumulado: number;
   fca: number;
+  fcaEnAgua?: number;
   camM2Inicial: number;
   camM2Actual: number;
   organismosSembrados: number;
@@ -141,6 +145,8 @@ export interface PondNetMetrics {
   kilosExtraidos: number;
   organismosExtraidos: number;
   biomasaTeorica: number;
+  biomasaActual: number;
+  biomasaTotal: number;
   biomasaEnAgua: number;
   biomasaHaEnAgua: number;
   poblacionTeorica: number;
@@ -156,6 +162,7 @@ export interface PondNetMetrics {
   fcaSinPrecosecha: number;
   fcaEnAgua: number;
   fcaAjustado: number;
+  fcaPoscosecha: number;
   diferenciaFca: number;
 }
 

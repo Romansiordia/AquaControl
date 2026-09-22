@@ -14,6 +14,7 @@ import PondDetailModal from './components/PondDetailModal';
 import EvaluationList from './components/EvaluationList';
 import ProductionProgram from './components/ProductionProgram';
 import HarvestsModule from './components/HarvestsModule';
+import TendenciasView from './components/TendenciasView';
 import GoogleSheetsSync from './components/GoogleSheetsSync';
 import { 
   BarChart, 
@@ -32,7 +33,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
 
-type View = 'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests';
+type View = 'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests' | 'tendencias';
 
 const App: React.FC = () => {
   const [actualRecords, setRecords] = useState<PondRecord[]>(() => {
@@ -54,7 +55,7 @@ const App: React.FC = () => {
   const [editingEvaluation, setEditingEvaluation] = useState<EvaluationRecord | null>(null);
   const [selectedPond, setSelectedPond] = useState<number | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-    const [activeView, setActiveView] = useState<'estadisticas' | 'farmEvaluation' | 'evaluationsList' | 'productionProgram' | 'googleSync' | 'harvests'>('estadisticas');
+  const [activeView, setActiveView] = useState<View>('estadisticas');
   const [filters, setFilters] = useState<FilterState>({
     fechaDesde: '',
     fechaHasta: '',
@@ -201,6 +202,14 @@ const App: React.FC = () => {
         const estanque = String(getVal('estanque', 'Estanque', 'Pond', 'pond', 'est') || '').trim();
         const hectareas = fixNumberFromDate(getVal('hectareas', 'Hectareas', 'Hectáreas', 'ha', 'Ha', 'Has', 'area', 'Area', 'Área')) || 1;
 
+        const biomasaHa = fixNumberFromDate(getVal('biomasaHa', 'biomasa_ha', 'Biomasa Ha', 'Biomasa/Ha', 'Bio/Ha'));
+        const biomasaActual = fixNumberFromDate(getVal('biomasa Actual', 'biomasaActual', 'biomasa_actual', 'Biomasa Actual', 'biomasa actual', 'biomasa en agua', 'biomasaEnAgua', 'Bio.Act', 'Bio Act'));
+        const biomasaTotal = fixNumberFromDate(getVal('Biomasa Total', 'biomasaTotal', 'biomasa_total', 'Biomasa Total', 'biomasa total', 'Biomasa (Kg)', 'biomasa', 'Bio.Tot'));
+        const precosechas = fixNumberFromDate(getVal('Precosechas', 'precosechas', 'Pre-cosechas', 'pre_cosechas', 'Pre-cosecha', 'Precosecha', 'precosecha', 'Raleo', 'raleo', 'Raleos'));
+        const alimentoAcumulado = fixNumberFromDate(getVal('alimentoAcumulado', 'alimento_acumulado', 'Alimento Acumulado', 'Alim.Ac'));
+        const fca = fixNumberFromDate(getVal('fca', 'FCA', 'Fca', 'f.c.a.'));
+        const isPreharvestRow = precosechas > 0 && (alimentoAcumulado === 0 || fca === 0);
+
         const cleaned: Partial<PondRecord> = {
           id: String(getVal('id', 'ID') || Math.random().toString(36).substring(2, 11)),
           granja,
@@ -222,11 +231,14 @@ const App: React.FC = () => {
           sobrevivencia,
           densidadInicial,
           densidadActual,
-          biomasaHa: fixNumberFromDate(getVal('biomasaHa', 'biomasa_ha', 'Biomasa Ha', 'Biomasa/Ha', 'Bio/Ha')),
-          biomasaTotal: fixNumberFromDate(getVal('biomasaTotal', 'biomasa_total', 'Biomasa Total', 'Biomasa (Kg)', 'biomasa', 'Bio.Tot')),
-          alimentoAcumulado: fixNumberFromDate(getVal('alimentoAcumulado', 'alimento_acumulado', 'Alimento Acumulado', 'Alim.Ac')),
+          biomasaHa,
+          biomasaActual,
+          biomasaTotal,
+          precosechas,
+          isPreharvestRow,
+          alimentoAcumulado,
           alimentoSemanal: fixNumberFromDate(getVal('alimentoSemanal', 'alimento_semanal', 'Alimento Semanal')),
-          fca: fixNumberFromDate(getVal('fca', 'FCA', 'Fca', 'f.c.a.')),
+          fca,
           camM2Inicial: fixNumberFromDate(getVal('camM2Inicial', 'Cam/m2 I', 'cam_m2_inicial')),
           camM2Actual: fixNumberFromDate(getVal('camM2Actual', 'Cam/m2 A', 'cam_m2_actual')),
           alimentoProyectadoDia: fixNumberFromDate(getVal('alimentoProyectadoDia', 'alimento_proyectado_dia')),
@@ -235,10 +247,90 @@ const App: React.FC = () => {
         };
         return calculatePondMetrics(cleaned);
       });
+
+      // Si no viene hoja de cosechas pero hay precosechas en producción, generar registros de cosecha automáticos
+      let synthesizedHarvests: HarvestRecord[] = [];
+      if (!importedData.harvests || importedData.harvests.length === 0) {
+        const preharvestByPond = new Map<string, PondRecord[]>();
+        fixedProd.forEach(p => {
+          if (p.precosechas && p.precosechas > 0) {
+            const key = `${p.granja}___${p.estanque}`;
+            if (!preharvestByPond.has(key)) preharvestByPond.set(key, []);
+            preharvestByPond.get(key)!.push(p);
+          }
+        });
+
+        preharvestByPond.forEach((records, key) => {
+          const [granja, estanque] = key.split('___');
+          let totalKilos = 0;
+          let totalOrg = 0;
+          const hRec: Partial<HarvestRecord> = {
+            id: `harvest_${granja}_${estanque}`,
+            granja,
+            estanque,
+          };
+
+          // Ordenar por fecha o días de cultivo
+          records.sort((a, b) => (a.diasCultivo || 0) - (b.diasCultivo || 0));
+
+          records.slice(0, 5).forEach((rec, idx) => {
+            const stageNum = idx + 1;
+            const k = Number(rec.precosechas) || 0;
+            const g = Number(rec.pesoActual) || 0;
+            const org = g > 0 ? Math.round((k * 1000) / g) : 0;
+            totalKilos += k;
+            totalOrg += org;
+
+            if (stageNum === 1) {
+              hRec.fecha1 = rec.fecha;
+              hRec.pre1Kilos = k;
+              hRec.pre1Gramos = g;
+              hRec.pre1Organismos = org;
+            } else if (stageNum === 2) {
+              hRec.fecha2 = rec.fecha;
+              hRec.pre2Kilos = k;
+              hRec.pre2Gramos = g;
+              hRec.pre2Organismos = org;
+            } else if (stageNum === 3) {
+              hRec.fecha3 = rec.fecha;
+              hRec.pre3Kilos = k;
+              hRec.pre3Gramos = g;
+              hRec.pre3Organismos = org;
+            } else if (stageNum === 4) {
+              hRec.fecha4 = rec.fecha;
+              hRec.pre4Kilos = k;
+              hRec.pre4Gramos = g;
+              hRec.pre4Organismos = org;
+            } else if (stageNum === 5) {
+              hRec.fecha5 = rec.fecha;
+              hRec.pre5Kilos = k;
+              hRec.pre5Gramos = g;
+              hRec.pre5Organismos = org;
+            }
+          });
+
+          hRec.totalKilos = Number(totalKilos.toFixed(2));
+          hRec.totalOrganismos = totalOrg;
+          hRec.pesoPromedioPrecosechado = totalOrg > 0 ? parseFloat(((totalKilos * 1000) / totalOrg).toFixed(2)) : 0;
+          synthesizedHarvests.push(hRec as HarvestRecord);
+        });
+      }
+
       if (isLocal) {
         setLocalRecords(fixedProd);
+        if (synthesizedHarvests.length > 0 && (!importedData.harvests || importedData.harvests.length === 0)) {
+          setLocalHarvests(synthesizedHarvests);
+        }
       } else {
         setRecords(fixedProd);
+        if (synthesizedHarvests.length > 0 && (!importedData.harvests || importedData.harvests.length === 0)) {
+          setHarvests(synthesizedHarvests);
+          try {
+            localStorage.setItem('camaronera_harvests', JSON.stringify(synthesizedHarvests));
+          } catch (e) {
+            console.error("Error saving auto-synthesized harvests to localStorage:", e);
+          }
+        }
       }
     }
     if (importedData.evaluations && importedData.evaluations.length > 0) {
@@ -834,6 +926,7 @@ const App: React.FC = () => {
                  <h1 className="text-xl font-bold text-white">
                     
                     {activeView === 'estadisticas' && 'Análisis Estadístico'}
+                    {activeView === 'tendencias' && 'Tendencias de Producción y Pre-cosecha'}
                     {activeView === 'farmEvaluation' && 'Evaluación Técnica de Granja'}
                     {activeView === 'evaluationsList' && 'Historial de Evaluaciones'}
                     {activeView === 'productionProgram' && 'Control de Producción'}
@@ -893,16 +986,11 @@ const App: React.FC = () => {
               onOpenSyncConfig={() => setActiveView('googleSync')}
             />
           )}
-          {activeView === 'harvests' && (
-            <HarvestsModule 
-              records={records}
+          {activeView === 'tendencias' && (
+            <TendenciasView 
+              records={filteredRecords}
+              allRecords={filteredRawRecords}
               harvests={harvests}
-              onAddHarvest={handleAddHarvest}
-              onEditHarvest={handleEditHarvest}
-              onDeleteHarvest={handleDeleteHarvest}
-              onClearAllHarvests={handleClearAllHarvests}
-              onDeleteByGranja={handleDeleteHarvestsByGranja}
-              onImportHarvests={handleSetHarvests}
             />
           )}
           {activeView === 'googleSync' && (

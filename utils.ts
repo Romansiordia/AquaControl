@@ -133,28 +133,61 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     ? record.densidadActual
     : Math.round(densidadInicial * (sobrevivencia / 100));
 
-  const biomasaTotal = record.biomasaTotal && record.biomasaTotal > 0
-    ? record.biomasaTotal
-    : parseFloat(((densidadActual * pesoActual) / 1000).toFixed(2));
+  const rawBiomasaActual = record.biomasaActual !== undefined && record.biomasaActual !== null && record.biomasaActual !== ''
+    ? parseFlexibleNumber(record.biomasaActual)
+    : undefined;
+  const rawBiomasaTotal = record.biomasaTotal !== undefined && record.biomasaTotal !== null && record.biomasaTotal !== ''
+    ? parseFlexibleNumber(record.biomasaTotal)
+    : undefined;
+  const rawPrecosechas = record.precosechas !== undefined && record.precosechas !== null && record.precosechas !== ''
+    ? parseFlexibleNumber(record.precosechas)
+    : 0;
+
+  const calculatedBio = (densidadActual > 0 && pesoActual > 0)
+    ? parseFloat(((densidadActual * pesoActual) / 1000).toFixed(2))
+    : 0;
+
+  // biomasaActual: la biomasa viva en agua
+  const biomasaActual = rawBiomasaActual !== undefined && rawBiomasaActual > 0
+    ? rawBiomasaActual
+    : calculatedBio;
+
+  // precosechas
+  let precosechas = rawPrecosechas;
+  if (precosechas === 0 && rawBiomasaTotal && rawBiomasaActual && rawBiomasaTotal > rawBiomasaActual) {
+    precosechas = parseFloat((rawBiomasaTotal - rawBiomasaActual).toFixed(2));
+  }
+
+  // biomasaTotal: biomasa viva en agua + precosechas acumuladas
+  const biomasaTotal = rawBiomasaTotal !== undefined && rawBiomasaTotal > 0
+    ? rawBiomasaTotal
+    : parseFloat((biomasaActual + precosechas).toFixed(2));
 
   const biomasaHa = record.biomasaHa && record.biomasaHa > 0
     ? record.biomasaHa
     : (hectareas > 0 ? parseFloat((biomasaTotal / hectareas).toFixed(2)) : 0);
 
+  // FCA del Excel (columna X = alimentoAcumulado / biomasaTotal)
   const fca = record.fca && record.fca > 0
     ? record.fca
-    : (biomasaTotal > 0 ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(2)) : 0);
+    : (biomasaTotal > 0 ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(3)) : 0);
+
+  // FCA en agua (sin precosechas = alimentoAcumulado / biomasaActual)
+  const fcaEnAgua = biomasaActual > 0
+    ? parseFloat((alimentoAcumulado / biomasaActual).toFixed(3))
+    : fca;
   
   const camM2Inicial = hectareas > 0 && densidadInicial > 0 ? parseFloat((densidadInicial / (hectareas * 10000)).toFixed(2)) : (rawOrgMt2 || 0);
   const camM2Actual = hectareas > 0 && densidadActual > 0 ? parseFloat((densidadActual / (hectareas * 10000)).toFixed(2)) : 0;
   const orgMt2 = camM2Inicial > 0 ? camM2Inicial : (rawOrgMt2 || 0);
 
-  // Feeding Projection based on %BW table interpolation
+  // Feeding Projection based on %BW table interpolation using live biomass in water
+  const bioForFeeding = biomasaActual > 0 ? biomasaActual : biomasaTotal;
   let alimentoProyectadoDia = 0;
   let alimentoProyectadoSemana = 0;
-  if (biomasaTotal > 0 && pesoActual > 0) {
+  if (bioForFeeding > 0 && pesoActual > 0) {
     const bwPercentage = getFeedingRatePercentage(pesoActual);
-    alimentoProyectadoDia = parseFloat(((biomasaTotal * bwPercentage) / 100).toFixed(2));
+    alimentoProyectadoDia = parseFloat(((bioForFeeding * bwPercentage) / 100).toFixed(2));
     alimentoProyectadoSemana = parseFloat((alimentoProyectadoDia * 7).toFixed(2));
   }
 
@@ -205,10 +238,14 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     densidadInicial: densidadInicial,
     densidadActual: densidadActual,
     biomasaHa: biomasaHa,
+    biomasaActual: biomasaActual,
     biomasaTotal: biomasaTotal,
+    precosechas: precosechas,
+    isPreharvestRow: record.isPreharvestRow || (precosechas > 0 && (alimentoAcumulado === 0 || fca === 0)),
     alimentoSemanal: record.alimentoSemanal || 0,
     alimentoAcumulado: alimentoAcumulado,
     fca: fca,
+    fcaEnAgua: fcaEnAgua,
     camM2Inicial: camM2Inicial,
     camM2Actual: camM2Actual,
     organismosSembrados: record.organismosSembrados || densidadInicial,
@@ -391,16 +428,43 @@ export const getPondExtractions = (
 
 export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecord[]): PondNetMetrics => {
   const summary = getPondExtractions(pond.granja, pond.estanque, harvests);
-  const biomasaTeorica = Number(pond.biomasaTotal) || 0;
-  const poblacionTeorica = Number(pond.densidadActual) || 0;
   const hectareas = Number(pond.hectareas) || 0;
   const pesoActual = Number(pond.pesoActual) || 0;
   const alimentoAcumulado = Number(pond.alimentoAcumulado) || 0;
+  const poblacionTeorica = Number(pond.densidadActual) || 0;
 
-  const kilosExtraidos = summary.totalKilos;
-  const organismosExtraidos = summary.totalOrganismos;
+  // Extractions: check HarvestRecords first, then fallback to pond.precosechas or (biomasaTotal - biomasaActual)
+  let kilosExtraidos = summary.totalKilos;
+  let organismosExtraidos = summary.totalOrganismos;
 
-  const biomasaEnAgua = Math.max(0, Number((biomasaTeorica - kilosExtraidos).toFixed(2)));
+  const pondPrecosechas = Number(pond.precosechas) || 0;
+  const rawBioActual = pond.biomasaActual !== undefined && pond.biomasaActual !== null && Number(pond.biomasaActual) > 0 
+    ? Number(pond.biomasaActual) 
+    : undefined;
+  const rawBioTotal = Number(pond.biomasaTotal) || 0;
+
+  if (kilosExtraidos === 0) {
+    if (pondPrecosechas > 0) {
+      kilosExtraidos = pondPrecosechas;
+    } else if (rawBioTotal > 0 && rawBioActual !== undefined && rawBioTotal > rawBioActual) {
+      kilosExtraidos = parseFloat((rawBioTotal - rawBioActual).toFixed(2));
+    }
+    if (organismosExtraidos === 0 && kilosExtraidos > 0 && pesoActual > 0) {
+      organismosExtraidos = Math.round((kilosExtraidos * 1000) / pesoActual);
+    }
+  }
+
+  // Biomasa viva que queda en el agua
+  const biomasaEnAgua = rawBioActual !== undefined
+    ? rawBioActual
+    : Math.max(0, Number((rawBioTotal - kilosExtraidos).toFixed(2)));
+
+  // Biomasa Total producida en el ciclo (Biomasa viva en agua + Kilos extraídos en pre-cosechas)
+  const biomasaTotal = (rawBioTotal > 0 && rawBioTotal >= biomasaEnAgua)
+    ? rawBioTotal
+    : parseFloat((biomasaEnAgua + kilosExtraidos).toFixed(2));
+
+  const biomasaTeorica = biomasaTotal;
   const biomasaHaEnAgua = hectareas > 0 ? Number((biomasaEnAgua / hectareas).toFixed(2)) : 0;
   
   const poblacionEnAgua = Math.max(0, Math.round(poblacionTeorica - organismosExtraidos));
@@ -414,46 +478,62 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
     alimentoProyectadoSemanaAjustado = parseFloat((alimentoProyectadoDiaAjustado * 7).toFixed(2));
   }
 
-  const porcentajeExtraidoBiomasa = biomasaTeorica > 0 ? Number(((kilosExtraidos / biomasaTeorica) * 100).toFixed(1)) : 0;
-  const porcentajeRestanteBiomasa = biomasaTeorica > 0 ? Number(((biomasaEnAgua / biomasaTeorica) * 100).toFixed(1)) : 100;
+  const porcentajeExtraidoBiomasa = biomasaTotal > 0 ? Number(((kilosExtraidos / biomasaTotal) * 100).toFixed(1)) : 0;
+  const porcentajeRestanteBiomasa = biomasaTotal > 0 ? Number(((biomasaEnAgua / biomasaTotal) * 100).toFixed(1)) : 100;
+  const tieneExtracciones = kilosExtraidos > 0 || summary.tieneExtracciones;
 
-  // Cálculos de FCA: Sin pre-cosecha vs En Agua vs Ajustado (Real Poscosecha)
-  const fcaSinPrecosecha = pond.fca && pond.fca > 0
-    ? Number(pond.fca)
-    : (biomasaTeorica > 0 ? parseFloat((alimentoAcumulado / biomasaTeorica).toFixed(3)) : 0);
-
-  // Si solo consideráramos la biomasa remanente en agua (el FCA se distorsiona/infla al ignorar lo extraído)
-  const fcaEnAgua = biomasaEnAgua > 0 
+  // 1. FCA Sin Pre-cosecha (FCA en Agua):
+  // Evalúa el consumo de alimento contra la biomasa viva que permanece en el agua.
+  // Ejemplo Excel: 13,548 kg alimento / 6,405 kg en agua = 2.115
+  const fcaSinPrecosecha = biomasaEnAgua > 0 
     ? parseFloat((alimentoAcumulado / biomasaEnAgua).toFixed(3)) 
-    : fcaSinPrecosecha;
+    : (biomasaTotal > 0 ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(3)) : Number(pond.fca || 0));
 
-  // Biomasa total biológica producida (Biomasa viva en agua + Kilos extraídos en pre-cosechas)
-  const biomasaTotalProducida = biomasaEnAgua + kilosExtraidos;
-  const fcaAjustado = biomasaTotalProducida > 0 
-    ? parseFloat((alimentoAcumulado / biomasaTotalProducida).toFixed(3)) 
-    : fcaSinPrecosecha;
+  // 2. FCA Poscosecha / Ajustado (FCA Total Producido):
+  // Evalúa el consumo contra la Biomasa Total biológica producida (Agua + Pre-cosechas extraídas).
+  // Ejemplo Excel: 13,548 kg alimento / 10,172 kg biomasa total = 1.332
+  const fcaPoscosecha = biomasaTotal > 0 
+    ? parseFloat((alimentoAcumulado / biomasaTotal).toFixed(3)) 
+    : (pond.fca && pond.fca > 0 ? Number(pond.fca) : fcaSinPrecosecha);
 
-  const diferenciaFca = parseFloat((fcaEnAgua - fcaAjustado).toFixed(3));
+  const fcaEnAgua = fcaSinPrecosecha;
+  const fcaAjustado = fcaPoscosecha;
+  const diferenciaFca = parseFloat((fcaSinPrecosecha - fcaPoscosecha).toFixed(3));
 
   // Enriquecer cada etapa de extracción con el impacto acumulado en el FCA
-  let cumKilos = 0;
-  const enrichedStages: PondExtractionStage[] = summary.stages.map((stg) => {
-    cumKilos += stg.kilos;
-    const bioAcum = biomasaEnAgua + cumKilos;
-    const fcaEtapa = bioAcum > 0 && alimentoAcumulado > 0 
-      ? parseFloat((alimentoAcumulado / bioAcum).toFixed(3)) 
-      : fcaAjustado;
-    return {
-      ...stg,
-      kilosAcumulados: Number(cumKilos.toFixed(2)),
-      fcaEtapa
-    };
-  });
+  let enrichedStages: PondExtractionStage[] = summary.stages;
+  if (enrichedStages.length === 0 && kilosExtraidos > 0) {
+    enrichedStages = [{
+      etapa: 'Pre-Cosecha',
+      fecha: pond.fecha,
+      kilos: kilosExtraidos,
+      gramos: pesoActual,
+      organismos: organismosExtraidos,
+      kilosAcumulados: kilosExtraidos,
+      fcaEtapa: fcaPoscosecha
+    }];
+  } else {
+    let cumKilos = 0;
+    enrichedStages = summary.stages.map((stg) => {
+      cumKilos += stg.kilos;
+      const bioAcum = biomasaEnAgua + cumKilos;
+      const fcaEtapa = bioAcum > 0 && alimentoAcumulado > 0 
+        ? parseFloat((alimentoAcumulado / bioAcum).toFixed(3)) 
+        : fcaAjustado;
+      return {
+        ...stg,
+        kilosAcumulados: Number(cumKilos.toFixed(2)),
+        fcaEtapa
+      };
+    });
+  }
 
   return {
     kilosExtraidos,
     organismosExtraidos,
     biomasaTeorica,
+    biomasaActual: biomasaEnAgua,
+    biomasaTotal,
     biomasaEnAgua,
     biomasaHaEnAgua,
     poblacionTeorica,
@@ -463,12 +543,13 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
     alimentoProyectadoSemanaAjustado,
     porcentajeExtraidoBiomasa,
     porcentajeRestanteBiomasa,
-    tieneExtracciones: summary.tieneExtracciones,
+    tieneExtracciones,
     stages: enrichedStages,
     alimentoAcumulado,
     fcaSinPrecosecha,
     fcaEnAgua,
     fcaAjustado,
+    fcaPoscosecha,
     diferenciaFca
   };
 };
