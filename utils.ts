@@ -552,32 +552,16 @@ export const calculatePondNetMetrics = (pond: PondRecord, harvests: HarvestRecor
 
   // Enriquecer cada etapa de extracción con el impacto acumulado en el FCA
   let enrichedStages: PondExtractionStage[] = summary.stages;
-  const stagesSum = enrichedStages.reduce((s, st) => s + st.kilos, 0);
-
-  // Si no hay etapas o si la suma de etapas difiere significativamente del valor oficial de precosechas
-  if (kilosExtraidos > 0 && (enrichedStages.length === 0 || Math.abs(stagesSum - kilosExtraidos) > 1)) {
-    if (enrichedStages.length > 1 && stagesSum > kilosExtraidos) {
-      // Si las etapas eran valores acumulados (e.g. 2520 y 3767), convertirlas en deltas
-      let prev = 0;
-      enrichedStages = enrichedStages.map(st => {
-        const delta = Math.max(0, st.kilos - prev);
-        prev = st.kilos;
-        return { ...st, kilos: delta, organismos: st.gramos > 0 ? Math.round((delta * 1000) / st.gramos) : 0 };
-      }).filter(st => st.kilos > 0);
-    }
-
-    const recheckSum = enrichedStages.reduce((s, st) => s + st.kilos, 0);
-    if (enrichedStages.length === 0 || Math.abs(recheckSum - kilosExtraidos) > 1) {
-      enrichedStages = [{
-        etapa: 'Pre-Cosecha',
-        fecha: pond.fecha,
-        kilos: kilosExtraidos,
-        gramos: pesoActual,
-        organismos: organismosExtraidos,
-        kilosAcumulados: kilosExtraidos,
-        fcaEtapa: fcaPoscosecha
-      }];
-    }
+  if (enrichedStages.length === 0 && kilosExtraidos > 0) {
+    enrichedStages = [{
+      etapa: 'Pre-Cosecha',
+      fecha: pond.fecha,
+      kilos: kilosExtraidos,
+      gramos: pesoActual,
+      organismos: organismosExtraidos,
+      kilosAcumulados: kilosExtraidos,
+      fcaEtapa: fcaPoscosecha
+    }];
   }
 
   let cumKilos = 0;

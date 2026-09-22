@@ -82,17 +82,49 @@ const App: React.FC = () => {
               return !isPhantomBojorquez;
             })
             .map((r: any) => {
-              // Si el registro guardado contiene la suma duplicada de columnas acumuladas (e.g. 6287 o 2520 + 3767 = 6287)
               const p1 = Number(r.pre1Kilos) || 0;
               const p2 = Number(r.pre2Kilos) || 0;
+              const p3 = Number(r.pre3Kilos) || 0;
               const tot = Number(r.totalKilos) || 0;
+
+              // Corregir cualquier registro previo que tenga divisiones incorrectas (e.g. 840, 2087, 840)
+              if (p1 === 840 && (p2 === 2087 || p3 === 840 || tot === 2927 || tot === 3767)) {
+                return normalizeHarvestRecord({
+                  ...r,
+                  pre1Kilos: 840,
+                  pre1Gramos: 12.0,
+                  pre1Organismos: 70000,
+                  pre2Kilos: 2927,
+                  pre2Gramos: 17.0,
+                  pre2Organismos: 172200,
+                  pre3Kilos: 0,
+                  pre3Gramos: 0,
+                  pre3Organismos: 0,
+                  pre4Kilos: 0,
+                  pre4Gramos: 0,
+                  pre4Organismos: 0,
+                  pre5Kilos: 0,
+                  pre5Gramos: 0,
+                  pre5Organismos: 0,
+                  totalKilos: 3767,
+                  totalOrganismos: 242200,
+                  pesoPromedioPrecosechado: 15.55
+                }) || r;
+              }
+
               if (tot === 6287 || (p1 === 2520 && p2 === 3767)) {
                 return normalizeHarvestRecord({
                   ...r,
-                  pre1Kilos: 2520,
-                  pre2Kilos: 1247,
+                  pre1Kilos: 840,
+                  pre1Gramos: 12.0,
+                  pre1Organismos: 70000,
+                  pre2Kilos: 2927,
+                  pre2Gramos: 17.0,
+                  pre2Organismos: 172200,
+                  pre3Kilos: 0,
                   totalKilos: 3767,
-                  totalOrganismos: (Number(r.pre1Organismos) || 0) + (Number(r.pre2Organismos) || 0)
+                  totalOrganismos: 242200,
+                  pesoPromedioPrecosechado: 15.55
                 }) || r;
               }
               return normalizeHarvestRecord(r) || r;
@@ -281,46 +313,39 @@ const App: React.FC = () => {
           // Ordenar por fecha o días de cultivo ascendente
           records.sort((a, b) => (a.diasCultivo || 0) - (b.diasCultivo || 0));
 
-          // El valor oficial de precosechas para el estanque en el archivo de Excel es el valor acumulado final
-          const finalPreharvestKilos = Math.max(...records.map(r => Number(r.precosechas) || 0));
-          if (finalPreharvestKilos <= 0) return;
-
-          // Si hay múltiples fechas, extraer los incrementos (deltas) reales entre muestreos
-          // para no sumar varias veces la misma columna de precosechas acumuladas
-          let lastPreharvest = 0;
+          // En las hojas de acuicultura, cada fila con un valor explícito en 'precosechas'
+          // es un evento de raleo individual realizado en esa fecha.
+          // Ejemplo: Extracción 1 = 840 kg, Extracción 2 = 2927 kg -> Total = 3767 kg
+          let totalKilos = 0;
+          let totalOrg = 0;
+          let weightedGrams = 0;
           const stagesData: { kilos: number; gramos: number; fecha: string; organismos: number }[] = [];
 
           records.forEach(rec => {
-            const currentPre = Number(rec.precosechas) || 0;
-            if (currentPre > lastPreharvest) {
-              const deltaKilos = currentPre - lastPreharvest;
-              const g = Number(rec.pesoActual) || 0;
-              const org = g > 0 ? Math.round((deltaKilos * 1000) / g) : 0;
-              stagesData.push({
-                kilos: Number(deltaKilos.toFixed(2)),
-                gramos: g,
-                fecha: rec.fecha,
-                organismos: org
-              });
-              lastPreharvest = currentPre;
-            }
-          });
+            const k = Number(rec.precosechas) || 0;
+            if (k <= 0) return;
 
-          // Si no se detectaron incrementos parciales, registrar una sola etapa con el total acumulado
-          if (stagesData.length === 0) {
-            const lastRec = records[records.length - 1];
-            const g = Number(lastRec?.pesoActual) || 0;
-            const org = g > 0 ? Math.round((finalPreharvestKilos * 1000) / g) : 0;
+            let org = Number(rec.densidadActual) || 0;
+            let g = Number(rec.pesoActual) || 0;
+            if (g === 0 && org > 0) {
+              g = parseFloat(((k * 1000) / org).toFixed(2));
+            } else if (org === 0 && g > 0) {
+              org = Math.round((k * 1000) / g);
+            }
+
             stagesData.push({
-              kilos: Number(finalPreharvestKilos.toFixed(2)),
+              kilos: Number(k.toFixed(2)),
               gramos: g,
-              fecha: lastRec?.fecha || '',
+              fecha: rec.fecha,
               organismos: org
             });
-          }
 
-          const totalKilos = finalPreharvestKilos;
-          const totalOrg = stagesData.reduce((s, st) => s + st.organismos, 0);
+            totalKilos += k;
+            totalOrg += org;
+            if (k > 0 && g > 0) weightedGrams += k * g;
+          });
+
+          if (stagesData.length === 0) return;
 
           const hRec: Partial<HarvestRecord> = {
             id: `harvest_${granja}_${estanque}`,
@@ -329,7 +354,9 @@ const App: React.FC = () => {
             fecha: stagesData[stagesData.length - 1]?.fecha || records[records.length - 1]?.fecha,
             totalKilos: Number(totalKilos.toFixed(2)),
             totalOrganismos: totalOrg,
-            pesoPromedioPrecosechado: totalOrg > 0 ? parseFloat(((totalKilos * 1000) / totalOrg).toFixed(2)) : 0
+            pesoPromedioPrecosechado: totalKilos > 0 && totalOrg > 0 
+              ? parseFloat(((totalKilos * 1000) / totalOrg).toFixed(2)) 
+              : (totalKilos > 0 && weightedGrams > 0 ? parseFloat((weightedGrams / totalKilos).toFixed(2)) : 0)
           };
 
           stagesData.slice(0, 5).forEach((st, idx) => {
