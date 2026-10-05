@@ -19,11 +19,11 @@ interface Props {
   uniqueGranjas: string[];
 }
 
-const FilterPanel: React.FC<Props> = ({ 
-  filters, 
-  onFilterChange, 
-  uniqueAlimentos, 
-  uniqueLaboratorios, 
+const FilterPanel: React.FC<Props> = ({
+  filters,
+  onFilterChange,
+  uniqueAlimentos,
+  uniqueLaboratorios,
   uniqueEstanques,
   uniqueGranjas
 }) => {
@@ -56,10 +56,10 @@ const FilterPanel: React.FC<Props> = ({
           </svg>
           Filtros de Búsqueda
         </h3>
-        <button 
+        <button
           onClick={handleReset}
-          className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
-        >
+          className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">
+          
           Limpiar Filtros
         </button>
       </div>
@@ -67,80 +67,79 @@ const FilterPanel: React.FC<Props> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <label className="block text-xs font-medium text-blue-300 mb-1">Granja</label>
-          <select 
-            name="granja" 
-            value={filters.granja} 
+          <select
+            name="granja"
+            value={filters.granja}
             onChange={handleChange}
-            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white"
-          >
+            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white">
+            
             <option value="">Todas</option>
-            {uniqueGranjas.map(g => <option key={g} value={g}>{g}</option>)}
+            {uniqueGranjas.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-blue-300 mb-1">Estanque</label>
-          <select 
-            name="estanque" 
-            value={filters.estanque} 
+          <select
+            name="estanque"
+            value={filters.estanque}
             onChange={handleChange}
-            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white"
-          >
+            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white">
+            
             <option value="">Todos</option>
-            {uniqueEstanques.map(e => <option key={e} value={e}>{e}</option>)}
+            {uniqueEstanques.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-blue-300 mb-1">Alimento</label>
-          <select 
-            name="alimento" 
-            value={filters.alimento} 
+          <select
+            name="alimento"
+            value={filters.alimento}
             onChange={handleChange}
-            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white"
-          >
+            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white">
+            
             <option value="">Todos</option>
-            {uniqueAlimentos.map(a => <option key={a} value={a}>{a}</option>)}
+            {uniqueAlimentos.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-blue-300 mb-1">Laboratorio</label>
-          <select 
-            name="laboratorio" 
-            value={filters.laboratorio} 
+          <select
+            name="laboratorio"
+            value={filters.laboratorio}
             onChange={handleChange}
-            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white"
-          >
+            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white">
+            
             <option value="">Todos</option>
-            {uniqueLaboratorios.map(l => <option key={l} value={l}>{l}</option>)}
+            {uniqueLaboratorios.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-blue-300 mb-1">Fecha Desde</label>
-          <input 
-            type="date" 
-            name="fechaDesde" 
-            value={filters.fechaDesde} 
+          <input
+            type="date"
+            name="fechaDesde"
+            value={filters.fechaDesde}
             onChange={handleChange}
-            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white [color-scheme:dark]" 
-          />
+            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white [color-scheme:dark]" />
+          
         </div>
 
         <div>
           <label className="block text-xs font-medium text-blue-300 mb-1">Fecha Hasta</label>
-          <input 
-            type="date" 
-            name="fechaHasta" 
-            value={filters.fechaHasta} 
+          <input
+            type="date"
+            name="fechaHasta"
+            value={filters.fechaHasta}
             onChange={handleChange}
-            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white [color-scheme:dark]" 
-          />
+            className="w-full text-sm rounded-lg border-[#1B66B0] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white [color-scheme:dark]" />
+          
         </div>
       </div>
-    </div>
-  );
-};
+    </div>);
 
-export default FilterPanel;
+};export default FilterPanel;
+

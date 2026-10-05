@@ -4,124 +4,124 @@ import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Share2, AlertC
 import { formatNumber, formatDate, normalizeEstanque, cleanDateString, calculateDaysBetween } from '../utils';
 
 interface ProductionProgramProps {
-    records: PondRecord[];
-    onAdd: () => void;
-    onEdit: (record: PondRecord) => void;
-    onDelete: (id: string) => void;
-    googleSheetsConfig?: GoogleSheetsConfig;
-    onSyncNow?: () => Promise<void>;
-    onOpenSyncConfig?: () => void;
+  records: PondRecord[];
+  onAdd: () => void;
+  onEdit: (record: PondRecord) => void;
+  onDelete: (id: string) => void;
+  googleSheetsConfig?: GoogleSheetsConfig;
+  onSyncNow?: () => Promise<void>;
+  onOpenSyncConfig?: () => void;
 }
 
-const ProductionProgram: React.FC<ProductionProgramProps> = ({ 
-    records, 
-    onAdd, 
-    onEdit, 
-    onDelete,
-    googleSheetsConfig,
-    onSyncNow,
-    onOpenSyncConfig
+const ProductionProgram: React.FC<ProductionProgramProps> = ({
+  records,
+  onAdd,
+  onEdit,
+  onDelete,
+  googleSheetsConfig,
+  onSyncNow,
+  onOpenSyncConfig
 }) => {
-    const [granjaFilter, setGranjaFilter] = useState('');
-    const [estanqueFilter, setEstanqueFilter] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [syncMessage, setSyncMessage] = useState<string | null>(null);
-    const recordsPerPage = 15;
+  const [granjaFilter, setGranjaFilter] = useState('');
+  const [estanqueFilter, setEstanqueFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const recordsPerPage = 15;
 
-    const uniqueGranjas = useMemo(() => {
-        const granjas = records.map(r => r.granja?.toString().trim()).filter(Boolean);
-        return Array.from(new Set(granjas)).sort();
-    }, [records]);
+  const uniqueGranjas = useMemo(() => {
+    const granjas = records.map((r) => r.granja?.toString().trim()).filter(Boolean);
+    return Array.from(new Set(granjas)).sort();
+  }, [records]);
 
-    const uniqueEstanques = useMemo(() => {
-        const set = new Set<string>();
-        records.forEach(r => {
-            if (granjaFilter === '' || r.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
-                const norm = normalizeEstanque(r.estanque);
-                if (norm) set.add(norm);
-            }
-        });
-        return Array.from(set).sort((a, b) => {
-            const numA = Number(a);
-            const numB = Number(b);
-            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-            return a.localeCompare(b, undefined, { numeric: true });
-        });
-    }, [records, granjaFilter]);
+  const uniqueEstanques = useMemo(() => {
+    const set = new Set<string>();
+    records.forEach((r) => {
+      if (granjaFilter === '' || r.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
+        const norm = normalizeEstanque(r.estanque);
+        if (norm) set.add(norm);
+      }
+    });
+    return Array.from(set).sort((a, b) => {
+      const numA = Number(a);
+      const numB = Number(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }, [records, granjaFilter]);
 
-    const filteredRecords = useMemo(() => {
-        if (!records || !Array.isArray(records)) return [];
-        const normFilterEstanque = normalizeEstanque(estanqueFilter);
-        const normFilterGranja = granjaFilter.trim().toLowerCase();
+  const filteredRecords = useMemo(() => {
+    if (!records || !Array.isArray(records)) return [];
+    const normFilterEstanque = normalizeEstanque(estanqueFilter);
+    const normFilterGranja = granjaFilter.trim().toLowerCase();
 
-        return records.filter(record => {
-            const matchGranja = normFilterGranja === '' || 
-                (record.granja !== undefined && record.granja !== null && 
-                 String(record.granja).trim().toLowerCase() === normFilterGranja);
-            
-            if (!matchGranja) return false;
+    return records.filter((record) => {
+      const matchGranja = normFilterGranja === '' ||
+      record.granja !== undefined && record.granja !== null &&
+      String(record.granja).trim().toLowerCase() === normFilterGranja;
 
-            if (normFilterEstanque === '') return true;
+      if (!matchGranja) return false;
 
-            const normRecordEstanque = normalizeEstanque(record.estanque);
-            return normRecordEstanque === normFilterEstanque;
-        });
-    }, [records, granjaFilter, estanqueFilter]);
+      if (normFilterEstanque === '') return true;
 
-    useEffect(() => {
-        setEstanqueFilter('');
-        setCurrentPage(1);
-    }, [granjaFilter]);
+      const normRecordEstanque = normalizeEstanque(record.estanque);
+      return normRecordEstanque === normFilterEstanque;
+    });
+  }, [records, granjaFilter, estanqueFilter]);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [estanqueFilter]);
+  useEffect(() => {
+    setEstanqueFilter('');
+    setCurrentPage(1);
+  }, [granjaFilter]);
 
-    const handleManualSync = async () => {
-        if (!onSyncNow) return;
-        setIsSyncing(true);
-        setSyncMessage('Sincronizando con Google Sheets...');
-        try {
-            await onSyncNow();
-            setSyncMessage('¡Sincronizado con éxito!');
-            setTimeout(() => setSyncMessage(null), 3000);
-        } catch (e) {
-            setSyncMessage('Error al sincronizar.');
-            setTimeout(() => setSyncMessage(null), 3000);
-        } finally {
-            setIsSyncing(false);
-        }
-    };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [estanqueFilter]);
 
-    const totalPages = Math.ceil(filteredRecords.length / recordsPerPage);
+  const handleManualSync = async () => {
+    if (!onSyncNow) return;
+    setIsSyncing(true);
+    setSyncMessage('Sincronizando con Google Sheets...');
+    try {
+      await onSyncNow();
+      setSyncMessage('¡Sincronizado con éxito!');
+      setTimeout(() => setSyncMessage(null), 3000);
+    } catch (e) {
+      setSyncMessage('Error al sincronizar.');
+      setTimeout(() => setSyncMessage(null), 3000);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
-    const paginatedRecords = useMemo(() => {
-        const startIndex = (currentPage - 1) * recordsPerPage;
-        return filteredRecords.slice(startIndex, startIndex + recordsPerPage);
-    }, [filteredRecords, currentPage]);
+  const totalPages = Math.ceil(filteredRecords.length / recordsPerPage);
 
-    return (
-        <div className="space-y-6">
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (currentPage - 1) * recordsPerPage;
+    return filteredRecords.slice(startIndex, startIndex + recordsPerPage);
+  }, [filteredRecords, currentPage]);
+
+  return (
+    <div className="space-y-6">
             <div className="flex flex-col gap-4 bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <div className="flex items-center gap-2">
                             <h2 className="text-xl font-bold text-white">Control de Producción</h2>
-                            {googleSheetsConfig?.webAppUrl ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                            {googleSheetsConfig?.webAppUrl ?
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                                     Sheets Conectado
-                                </span>
-                            ) : (
-                                <button 
-                                    onClick={onOpenSyncConfig}
-                                    className="inline-flex items-center gap-1 text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full hover:bg-amber-500/30 transition-colors"
-                                >
+                                </span> :
+
+              <button
+                onClick={onOpenSyncConfig}
+                className="inline-flex items-center gap-1 text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full hover:bg-amber-500/30 transition-colors">
+                
                                     <AlertCircle className="w-3 h-3 text-amber-300" />
                                     Sin URL de Sheets
                                 </button>
-                            )}
+              }
                         </div>
                         <p className="text-sm text-blue-300">
                             Módulo de biometrías y métricas productivas ({records.length} registros).
@@ -130,59 +130,59 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                        <select 
-                            value={granjaFilter} 
-                            onChange={(e) => setGranjaFilter(e.target.value)}
-                            className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-                        >
+                        <select
+              value={granjaFilter}
+              onChange={(e) => setGranjaFilter(e.target.value)}
+              className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400">
+              
                             <option value="">Todas las Granjas</option>
-                            {uniqueGranjas.map(g => <option key={g} value={g}>{g}</option>)}
+                            {uniqueGranjas.map((g) => <option key={g} value={g}>{g}</option>)}
                         </select>
-                        <select 
-                            value={estanqueFilter} 
-                            onChange={(e) => setEstanqueFilter(e.target.value)}
-                            className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-                        >
+                        <select
+              value={estanqueFilter}
+              onChange={(e) => setEstanqueFilter(e.target.value)}
+              className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400">
+              
                             <option value="">Todos los Estanques</option>
-                            {uniqueEstanques.map(e => <option key={e} value={e}>Estanque {e}</option>)}
+                            {uniqueEstanques.map((e) => <option key={e} value={e}>Estanque {e}</option>)}
                         </select>
 
-                        {googleSheetsConfig?.webAppUrl ? (
-                            <button 
-                                onClick={handleManualSync}
-                                disabled={isSyncing}
-                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-lg font-medium text-sm transition-all shadow-sm"
-                                title="Enviar todos los registros actuales a Google Sheets"
-                            >
+                        {googleSheetsConfig?.webAppUrl ?
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-lg font-medium text-sm transition-all shadow-sm"
+              title="Enviar todos los registros actuales a Google Sheets">
+              
                                 <Share2 className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                                 <span className="hidden md:inline">{isSyncing ? 'Sincronizando...' : 'Sincronizar a Sheets'}</span>
-                            </button>
-                        ) : (
-                            <button 
-                                onClick={onOpenSyncConfig}
-                                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-amber-300 border border-amber-500/40 px-3.5 py-2 rounded-lg font-medium text-sm transition-all"
-                            >
+                            </button> :
+
+            <button
+              onClick={onOpenSyncConfig}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-amber-300 border border-amber-500/40 px-3.5 py-2 rounded-lg font-medium text-sm transition-all">
+              
                                 <Share2 className="w-4 h-4" />
                                 <span className="hidden md:inline">Configurar Sync</span>
                             </button>
-                        )}
+            }
 
-                        <button 
-                            onClick={onAdd}
-                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
-                        >
+                        <button
+              onClick={onAdd}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap">
+              
                             <Plus className="w-4 h-4" />
                             <span className="hidden xs:inline">Nuevo Muestreo</span>
                         </button>
                     </div>
                 </div>
 
-                {syncMessage && (
-                    <div className="bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
+                {syncMessage &&
+        <div className="bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
                         <span>{syncMessage}</span>
                     </div>
-                )}
+        }
             </div>
 
             <div className="bg-[#0B4075] rounded-xl border border-[#125699] shadow-sm overflow-hidden">
@@ -221,34 +221,34 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#125699]">
-                            {paginatedRecords.length === 0 ? (
-                                <tr>
+                            {paginatedRecords.length === 0 ?
+              <tr>
                                     <td colSpan={28} className="px-4 py-10 text-center text-slate-400 italic">No hay registros de producción.</td>
-                                </tr>
-                            ) : (
-                                paginatedRecords.map((record) => (
-                                    <tr key={record.id} className="hover:bg-[#0E4680] transition-colors text-center text-[10px] whitespace-nowrap text-blue-100">
+                                </tr> :
+
+              paginatedRecords.map((record) =>
+              <tr key={record.id} className="hover:bg-[#0E4680] transition-colors text-center text-[10px] whitespace-nowrap text-blue-100">
                                         <td className="px-3 py-3 border-r border-[#125699]">
                                             <div className="flex items-center gap-1">
-                                                <button 
-                                                    onClick={() => onEdit(record)}
-                                                    className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition-colors"
-                                                    title="Editar Registro"
-                                                >
+                                                <button
+                      onClick={() => onEdit(record)}
+                      className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-md transition-colors"
+                      title="Editar Registro">
+                      
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
-                                                <button 
-                                                    onClick={() => onDelete(record.id)}
-                                                    className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors"
-                                                    title="Eliminar Registro"
-                                                >
+                                                <button
+                      onClick={() => onDelete(record.id)}
+                      className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors"
+                      title="Eliminar Registro">
+                      
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         </td>
                                         <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">{record.granja}</td>
                                         <td className="px-3 py-3 border-r border-[#125699] font-medium text-emerald-300">
-                                            {formatNumber(record.orgMt2 || record.camM2Inicial || (record.hectareas > 0 && record.densidadInicial > 0 ? (record.densidadInicial / (record.hectareas * 10000)) : 0))}
+                                            {formatNumber(record.orgMt2 || record.camM2Inicial || (record.hectareas > 0 && record.densidadInicial > 0 ? record.densidadInicial / (record.hectareas * 10000) : 0))}
                                         </td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.especie}</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{cleanDateString(record.fecha)}</td>
@@ -264,9 +264,9 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                         <td className="px-3 py-3 border-r border-[#125699] font-bold text-emerald-400">{record.pesoActual}</td>
                                         <td className="px-3 py-3 border-r border-[#125699] text-emerald-400">+{record.incrementoSemanal}</td>
                                         <td className="px-3 py-3 border-r border-[#125699] font-medium text-white">
-                                            {!isNaN(Number(record.diasCultivo)) && record.diasCultivo !== '' && Number(record.diasCultivo) >= 0 
-                                                ? Number(record.diasCultivo) 
-                                                : (record.fechaSiembra && record.fecha ? calculateDaysBetween(record.fechaSiembra, record.fecha) : 0)}
+                                            {!isNaN(Number(record.diasCultivo)) && record.diasCultivo !== '' && Number(record.diasCultivo) >= 0 ?
+                  Number(record.diasCultivo) :
+                  record.fechaSiembra && record.fecha ? calculateDaysBetween(record.fechaSiembra, record.fecha) : 0}
                                         </td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{record.sobrevivencia}%</td>
                                         <td className="px-3 py-3 border-r border-[#125699]">{formatNumber(record.densidadInicial)}</td>
@@ -280,28 +280,28 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                         <td className="px-3 py-3 border-r border-[#125699] font-medium">{formatNumber(record.alimentoProyectadoDia)}</td>
                                         <td className="px-3 py-3 border-r border-[#125699] font-medium">{formatNumber(record.alimentoProyectadoSemana)}</td>
                                     </tr>
-                                ))
-                            )}
+              )
+              }
                         </tbody>
                     </table>
                 </div>
                 
                 {/* Controles de Paginación */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-[#125699] px-4 py-3 bg-[#0B4075]">
+                {totalPages > 1 &&
+        <div className="flex items-center justify-between border-t border-[#125699] px-4 py-3 bg-[#0B4075]">
                         <div className="flex flex-1 justify-between sm:hidden w-full">
                             <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="relative inline-flex items-center rounded-md bg-[#125699] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a6ebd] disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center rounded-md bg-[#125699] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a6ebd] disabled:opacity-50 disabled:cursor-not-allowed">
+              
                                 Anterior
                             </button>
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="relative ml-2 inline-flex items-center rounded-md bg-[#125699] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a6ebd] disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="relative ml-2 inline-flex items-center rounded-md bg-[#125699] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a6ebd] disabled:opacity-50 disabled:cursor-not-allowed">
+              
                                 Siguiente
                             </button>
                         </div>
@@ -318,31 +318,31 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                             <div>
                                 <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm border border-[#125699] bg-[#0E4680]" aria-label="Pagination">
                                     <button
-                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                        disabled={currentPage === 1}
-                                        className="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-blue-200 hover:bg-[#125699] focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-blue-200 hover:bg-[#125699] focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                  
                                         <span className="sr-only">Anterior</span>
                                         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                                     </button>
-                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold focus:z-20 focus:outline-[#125699] ${
-                                                currentPage === page
-                                                    ? 'bg-indigo-600 text-white z-10'
-                                                    : 'text-blue-200 hover:bg-[#125699]'
-                                            }`}
-                                        >
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) =>
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold focus:z-20 focus:outline-[#125699] ${
+                  currentPage === page ?
+                  'bg-indigo-600 text-white z-10' :
+                  'text-blue-200 hover:bg-[#125699]'}`
+                  }>
+                  
                                             {page}
                                         </button>
-                                    ))}
+                )}
                                     <button
-                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                        disabled={currentPage === totalPages}
-                                        className="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-blue-200 hover:bg-[#125699] focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-blue-200 hover:bg-[#125699] focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed">
+                  
                                         <span className="sr-only">Siguiente</span>
                                         <ChevronRight className="h-4 w-4" aria-hidden="true" />
                                     </button>
@@ -350,10 +350,9 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                             </div>
                         </div>
                     </div>
-                )}
+        }
             </div>
-        </div>
-    );
-};
+        </div>);
 
-export default ProductionProgram;
+};export default ProductionProgram;
+

@@ -133,13 +133,13 @@ export const calculatePondMetrics = (record: Partial<PondRecord>): PondRecord =>
     ? record.densidadActual
     : Math.round(densidadInicial * (sobrevivencia / 100));
 
-  const rawBiomasaActual = record.biomasaActual !== undefined && record.biomasaActual !== null && record.biomasaActual !== ''
+  const rawBiomasaActual = record.biomasaActual !== undefined && record.biomasaActual !== null && String(record.biomasaActual) !== ''
     ? parseFlexibleNumber(record.biomasaActual)
     : undefined;
-  const rawBiomasaTotal = record.biomasaTotal !== undefined && record.biomasaTotal !== null && record.biomasaTotal !== ''
+  const rawBiomasaTotal = record.biomasaTotal !== undefined && record.biomasaTotal !== null && String(record.biomasaTotal) !== ''
     ? parseFlexibleNumber(record.biomasaTotal)
     : undefined;
-  const rawPrecosechas = record.precosechas !== undefined && record.precosechas !== null && record.precosechas !== ''
+  const rawPrecosechas = record.precosechas !== undefined && record.precosechas !== null && String(record.precosechas) !== ''
     ? parseFlexibleNumber(record.precosechas)
     : 0;
 
@@ -281,9 +281,9 @@ export const parseFlexibleNumber = (val: any): number => {
   return 0;
 };
 
-export const formatNumber = (num: number | string | undefined | null) => {
+export const formatNumber = (num: number | string | undefined | null, decimals: number = 2) => {
   const val = parseFlexibleNumber(num);
-  return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(val);
+  return new Intl.NumberFormat('es-MX', { maximumFractionDigits: decimals }).format(val);
 };
 
 export const formatDate = (dateStr: string) => {

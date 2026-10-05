@@ -1,16 +1,16 @@
-
 import React from 'react';
 
-type View = 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync' | 'harvests' | 'tendencias';
+export type View = 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync' | 'harvests' | 'tendencias';
 
 interface NavItemProps {
   icon: React.ReactNode;
   label: string;
+  badge?: string;
   isActive: boolean;
   onClick: () => void;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick }) => (
+const NavItem: React.FC<NavItemProps> = ({ icon, label, badge, isActive, onClick }) => (
   <button
     onClick={onClick}
     className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
@@ -20,7 +20,12 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick }) => 
     }`}
   >
     <span className="mr-3">{icon}</span>
-    {label}
+    <span className="flex-1 text-left">{label}</span>
+    {badge && (
+      <span className="ml-2 text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-semibold tracking-wide">
+        {badge}
+      </span>
+    )}
   </button>
 );
 
@@ -113,10 +118,10 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
           isActive={activeView === 'farmEvaluation'}
           onClick={() => onNavigate('farmEvaluation')}
         />
-         <NavItem
+        <NavItem
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
           }
           label="Historial"
@@ -157,6 +162,17 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
         />
         <NavItem
           icon={
+            <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          }
+          label="Ciclo de Cosechas / Pre-cosechas"
+          badge="Activo"
+          isActive={activeView === 'harvests'}
+          onClick={() => onNavigate('harvests')}
+        />
+        <NavItem
+          icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
@@ -168,13 +184,14 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
         <NavItem
           icon={
             <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
             </svg>
           }
           label="Sincronizar Google"
           isActive={activeView === 'googleSync'}
           onClick={() => onNavigate('googleSync')}
         />
+        
         <button 
           onClick={onExportPDF} 
           disabled={isExporting || activeView !== 'estadisticas'}

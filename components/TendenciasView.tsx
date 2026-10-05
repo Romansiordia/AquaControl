@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -8,24 +8,24 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  ReferenceLine
-} from 'recharts';
+  ReferenceLine } from
+'recharts';
 import { PondRecord, HarvestRecord } from '../types';
 import { formatNumber, cleanDateString, normalizeEstanque, calculatePondNetMetrics } from '../utils';
-import { 
-  TrendingUp, 
-  Scale, 
-  ShieldCheck, 
-  Flame, 
-  Layers, 
-  Calendar, 
-  Filter, 
+import {
+  TrendingUp,
+  Scale,
+  ShieldCheck,
+  Flame,
+  Layers,
+  Calendar,
+  Filter,
   Sparkles,
   ArrowUpRight,
   Fish,
   Activity,
-  ChevronRight
-} from 'lucide-react';
+  ChevronRight } from
+'lucide-react';
 
 interface TendenciasViewProps {
   records: PondRecord[];
@@ -51,7 +51,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
   // Unique granjas for filtering
   const uniqueGranjas = useMemo(() => {
     const set = new Set<string>();
-    dataset.forEach(r => {
+    dataset.forEach((r) => {
       if (r.granja && r.granja.trim()) set.add(r.granja.trim());
     });
     return Array.from(set).sort();
@@ -60,7 +60,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
   // Unique estanques for filtering
   const uniqueEstanques = useMemo(() => {
     const set = new Set<string>();
-    dataset.forEach(r => {
+    dataset.forEach((r) => {
       if (selectedGranja === 'all' || r.granja?.toLowerCase().trim() === selectedGranja.toLowerCase().trim()) {
         const norm = normalizeEstanque(r.estanque);
         if (norm) set.add(norm);
@@ -76,7 +76,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
 
   // Filtered dataset
   const filteredData = useMemo(() => {
-    return dataset.filter(r => {
+    return dataset.filter((r) => {
       const matchGranja = selectedGranja === 'all' || r.granja?.toLowerCase().trim() === selectedGranja.toLowerCase().trim();
       const matchEstanque = selectedEstanque === 'all' || normalizeEstanque(r.estanque) === selectedEstanque;
       return matchGranja && matchEstanque;
@@ -85,7 +85,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
 
   // Net metrics mapped per record (con evaluación cronológica histórica para la línea de tiempo)
   const enrichedRecords = useMemo(() => {
-    return filteredData.map(r => {
+    return filteredData.map((r) => {
       const recordDate = cleanDateString(r.fecha) || cleanDateString(r.fechaSiembra);
       const net = calculatePondNetMetrics(r, harvests, { asOfDate: recordDate, isHistorical: true });
       return {
@@ -100,7 +100,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
     const dateMap = new Map<string, {
       fechaRaw: string;
       fechaLabel: string;
-      pondsMap: Map<string, { record: PondRecord; net: any }>;
+      pondsMap: Map<string, {record: PondRecord;net: any;}>;
     }>();
 
     enrichedRecords.forEach(({ record, net }) => {
@@ -142,52 +142,52 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
       }
     });
 
-    return Array.from(dateMap.values())
-      .sort((a, b) => a.fechaRaw.localeCompare(b.fechaRaw))
-      .map(d => {
-        const pondEntries = Array.from(d.pondsMap.values());
-        const count = pondEntries.length;
-        let sumIncremento = 0;
-        let sumSobrevivencia = 0;
-        let sumAlimentoDia = 0;
-        let sumAlimentoAcum = 0;
-        let sumFca = 0;
-        let sumBiomasaAgua = 0;
-        let sumPreKilos = 0;
-        let sumBiomasaTotal = 0;
+    return Array.from(dateMap.values()).
+    sort((a, b) => a.fechaRaw.localeCompare(b.fechaRaw)).
+    map((d) => {
+      const pondEntries = Array.from(d.pondsMap.values());
+      const count = pondEntries.length;
+      let sumIncremento = 0;
+      let sumSobrevivencia = 0;
+      let sumAlimentoDia = 0;
+      let sumAlimentoAcum = 0;
+      let sumFca = 0;
+      let sumBiomasaAgua = 0;
+      let sumPreKilos = 0;
+      let sumBiomasaTotal = 0;
 
-        pondEntries.forEach(({ record, net }) => {
-          sumIncremento += Number(record.incrementoSemanal) || 0;
-          sumSobrevivencia += Number(record.sobrevivencia) || 0;
-          sumAlimentoDia += (net.alimentoProyectadoDiaAjustado > 0 ? net.alimentoProyectadoDiaAjustado : Number(record.alimentoProyectadoDia) || 0);
-          sumAlimentoAcum += Number(record.alimentoAcumulado) || 0;
-          sumFca += (net.fcaPoscosecha > 0 ? net.fcaPoscosecha : Number(record.fca) || 0);
-          sumBiomasaAgua += (net.biomasaEnAgua > 0 ? net.biomasaEnAgua : Number(record.biomasaTotal) || 0);
-          sumPreKilos += net.kilosExtraidos || 0;
-          sumBiomasaTotal += (net.biomasaTotal > 0 ? net.biomasaTotal : Number(record.biomasaTotal) || 0);
-        });
-
-        return {
-          label: d.fechaLabel,
-          fechaRaw: d.fechaRaw,
-          incrementoSemanal: count > 0 ? Number((sumIncremento / count).toFixed(2)) : 0,
-          sobrevivencia: count > 0 ? Number((sumSobrevivencia / count).toFixed(1)) : 0,
-          alimentoDia: Math.round(sumAlimentoDia),
-          alimentoAcumulado: Math.round(sumAlimentoAcum),
-          fca: sumBiomasaTotal > 0 ? Number((sumAlimentoAcum / sumBiomasaTotal).toFixed(2)) : (count > 0 ? Number((sumFca / count).toFixed(2)) : 0),
-          biomasaAgua: Math.round(sumBiomasaAgua),
-          precosechaExtraida: Math.round(sumPreKilos),
-          biomasaTotal: Math.round(sumBiomasaTotal)
-        };
+      pondEntries.forEach(({ record, net }) => {
+        sumIncremento += Number(record.incrementoSemanal) || 0;
+        sumSobrevivencia += Number(record.sobrevivencia) || 0;
+        sumAlimentoDia += net.alimentoProyectadoDiaAjustado > 0 ? net.alimentoProyectadoDiaAjustado : Number(record.alimentoProyectadoDia) || 0;
+        sumAlimentoAcum += Number(record.alimentoAcumulado) || 0;
+        sumFca += net.fcaPoscosecha > 0 ? net.fcaPoscosecha : Number(record.fca) || 0;
+        sumBiomasaAgua += net.biomasaEnAgua > 0 ? net.biomasaEnAgua : Number(record.biomasaTotal) || 0;
+        sumPreKilos += net.kilosExtraidos || 0;
+        sumBiomasaTotal += net.biomasaTotal > 0 ? net.biomasaTotal : Number(record.biomasaTotal) || 0;
       });
+
+      return {
+        label: d.fechaLabel,
+        fechaRaw: d.fechaRaw,
+        incrementoSemanal: count > 0 ? Number((sumIncremento / count).toFixed(2)) : 0,
+        sobrevivencia: count > 0 ? Number((sumSobrevivencia / count).toFixed(1)) : 0,
+        alimentoDia: Math.round(sumAlimentoDia),
+        alimentoAcumulado: Math.round(sumAlimentoAcum),
+        fca: sumBiomasaTotal > 0 ? Number((sumAlimentoAcum / sumBiomasaTotal).toFixed(2)) : count > 0 ? Number((sumFca / count).toFixed(2)) : 0,
+        biomasaAgua: Math.round(sumBiomasaAgua),
+        precosechaExtraida: Math.round(sumPreKilos),
+        biomasaTotal: Math.round(sumBiomasaTotal)
+      };
+    });
   }, [enrichedRecords]);
 
   // 2. DATASET POR ESTANQUE (Último muestreo activo de cada estanque para comparar la curva entre estanques)
   const pondTrendData = useMemo(() => {
     // Tomar el registro más reciente por cada estanque
-    const latestByPond = new Map<string, { record: PondRecord; net: any }>();
+    const latestByPond = new Map<string, {record: PondRecord;net: any;}>();
 
-    enrichedRecords.forEach(item => {
+    enrichedRecords.forEach((item) => {
       const pondKey = `${item.record.granja || ''}_${normalizeEstanque(item.record.estanque)}`;
       const existing = latestByPond.get(pondKey);
       if (!existing) {
@@ -241,7 +241,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
 
   // Active production records for executive summary (exact match with EstadisticasView & Pre-cosechas)
   const activeCycleRecords = useMemo(() => {
-    return records.filter(r => {
+    return records.filter((r) => {
       const matchGranja = selectedGranja === 'all' || r.granja?.toLowerCase().trim() === selectedGranja.toLowerCase().trim();
       const matchEstanque = selectedEstanque === 'all' || normalizeEstanque(r.estanque) === selectedEstanque;
       return matchGranja && matchEstanque;
@@ -250,7 +250,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
 
   // Net metrics mapped for the active cycle ponds
   const activeNetPonds = useMemo(() => {
-    return activeCycleRecords.map(r => {
+    return activeCycleRecords.map((r) => {
       const net = calculatePondNetMetrics(r, harvests);
       return { record: r, net };
     });
@@ -261,31 +261,31 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
     if (activeCycleRecords.length === 0) return null;
 
     const count = activeCycleRecords.length;
-    
+
     // 1. Ganancia de peso semanal promedio de los estanques activos del ciclo
     const avgInc = activeCycleRecords.reduce((s, r) => s + (Number(r.incrementoSemanal) || 0), 0) / count;
-    
+
     // 2. Sobrevivencia promedio de los estanques activos del ciclo
     const avgSurv = activeCycleRecords.reduce((s, r) => s + (Number(r.sobrevivencia) || 0), 0) / count;
-    
+
     // 3. Alimento diario ajustado total de los estanques activos
     const totalAlimDiaAjustado = activeNetPonds.reduce((s, item) => {
-      return s + (item.net.alimentoProyectadoDiaAjustado > 0 
-        ? item.net.alimentoProyectadoDiaAjustado 
-        : (Number(item.record.alimentoProyectadoDia) || 0));
+      return s + (item.net.alimentoProyectadoDiaAjustado > 0 ?
+      item.net.alimentoProyectadoDiaAjustado :
+      Number(item.record.alimentoProyectadoDia) || 0);
     }, 0);
-    
+
     // 4. Biomasa Total Generada (Agua + Pre-cosechas) y Kilos extraídos
     const totalAguaBiomasa = activeNetPonds.reduce((s, item) => s + item.net.biomasaEnAgua, 0);
     const totalExtKilos = activeNetPonds.reduce((s, item) => s + item.net.kilosExtraidos, 0);
     const totalBiomasaTotal = activeNetPonds.reduce((s, item) => s + item.net.biomasaTotal, 0);
-    const totalBiomasaGenerada = totalBiomasaTotal > 0 ? totalBiomasaTotal : (totalAguaBiomasa + totalExtKilos);
+    const totalBiomasaGenerada = totalBiomasaTotal > 0 ? totalBiomasaTotal : totalAguaBiomasa + totalExtKilos;
     const sumBiomasaTotalTeorica = activeCycleRecords.reduce((s, r) => s + (Number(r.biomasaTotal) || 0), 0);
-    
+
     // 5. Alimento acumulado total y FCA Poscosecha ponderado real (Alimento Acumulado / Biomasa Total Generada)
     const totalAlimentoAcumulado = activeCycleRecords.reduce((s, r) => s + (Number(r.alimentoAcumulado) || 0), 0);
     const divisorBiomasa = totalBiomasaGenerada > 0 ? totalBiomasaGenerada : sumBiomasaTotalTeorica;
-    const fcaPoscosecha = divisorBiomasa > 0 ? (totalAlimentoAcumulado / divisorBiomasa) : 0;
+    const fcaPoscosecha = divisorBiomasa > 0 ? totalAlimentoAcumulado / divisorBiomasa : 0;
 
     return {
       avgInc: avgInc.toFixed(2),
@@ -328,71 +328,71 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
                 type="button"
                 onClick={() => setViewMode('temporal')}
                 className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
-                  viewMode === 'temporal' 
-                    ? 'bg-indigo-600 text-white shadow-sm' 
-                    : 'text-blue-300 hover:text-white'
-                }`}
-              >
+                viewMode === 'temporal' ?
+                'bg-indigo-600 text-white shadow-sm' :
+                'text-blue-300 hover:text-white'}`
+                }>
+                
                 Evolución Histórica (Fechas)
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('estanques')}
                 className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
-                  viewMode === 'estanques' 
-                    ? 'bg-indigo-600 text-white shadow-sm' 
-                    : 'text-blue-300 hover:text-white'
-                }`}
-              >
+                viewMode === 'estanques' ?
+                'bg-indigo-600 text-white shadow-sm' :
+                'text-blue-300 hover:text-white'}`
+                }>
+                
                 Curva por Estanques
               </button>
             </div>
 
             {/* Granja Filter */}
-            {uniqueGranjas.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-[#072C52] border border-[#125699] rounded-lg px-2.5 py-1 text-xs text-white">
+            {uniqueGranjas.length > 1 &&
+            <div className="flex items-center gap-1.5 bg-[#072C52] border border-[#125699] rounded-lg px-2.5 py-1 text-xs text-white">
                 <span className="text-blue-300 font-medium">Granja:</span>
                 <select
-                  value={selectedGranja}
-                  onChange={(e) => {
-                    setSelectedGranja(e.target.value);
-                    setSelectedEstanque('all');
-                  }}
-                  aria-label="Filtrar por granja"
-                  className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer"
-                >
+                value={selectedGranja}
+                onChange={(e) => {
+                  setSelectedGranja(e.target.value);
+                  setSelectedEstanque('all');
+                }}
+                aria-label="Filtrar por granja"
+                className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer">
+                
                   <option value="all" className="bg-[#072C52] text-white">Todas las Granjas</option>
-                  {uniqueGranjas.map(g => (
-                    <option key={g} value={g} className="bg-[#072C52] text-white">{g}</option>
-                  ))}
+                  {uniqueGranjas.map((g) =>
+                <option key={g} value={g} className="bg-[#072C52] text-white">{g}</option>
+                )}
                 </select>
               </div>
-            )}
+            }
 
             {/* Estanque Filter */}
-            {viewMode === 'temporal' && uniqueEstanques.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-[#072C52] border border-[#125699] rounded-lg px-2.5 py-1 text-xs text-white">
+            {viewMode === 'temporal' && uniqueEstanques.length > 0 &&
+            <div className="flex items-center gap-1.5 bg-[#072C52] border border-[#125699] rounded-lg px-2.5 py-1 text-xs text-white">
                 <span className="text-blue-300 font-medium">Estanque:</span>
                 <select
-                  value={selectedEstanque}
-                  onChange={(e) => setSelectedEstanque(e.target.value)}
-                  aria-label="Filtrar por estanque"
-                  className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer"
-                >
+                value={selectedEstanque}
+                onChange={(e) => setSelectedEstanque(e.target.value)}
+                aria-label="Filtrar por estanque"
+                className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer">
+                
                   <option value="all" className="bg-[#072C52] text-white">Todos</option>
-                  {uniqueEstanques.map(est => (
-                    <option key={est} value={est} className="bg-[#072C52] text-white">E-{est}</option>
-                  ))}
+                  {uniqueEstanques.map((est) =>
+                <option key={est} value={est} className="bg-[#072C52] text-white">E-{est}</option>
+                )}
                 </select>
               </div>
-            )}
+            }
 
           </div>
         </div>
 
         {/* Executive KPI Highlights Bar */}
-        {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4 pt-4 border-t border-[#125699]/70">
+        {summary &&
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4 pt-4 border-t border-[#125699]/70">
             
             {/* KPI 1: Ganancia Semanal */}
             <div className="bg-[#072C52]/90 border border-indigo-500/30 rounded-lg p-2.5">
@@ -450,15 +450,15 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
             </div>
 
           </div>
-        )}
+        }
       </div>
 
       {/* Grid of 5 Line Charts Requested by User */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ========================================================
-            1. GRÁFICO DE LÍNEAS: GANANCIA DE PESO SEMANAL
-           ======================================================== */}
+             1. GRÁFICO DE LÍNEAS: GANANCIA DE PESO SEMANAL
+            ======================================================== */}
         <div className="bg-[#0B4075] p-5 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[360px]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -476,56 +476,56 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
           </div>
 
           <div className="flex-1 min-h-0">
-            {activeChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+            {activeChartData.length > 0 ?
+            <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                  <XAxis 
-                    dataKey="label" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    unit="g"
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      borderRadius: '8px', 
-                      border: '1px solid #125699', 
-                      backgroundColor: '#072C52', 
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                    formatter={(val: number) => [`+${formatNumber(val, 2)} g/semana`, 'Ganancia Semanal']}
-                    labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`}
-                  />
+                  <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                
+                  <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  unit="g" />
+                
+                  <Tooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid #125699',
+                    backgroundColor: '#072C52',
+                    color: '#fff',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val: number) => [`+${formatNumber(val, 2)} g/semana`, 'Ganancia Semanal']}
+                  labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
+                
                   <ReferenceLine y={1.2} stroke="#38bdf8" strokeDasharray="4 4" label={{ value: '1.20g meta', fill: '#38bdf8', fontSize: 10, position: 'right' }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="incrementoSemanal" 
-                    name="Ganancia Semanal (g)" 
-                    stroke="#818cf8" 
-                    strokeWidth={3} 
-                    dot={{ fill: '#818cf8', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                    activeDot={{ r: 6, fill: '#6366f1' }}
-                  />
+                  <Line
+                  type="monotone"
+                  dataKey="incrementoSemanal"
+                  name="Ganancia Semanal (g)"
+                  stroke="#818cf8"
+                  strokeWidth={3}
+                  dot={{ fill: '#818cf8', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                  activeDot={{ r: 6, fill: '#6366f1' }} />
+                
                 </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+              </ResponsiveContainer> :
+
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
                 Sin datos disponibles para graficar
               </div>
-            )}
+            }
           </div>
         </div>
 
         {/* ========================================================
-            2. GRÁFICO DE LÍNEAS: % DE SOBREVIVENCIA
-           ======================================================== */}
+             2. GRÁFICO DE LÍNEAS: % DE SOBREVIVENCIA
+            ======================================================== */}
         <div className="bg-[#0B4075] p-5 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[360px]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -543,57 +543,57 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
           </div>
 
           <div className="flex-1 min-h-0">
-            {activeChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+            {activeChartData.length > 0 ?
+            <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                  <XAxis 
-                    dataKey="label" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                  />
-                  <YAxis 
-                    domain={[0, 100]} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    unit="%"
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      borderRadius: '8px', 
-                      border: '1px solid #125699', 
-                      backgroundColor: '#072C52', 
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                    formatter={(val: number) => [`${formatNumber(val, 1)}%`, 'Sobrevivencia']}
-                    labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`}
-                  />
+                  <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                
+                  <YAxis
+                  domain={[0, 100]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  unit="%" />
+                
+                  <Tooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid #125699',
+                    backgroundColor: '#072C52',
+                    color: '#fff',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val: number) => [`${formatNumber(val, 1)}%`, 'Sobrevivencia']}
+                  labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
+                
                   <ReferenceLine y={70} stroke="#10b981" strokeDasharray="4 4" label={{ value: '70% esperado', fill: '#10b981', fontSize: 10, position: 'right' }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="sobrevivencia" 
-                    name="Sobrevivencia (%)" 
-                    stroke="#10b981" 
-                    strokeWidth={3} 
-                    dot={{ fill: '#10b981', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                    activeDot={{ r: 6, fill: '#059669' }}
-                  />
+                  <Line
+                  type="monotone"
+                  dataKey="sobrevivencia"
+                  name="Sobrevivencia (%)"
+                  stroke="#10b981"
+                  strokeWidth={3}
+                  dot={{ fill: '#10b981', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                  activeDot={{ r: 6, fill: '#059669' }} />
+                
                 </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+              </ResponsiveContainer> :
+
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
                 Sin datos disponibles para graficar
               </div>
-            )}
+            }
           </div>
         </div>
 
         {/* ========================================================
-            3. GRÁFICO DE LÍNEAS: TENDENCIA DE ALIMENTO
-           ======================================================== */}
+             3. GRÁFICO DE LÍNEAS: TENDENCIA DE ALIMENTO
+            ======================================================== */}
         <div className="bg-[#0B4075] p-5 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[360px]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -611,56 +611,56 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
           </div>
 
           <div className="flex-1 min-h-0">
-            {activeChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+            {activeChartData.length > 0 ?
+            <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                  <XAxis 
-                    dataKey="label" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    unit="kg"
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      borderRadius: '8px', 
-                      border: '1px solid #125699', 
-                      backgroundColor: '#072C52', 
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                    formatter={(val: number, name: string) => [`${formatNumber(val)} kg`, name]}
-                    labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`}
-                  />
+                  <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                
+                  <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  unit="kg" />
+                
+                  <Tooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid #125699',
+                    backgroundColor: '#072C52',
+                    color: '#fff',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val: number, name: string) => [`${formatNumber(val)} kg`, name]}
+                  labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
+                
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="alimentoDia" 
-                    name="Alimento Diario (kg/día)" 
-                    stroke="#f59e0b" 
-                    strokeWidth={3} 
-                    dot={{ fill: '#f59e0b', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                    activeDot={{ r: 6, fill: '#d97706' }}
-                  />
+                  <Line
+                  type="monotone"
+                  dataKey="alimentoDia"
+                  name="Alimento Diario (kg/día)"
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  dot={{ fill: '#f59e0b', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                  activeDot={{ r: 6, fill: '#d97706' }} />
+                
                 </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+              </ResponsiveContainer> :
+
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
                 Sin datos disponibles para graficar
               </div>
-            )}
+            }
           </div>
         </div>
 
         {/* ========================================================
-            4. GRÁFICO DE LÍNEAS: FCA (FACTOR DE CONVERSIÓN)
-           ======================================================== */}
+             4. GRÁFICO DE LÍNEAS: FCA (FACTOR DE CONVERSIÓN)
+            ======================================================== */}
         <div className="bg-[#0B4075] p-5 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[360px]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -678,59 +678,59 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
           </div>
 
           <div className="flex-1 min-h-0">
-            {activeChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+            {activeChartData.length > 0 ?
+            <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                  <XAxis 
-                    dataKey="label" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                  />
-                  <YAxis 
-                    domain={['auto', 'auto']} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      borderRadius: '8px', 
-                      border: '1px solid #125699', 
-                      backgroundColor: '#072C52', 
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                    formatter={(val: number) => [`${formatNumber(val, 2)}`, 'FCA']}
-                    labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`}
-                  />
+                  <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                
+                  <YAxis
+                  domain={['auto', 'auto']}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                
+                  <Tooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid #125699',
+                    backgroundColor: '#072C52',
+                    color: '#fff',
+                    fontSize: '12px'
+                  }}
+                  formatter={(val: number) => [`${formatNumber(val, 2)}`, 'FCA']}
+                  labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
+                
                   <ReferenceLine y={1.4} stroke="#06b6d4" strokeDasharray="4 4" label={{ value: '1.40 referencia', fill: '#06b6d4', fontSize: 10, position: 'right' }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="fca" 
-                    name="FCA Postcosecha" 
-                    stroke="#06b6d4" 
-                    strokeWidth={3} 
-                    dot={{ fill: '#06b6d4', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                    activeDot={{ r: 6, fill: '#0891b2' }}
-                  />
+                  <Line
+                  type="monotone"
+                  dataKey="fca"
+                  name="FCA Postcosecha"
+                  stroke="#06b6d4"
+                  strokeWidth={3}
+                  dot={{ fill: '#06b6d4', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                  activeDot={{ r: 6, fill: '#0891b2' }} />
+                
                 </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+              </ResponsiveContainer> :
+
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
                 Sin datos disponibles para graficar
               </div>
-            )}
+            }
           </div>
         </div>
 
       </div>
 
       {/* ========================================================
-          5. GRÁFICO DESTACADO: PRECOSECHAS
-             (Biomasa de Estanque vs Pre-cosecha Extraída)
-         ======================================================== */}
+           5. GRÁFICO DESTACADO: PRECOSECHAS
+              (Biomasa de Estanque vs Pre-cosecha Extraída)
+          ======================================================== */}
       <div className="bg-[#0B4075] p-5 rounded-xl border border-orange-500/40 shadow-sm flex flex-col h-[400px]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
@@ -767,74 +767,73 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         </div>
 
         <div className="flex-1 min-h-0">
-          {activeChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+          {activeChartData.length > 0 ?
+          <ResponsiveContainer width="100%" height="100%">
               <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                <XAxis 
-                  dataKey="label" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  unit=" kg"
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    borderRadius: '8px', 
-                    border: '1px solid #125699', 
-                    backgroundColor: '#072C52', 
-                    color: '#fff',
-                    fontSize: '12px'
-                  }}
-                  formatter={(val: number, name: string) => [`${formatNumber(val)} kg`, name]}
-                  labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`}
-                />
+                <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              
+                <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                unit=" kg" />
+              
+                <Tooltip
+                contentStyle={{
+                  borderRadius: '8px',
+                  border: '1px solid #125699',
+                  backgroundColor: '#072C52',
+                  color: '#fff',
+                  fontSize: '12px'
+                }}
+                formatter={(val: number, name: string) => [`${formatNumber(val)} kg`, name]}
+                labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
+              
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                <Line 
-                  type="monotone" 
-                  dataKey="biomasaAgua" 
-                  name="Biomasa en Agua" 
-                  stroke="#38bdf8" 
-                  strokeWidth={3} 
-                  dot={{ fill: '#38bdf8', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                  activeDot={{ r: 6, fill: '#0284c7' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="precosechaExtraida" 
-                  name="Pre-cosecha Extraída" 
-                  stroke="#f97316" 
-                  strokeWidth={3} 
-                  dot={{ fill: '#f97316', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                  activeDot={{ r: 6, fill: '#ea580c' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="biomasaTotal" 
-                  name="Biomasa Total Generada" 
-                  stroke="#10b981" 
-                  strokeWidth={2} 
-                  strokeDasharray="4 4"
-                  dot={{ fill: '#10b981', r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
+                <Line
+                type="monotone"
+                dataKey="biomasaAgua"
+                name="Biomasa en Agua"
+                stroke="#38bdf8"
+                strokeWidth={3}
+                dot={{ fill: '#38bdf8', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                activeDot={{ r: 6, fill: '#0284c7' }} />
+              
+                <Line
+                type="monotone"
+                dataKey="precosechaExtraida"
+                name="Pre-cosecha Extraída"
+                stroke="#f97316"
+                strokeWidth={3}
+                dot={{ fill: '#f97316', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                activeDot={{ r: 6, fill: '#ea580c' }} />
+              
+                <Line
+                type="monotone"
+                dataKey="biomasaTotal"
+                name="Biomasa Total Generada"
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={{ fill: '#10b981', r: 3 }}
+                activeDot={{ r: 5 }} />
+              
               </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+            </ResponsiveContainer> :
+
+          <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
               Sin datos de biomasa o pre-cosechas para graficar
             </div>
-          )}
+          }
         </div>
       </div>
 
-    </div>
-  );
-};
+    </div>);
 
-export default TendenciasView;
+};export default TendenciasView;
+

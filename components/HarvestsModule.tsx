@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle, TrendingUp, Layers, Fish } from 'lucide-react';
 import { formatNumber, formatDate, normalizeEstanque, cleanDateString, parseFlexibleNumber } from '../utils';
@@ -35,7 +35,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const [granjaFilter, setGranjaFilter] = useState('');
   const [estanqueFilter, setEstanqueFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const recordsPerPage = 15;
+  const recordsPerPage = 12;
 
   // Form Fields State
   const [formGranja, setFormGranja] = useState('');
@@ -62,687 +62,245 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   const [pre4Gramos, setPre4Gramos] = useState('');
   const [pre4Organismos, setPre4Organismos] = useState('');
 
+  const [fecha5, setFecha5] = useState('');
   const [pre5Kilos, setPre5Kilos] = useState('');
   const [pre5Gramos, setPre5Gramos] = useState('');
   const [pre5Organismos, setPre5Organismos] = useState('');
 
+  const [fechaFinal, setFechaFinal] = useState('');
   const [finalKilos, setFinalKilos] = useState('');
   const [finalGramos, setFinalGramos] = useState('');
   const [finalOrganismos, setFinalOrganismos] = useState('');
 
-  // Fast map of pond attributes (hectareas, sembrados, etc.) by key `${granja}_${estanque}`
-  const pondDataMap = useMemo(() => {
-    const map = new Map<string, { hectareas: number; sembrados: number; sobrevivencia: number; pesoActual: number; biomasaTotal: number; densidadActual: number }>();
-    records.forEach(r => {
-      const g = (r.granja || '').toString().trim().toLowerCase();
-      const e = normalizeEstanque(r.estanque);
-      if (e) {
-        const key = `${g}_${e}`;
-        const sembrados = r.densidadInicial || r.organismosSembrados || 0;
-        const hectareas = r.hectareas || 0;
-        let sobrevivencia = r.sobrevivencia || 0;
-        if (sobrevivencia > 0 && sobrevivencia <= 1) {
-          sobrevivencia = Number((sobrevivencia * 100).toFixed(1));
-        }
-        const pesoActual = r.pesoActual || 0;
-        const biomasaTotal = r.biomasaTotal || 0;
-        const densidadActual = r.densidadActual || (sembrados > 0 && sobrevivencia > 0 ? Math.round(sembrados * (sobrevivencia / 100)) : 0);
-
-        if (!map.has(key)) {
-          map.set(key, {
-            hectareas,
-            sembrados,
-            sobrevivencia,
-            pesoActual,
-            biomasaTotal,
-            densidadActual
-          });
-        } else {
-          const existing = map.get(key)!;
-          if ((!existing.sembrados || existing.sembrados === 0) && sembrados > 0) {
-            existing.sembrados = sembrados;
-          }
-          if ((!existing.hectareas || existing.hectareas === 0) && hectareas > 0) {
-            existing.hectareas = hectareas;
-          }
-          if (sobrevivencia > 0) existing.sobrevivencia = sobrevivencia;
-          if (pesoActual > 0) existing.pesoActual = pesoActual;
-          if (biomasaTotal > 0) existing.biomasaTotal = biomasaTotal;
-          if (densidadActual > 0) existing.densidadActual = densidadActual;
-        }
-      }
-    });
-    return map;
-  }, [records]);
-
-  const getPondData = (granja: string, estanque: string) => {
-    const g = (granja || '').toString().trim().toLowerCase();
-    const e = normalizeEstanque(estanque);
-    if (!e) return undefined;
-
-    // 1. Direct match with granja + estanque
-    if (g && pondDataMap.has(`${g}_${e}`)) {
-      return pondDataMap.get(`${g}_${e}`);
-    }
-
-    // 2. Partial match on granja name
-    if (g) {
-      for (const [k, v] of pondDataMap.entries()) {
-        const [kGranja, kEst] = k.split('_');
-        if (kEst === e && (kGranja.includes(g) || g.includes(kGranja))) {
-          return v;
-        }
-      }
-    }
-
-    // 3. Fallback: match by estanque with sembrados > 0
-    for (const [k, v] of pondDataMap.entries()) {
-      if (k.endsWith(`_${e}`) && v.sembrados > 0) {
-        return v;
-      }
-    }
-
-    // 4. Any match by estanque
-    for (const [k, v] of pondDataMap.entries()) {
-      if (k.endsWith(`_${e}`)) {
-        return v;
-      }
-    }
-
-    return undefined;
-  };
-
-  // Extract unique options from existing production records for convenience
+  // Available Granjas & Estanques from production records
   const uniqueGranjas = useMemo(() => {
-    const fromRecords = records.map(r => r.granja);
-    const fromHarvests = harvests.map(h => h.granja);
-    return Array.from(new Set([...fromRecords, ...fromHarvests])).filter(Boolean).sort();
+    const set = new Set<string>();
+    records.forEach(r => { if (r.granja) set.add(r.granja); });
+    harvests.forEach(h => { if (h.granja) set.add(h.granja); });
+    return Array.from(set).sort();
   }, [records, harvests]);
 
-  const uniqueEstanques = useMemo(() => {
+  const availableEstanques = useMemo(() => {
+    if (!formGranja) return [];
     const set = new Set<string>();
-    records.forEach(r => {
-      if (granjaFilter === '' || r.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
-        const norm = normalizeEstanque(r.estanque);
-        if (norm) set.add(norm);
-      }
-    });
-    harvests.forEach(h => {
-      if (granjaFilter === '' || h.granja?.toString().trim().toLowerCase() === granjaFilter.trim().toLowerCase()) {
-        const norm = normalizeEstanque(h.estanque);
-        if (norm) set.add(norm);
-      }
-    });
-    return Array.from(set).sort((a, b) => {
-      const numA = Number(a);
-      const numB = Number(b);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      return a.localeCompare(b, undefined, { numeric: true });
-    });
-  }, [records, harvests, granjaFilter]);
+    records
+      .filter(r => r.granja?.toLowerCase().trim() === formGranja.toLowerCase().trim())
+      .forEach(r => { if (r.estanque) set.add(normalizeEstanque(r.estanque)); });
+    return Array.from(set).sort((a, b) => Number(a) - Number(b));
+  }, [records, formGranja]);
 
-  // Handle Automatic Calculations with Optional Overrides
-  const calculatedPre1Org = useMemo(() => {
-    const kilos = parseFloat(pre1Kilos) || 0;
-    const grams = parseFloat(pre1Gramos) || 0;
-    if (kilos > 0 && grams > 0) {
-      return Math.round((kilos * 1000) / grams);
-    }
-    return 0;
-  }, [pre1Kilos, pre1Gramos]);
+  // Open Form for Create
+  const handleOpenCreate = () => {
+    setEditingHarvest(null);
+    setFormGranja(uniqueGranjas[0] || '');
+    setFormEstanque('');
+    setFormFecha(new Date().toISOString().split('T')[0]);
+    setFecha1(''); setPre1Kilos(''); setPre1Gramos(''); setPre1Organismos('');
+    setFecha2(''); setPre2Kilos(''); setPre2Gramos(''); setPre2Organismos('');
+    setFecha3(''); setPre3Kilos(''); setPre3Gramos(''); setPre3Organismos('');
+    setFecha4(''); setPre4Kilos(''); setPre4Gramos(''); setPre4Organismos('');
+    setFecha5(''); setPre5Kilos(''); setPre5Gramos(''); setPre5Organismos('');
+    setFechaFinal(''); setFinalKilos(''); setFinalGramos(''); setFinalOrganismos('');
+    setShowForm(true);
+  };
 
-  const calculatedPre2Org = useMemo(() => {
-    const kilos = parseFloat(pre2Kilos) || 0;
-    const grams = parseFloat(pre2Gramos) || 0;
-    if (kilos > 0 && grams > 0) {
-      return Math.round((kilos * 1000) / grams);
-    }
-    return 0;
-  }, [pre2Kilos, pre2Gramos]);
+  // Open Form for Edit
+  const handleOpenEdit = (h: HarvestRecord) => {
+    setEditingHarvest(h);
+    setFormGranja(h.granja);
+    setFormEstanque(normalizeEstanque(h.estanque));
+    setFormFecha(h.fecha || new Date().toISOString().split('T')[0]);
 
-  const calculatedPre3Org = useMemo(() => {
-    const kilos = parseFloat(pre3Kilos) || 0;
-    const grams = parseFloat(pre3Gramos) || 0;
-    if (kilos > 0 && grams > 0) {
-      return Math.round((kilos * 1000) / grams);
-    }
-    return 0;
-  }, [pre3Kilos, pre3Gramos]);
+    setFecha1(h.fecha1 || '');
+    setPre1Kilos(h.pre1Kilos ? String(h.pre1Kilos) : '');
+    setPre1Gramos(h.pre1Gramos ? String(h.pre1Gramos) : '');
+    setPre1Organismos(h.pre1Organismos ? String(h.pre1Organismos) : '');
 
-  const calculatedPre4Org = useMemo(() => {
-    const kilos = parseFloat(pre4Kilos) || 0;
-    const grams = parseFloat(pre4Gramos) || 0;
-    if (kilos > 0 && grams > 0) {
-      return Math.round((kilos * 1000) / grams);
-    }
-    return 0;
-  }, [pre4Kilos, pre4Gramos]);
+    setFecha2(h.fecha2 || '');
+    setPre2Kilos(h.pre2Kilos ? String(h.pre2Kilos) : '');
+    setPre2Gramos(h.pre2Gramos ? String(h.pre2Gramos) : '');
+    setPre2Organismos(h.pre2Organismos ? String(h.pre2Organismos) : '');
 
-  const calculatedPre5Org = useMemo(() => {
-    const kilos = parseFloat(pre5Kilos) || 0;
-    const grams = parseFloat(pre5Gramos) || 0;
-    if (kilos > 0 && grams > 0) {
-      return Math.round((kilos * 1000) / grams);
-    }
-    return 0;
-  }, [pre5Kilos, pre5Gramos]);
+    setFecha3(h.fecha3 || '');
+    setPre3Kilos(h.pre3Kilos ? String(h.pre3Kilos) : '');
+    setPre3Gramos(h.pre3Gramos ? String(h.pre3Gramos) : '');
+    setPre3Organismos(h.pre3Organismos ? String(h.pre3Organismos) : '');
 
-  const calculatedFinalOrg = useMemo(() => {
-    const kilos = parseFloat(finalKilos) || 0;
-    const grams = parseFloat(finalGramos) || 0;
-    if (kilos > 0 && grams > 0) {
-      return Math.round((kilos * 1000) / grams);
-    }
-    return 0;
-  }, [finalKilos, finalGramos]);
+    setFecha4(h.fecha4 || '');
+    setPre4Kilos(h.pre4Kilos ? String(h.pre4Kilos) : '');
+    setPre4Gramos(h.pre4Gramos ? String(h.pre4Gramos) : '');
+    setPre4Organismos(h.pre4Organismos ? String(h.pre4Organismos) : '');
 
-  // Set initial calculation values to inputs if they are calculated and inputs are empty or haven't been manually altered
-  useEffect(() => {
-    if (calculatedPre1Org > 0 && !pre1Organismos) {
-      setPre1Organismos(calculatedPre1Org.toString());
-    }
-  }, [calculatedPre1Org, pre1Organismos]);
+    setFecha5(h.fecha5 || '');
+    setPre5Kilos(h.pre5Kilos ? String(h.pre5Kilos) : '');
+    setPre5Gramos(h.pre5Gramos ? String(h.pre5Gramos) : '');
+    setPre5Organismos(h.pre5Organismos ? String(h.pre5Organismos) : '');
 
-  useEffect(() => {
-    if (calculatedPre2Org > 0 && !pre2Organismos) {
-      setPre2Organismos(calculatedPre2Org.toString());
-    }
-  }, [calculatedPre2Org, pre2Organismos]);
-
-  useEffect(() => {
-    if (calculatedPre3Org > 0 && !pre3Organismos) {
-      setPre3Organismos(calculatedPre3Org.toString());
-    }
-  }, [calculatedPre3Org, pre3Organismos]);
-
-  useEffect(() => {
-    if (calculatedPre4Org > 0 && !pre4Organismos) {
-      setPre4Organismos(calculatedPre4Org.toString());
-    }
-  }, [calculatedPre4Org, pre4Organismos]);
-
-  useEffect(() => {
-    if (calculatedPre5Org > 0 && !pre5Organismos) {
-      setPre5Organismos(calculatedPre5Org.toString());
-    }
-  }, [calculatedPre5Org, pre5Organismos]);
-
-  useEffect(() => {
-    if (calculatedFinalOrg > 0 && !finalOrganismos) {
-      setFinalOrganismos(calculatedFinalOrg.toString());
-    }
-  }, [calculatedFinalOrg, finalOrganismos]);
-
-  // Dynamic preview of summary metrics
-  const tempTotalKilos = useMemo(() => {
-    return (parseFloat(pre1Kilos) || 0) + 
-           (parseFloat(pre2Kilos) || 0) + 
-           (parseFloat(pre3Kilos) || 0) + 
-           (parseFloat(pre4Kilos) || 0) + 
-           (parseFloat(pre5Kilos) || 0) + 
-           (parseFloat(finalKilos) || 0);
-  }, [pre1Kilos, pre2Kilos, pre3Kilos, pre4Kilos, pre5Kilos, finalKilos]);
-
-  const tempTotalOrganismos = useMemo(() => {
-    return (parseInt(pre1Organismos) || calculatedPre1Org) + 
-           (parseInt(pre2Organismos) || calculatedPre2Org) + 
-           (parseInt(pre3Organismos) || calculatedPre3Org) + 
-           (parseInt(pre4Organismos) || calculatedPre4Org) + 
-           (parseInt(pre5Organismos) || calculatedPre5Org) + 
-           (parseInt(finalOrganismos) || calculatedFinalOrg);
-  }, [pre1Organismos, pre2Organismos, pre3Organismos, pre4Organismos, pre5Organismos, finalOrganismos, calculatedPre1Org, calculatedPre2Org, calculatedPre3Org, calculatedPre4Org, calculatedPre5Org, calculatedFinalOrg]);
-
-  // Matching pond record for the current form selection
-  const matchingPondRecord = useMemo(() => {
-    if (!formGranja || !formEstanque) return null;
-    const matchEst = normalizeEstanque(formEstanque);
-    const matchGranja = formGranja.trim().toLowerCase();
-    
-    return records.find(r => 
-      r.granja?.toString().trim().toLowerCase() === matchGranja && 
-      normalizeEstanque(r.estanque) === matchEst
-    );
-  }, [records, formGranja, formEstanque]);
-
-  const pondStats = useMemo(() => {
-    const pond = getPondData(formGranja, formEstanque);
-    if (pond && pond.sembrados > 0) {
-      return {
-        sembrados: pond.sembrados,
-        surv: pond.sobrevivencia || 100,
-        pobVivaEst: pond.densidadActual || Math.round(pond.sembrados * ((pond.sobrevivencia || 100) / 100))
-      };
-    }
-    if (matchingPondRecord) {
-      const sembrados = matchingPondRecord.densidadInicial || matchingPondRecord.organismosSembrados || 0;
-      let surv = matchingPondRecord.sobrevivencia || 100;
-      if (surv > 0 && surv <= 1) surv = surv * 100;
-      const pobVivaEst = matchingPondRecord.densidadActual || Math.round(sembrados * (surv / 100));
-      return {
-        sembrados,
-        surv,
-        pobVivaEst
-      };
-    }
-    return null;
-  }, [matchingPondRecord, formGranja, formEstanque, pondDataMap]);
-
-  // Filter & Search Logic
-  const filteredHarvests = useMemo(() => {
-    const normFilterEstanque = normalizeEstanque(estanqueFilter);
-    const normFilterGranja = granjaFilter.trim().toLowerCase();
-
-    return harvests.filter(h => {
-      const matchGranja = normFilterGranja === '' || 
-        (h.granja !== undefined && h.granja !== null && 
-         String(h.granja).trim().toLowerCase() === normFilterGranja);
-      
-      if (!matchGranja) return false;
-
-      if (normFilterEstanque === '') return true;
-
-      const normHestanque = normalizeEstanque(h.estanque);
-      return normHestanque === normFilterEstanque;
-    });
-  }, [harvests, granjaFilter, estanqueFilter]);
-
-  const [chartView, setChartView] = useState<'kilos' | 'organismos' | 'etapas' | 'tallas'>('kilos');
-  const [etapasChartType, setEtapasChartType] = useState<'stacked' | 'line'>('stacked');
-  const [organismosChartType, setOrganismosChartType] = useState<'line' | 'bar'>('line');
-
-  const harvestChartData = useMemo(() => {
-    return [...filteredHarvests]
-      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-      .map(h => {
-        const formattedDate = h.fecha ? new Date(h.fecha + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
-        const p1K = parseFlexibleNumber(h.pre1Kilos);
-        const p1G = parseFlexibleNumber(h.pre1Gramos);
-        const p1Org = calculateStageOrganismos(p1K, p1G, h.pre1Organismos);
-
-        const p2K = parseFlexibleNumber(h.pre2Kilos);
-        const p2G = parseFlexibleNumber(h.pre2Gramos);
-        const p2Org = calculateStageOrganismos(p2K, p2G, h.pre2Organismos);
-
-        const p3K = parseFlexibleNumber(h.pre3Kilos);
-        const p3G = parseFlexibleNumber(h.pre3Gramos);
-        const p3Org = calculateStageOrganismos(p3K, p3G, h.pre3Organismos);
-
-        const p4K = parseFlexibleNumber(h.pre4Kilos);
-        const p4G = parseFlexibleNumber(h.pre4Gramos);
-        const p4Org = calculateStageOrganismos(p4K, p4G, h.pre4Organismos);
-
-        const p5K = parseFlexibleNumber(h.pre5Kilos);
-        const p5G = parseFlexibleNumber(h.pre5Gramos);
-        const p5Org = calculateStageOrganismos(p5K, p5G, h.pre5Organismos);
-
-        const fK = parseFlexibleNumber(h.finalKilos);
-        const fG = parseFlexibleNumber(h.finalGramos);
-        const fOrg = calculateStageOrganismos(fK, fG, h.finalOrganismos);
-
-        const rowKilos = (h.totalKilos && parseFlexibleNumber(h.totalKilos) > 0)
-          ? parseFlexibleNumber(h.totalKilos)
-          : (p1K + p2K + p3K + p4K + p5K + fK);
-        const rowOrg = (h.totalOrganismos && parseFlexibleNumber(h.totalOrganismos) > 0)
-          ? parseFlexibleNumber(h.totalOrganismos)
-          : (p1Org + p2Org + p3Org + p4Org + p5Org + fOrg);
-
-        return {
-          label: `${h.granja} - E${h.estanque} (${formattedDate})`,
-          totalKilos: rowKilos,
-          totalOrganismos: rowOrg,
-          pre1Kilos: p1K > 0 ? p1K : null,
-          pre2Kilos: p2K > 0 ? p2K : null,
-          pre3Kilos: p3K > 0 ? p3K : null,
-          pre4Kilos: p4K > 0 ? p4K : null,
-          pre5Kilos: p5K > 0 ? p5K : null,
-          finalKilos: fK > 0 ? fK : null,
-          pre1Gramos: p1G > 0 ? p1G : null,
-          pre2Gramos: p2G > 0 ? p2G : null,
-          pre3Gramos: p3G > 0 ? p3G : null,
-          pre4Gramos: p4G > 0 ? p4G : null,
-          pre5Gramos: p5G > 0 ? p5G : null,
-          finalGramos: fG > 0 ? fG : null,
-        };
-      });
-  }, [filteredHarvests]);
-
-  const isSinglePond = filteredHarvests.length === 1;
-
-  const singlePondTimelineData = useMemo(() => {
-    if (filteredHarvests.length !== 1) return [];
-    const h = filteredHarvests[0];
-    const stages: Array<{
-      etapa: string;
-      etapaCompleta: string;
-      fecha: string;
-      label: string;
-      kilos: number;
-      gramos: number;
-      organismos: number;
-      color: string;
-    }> = [];
-
-    let runningOrg = 0;
-    const addStage = (name: string, shortName: string, dateStr: string | undefined, kilos: any, gramos: any, rawOrg: any, color: string) => {
-      const k = parseFlexibleNumber(kilos);
-      const g = parseFlexibleNumber(gramos);
-      const org = calculateStageOrganismos(k, g, rawOrg);
-      if (k > 0 || g > 0 || org > 0) {
-        runningOrg += org;
-        const formattedDate = dateStr ? formatDate(dateStr) : '';
-        stages.push({
-          etapa: shortName,
-          etapaCompleta: name,
-          fecha: formattedDate,
-          label: formattedDate ? `${shortName} (${formattedDate})` : shortName,
-          kilos: k,
-          gramos: g,
-          organismos: org,
-          organismosAcumulados: runningOrg,
-          color,
-        });
-      }
-    };
-
-    addStage('1ra Pre-Cosecha', '1ra Pre', h.fecha1 || h.fecha, h.pre1Kilos, h.pre1Gramos, h.pre1Organismos, '#60a5fa');
-    addStage('2da Pre-Cosecha', '2da Pre', h.fecha2, h.pre2Kilos, h.pre2Gramos, h.pre2Organismos, '#34d399');
-    addStage('3ra Pre-Cosecha', '3ra Pre', h.fecha3, h.pre3Kilos, h.pre3Gramos, h.pre3Organismos, '#a78bfa');
-    addStage('4ta Pre-Cosecha', '4ta Pre', h.fecha4, h.pre4Kilos, h.pre4Gramos, h.pre4Organismos, '#f472b6');
-    addStage('5ta Pre-Cosecha', '5ta Pre', '', h.pre5Kilos, h.pre5Gramos, h.pre5Organismos, '#fbbf24');
-    addStage('Cosecha Final', 'Final', h.fecha, h.finalKilos, h.finalGramos, h.finalOrganismos, '#f97316');
-
-    return stages;
-  }, [filteredHarvests]);
-
-  // Pagination Logic
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [granjaFilter, estanqueFilter]);
-
-  const totalPages = Math.ceil(filteredHarvests.length / recordsPerPage);
-
-  const paginatedHarvests = useMemo(() => {
-    const startIndex = (currentPage - 1) * recordsPerPage;
-    return filteredHarvests.slice(startIndex, startIndex + recordsPerPage);
-  }, [filteredHarvests, currentPage]);
-
-  // General KPI Stats for Summary Cards
-  const kpiStats = useMemo(() => {
-    let totKilos = 0;
-    let totOrganismos = 0;
-    let weightedGramsSum = 0;
-    
-    let survSum = 0;
-    let survCount = 0;
-
-    let totHectareas = 0;
-    let totBiomasaTeorica = 0;
-    let totDensidadTeorica = 0;
-    let rendSum = 0;
-    let rendCount = 0;
-    const seenPonds = new Set<string>();
-
-    filteredHarvests.forEach(h => {
-      const p1K = parseFlexibleNumber(h.pre1Kilos);
-      const p1G = parseFlexibleNumber(h.pre1Gramos);
-      const p1Org = calculateStageOrganismos(p1K, p1G, h.pre1Organismos);
-
-      const p2K = parseFlexibleNumber(h.pre2Kilos);
-      const p2G = parseFlexibleNumber(h.pre2Gramos);
-      const p2Org = calculateStageOrganismos(p2K, p2G, h.pre2Organismos);
-
-      const p3K = parseFlexibleNumber(h.pre3Kilos);
-      const p3G = parseFlexibleNumber(h.pre3Gramos);
-      const p3Org = calculateStageOrganismos(p3K, p3G, h.pre3Organismos);
-
-      const p4K = parseFlexibleNumber(h.pre4Kilos || h.finalKilos);
-      const p4G = parseFlexibleNumber(h.pre4Gramos || h.finalGramos);
-      const p4Org = calculateStageOrganismos(p4K, p4G, h.pre4Organismos || h.finalOrganismos);
-
-      const p5K = parseFlexibleNumber(h.pre5Kilos);
-      const p5G = parseFlexibleNumber(h.pre5Gramos);
-      const p5Org = calculateStageOrganismos(p5K, p5G, h.pre5Organismos);
-
-      const rowKilos = (h.totalKilos && parseFlexibleNumber(h.totalKilos) > 0)
-        ? parseFlexibleNumber(h.totalKilos)
-        : (p1K + p2K + p3K + p4K + p5K);
-      const rowOrg = (h.totalOrganismos && parseFlexibleNumber(h.totalOrganismos) > 0)
-        ? parseFlexibleNumber(h.totalOrganismos)
-        : (p1Org + p2Org + p3Org + p4Org + p5Org);
-
-      totKilos += rowKilos;
-      totOrganismos += rowOrg;
-      
-      // Calculate weighted grams if possible
-      const fK = parseFlexibleNumber(h.finalKilos);
-      const fG = parseFlexibleNumber(h.finalGramos);
-      
-      const weightedGrams = (p1K * p1G) + (p2K * p2G) + (p3K * p3G) + (p4K * p4G) + (p5K * p5G) + (fK * fG);
-      weightedGramsSum += weightedGrams;
-
-      const pond = getPondData(h.granja, h.estanque);
-      const pondHa = pond?.hectareas || 0;
-      const pondKey = `${h.granja}_${h.estanque}`;
-      if (!seenPonds.has(pondKey) && pond) {
-        seenPonds.add(pondKey);
-        if (pondHa > 0) totHectareas += pondHa;
-        totBiomasaTeorica += (Number(pond.biomasaTotal) || 0);
-        totDensidadTeorica += (Number(pond.densidadActual) || Number(pond.sembrados) || 0);
-      }
-      if (pondHa > 0 && rowKilos > 0) {
-        rendSum += (rowKilos / pondHa);
-        rendCount++;
-      }
-
-      let surv = parseFlexibleNumber(h.sobrevivenciaFinal);
-      if (surv > 0 && surv <= 1) {
-        surv = surv * 100;
-      }
-      if (!surv) {
-        if (pond && pond.sembrados > 0 && rowOrg > 0) {
-          surv = Number(((rowOrg / pond.sembrados) * 100).toFixed(1));
-        }
-      }
-      if (surv && surv > 0) {
-        survSum += surv;
-        survCount++;
-      }
-    });
-
-    const avgWeight = totKilos > 0 ? (weightedGramsSum / totKilos) : 0;
-    const avgSurvival = survCount > 0 ? (survSum / survCount) : 0;
-
-    const rendimientoKgHa = totHectareas > 0 && totKilos > 0 
-      ? Math.round(totKilos / totHectareas) 
-      : (rendCount > 0 ? Math.round(rendSum / rendCount) : 0);
-
-    const biomasaRemanente = Math.max(0, totBiomasaTeorica - totKilos);
-    const orgsRemanentes = Math.max(0, totDensidadTeorica - totOrganismos);
-    const pctRestante = totBiomasaTeorica > 0 ? Number(((biomasaRemanente / totBiomasaTeorica) * 100).toFixed(1)) : 0;
-    const pctExtraido = totBiomasaTeorica > 0 ? Number(((totKilos / totBiomasaTeorica) * 100).toFixed(1)) : 0;
-
-    return {
-      totalKilos: totKilos,
-      totalOrganismos: Math.round(totOrganismos),
-      totalRegistros: filteredHarvests.length,
-      pesoPromedio: avgWeight,
-      sobrevivenciaPromedio: avgSurvival,
-      rendimientoKgHa: rendimientoKgHa,
-      totalHectareas: totHectareas,
-      totBiomasaTeorica,
-      biomasaRemanente,
-      orgsRemanentes,
-      pctRestante,
-      pctExtraido
-    };
-  }, [filteredHarvests, pondDataMap]);
-
-  // Populate form for editing
-  const handleStartEdit = (harvest: HarvestRecord) => {
-    setEditingHarvest(harvest);
-    setFormGranja(harvest.granja);
-    setFormEstanque(harvest.estanque);
-    setFormFecha(harvest.fecha);
-
-    setFecha1(harvest.fecha1 || harvest.fecha || '');
-    setPre1Kilos(harvest.pre1Kilos ? harvest.pre1Kilos.toString() : '');
-    setPre1Gramos(harvest.pre1Gramos ? harvest.pre1Gramos.toString() : '');
-    setPre1Organismos(harvest.pre1Organismos ? harvest.pre1Organismos.toString() : '');
-
-    setFecha2(harvest.fecha2 || '');
-    setPre2Kilos(harvest.pre2Kilos ? harvest.pre2Kilos.toString() : '');
-    setPre2Gramos(harvest.pre2Gramos ? harvest.pre2Gramos.toString() : '');
-    setPre2Organismos(harvest.pre2Organismos ? harvest.pre2Organismos.toString() : '');
-
-    setFecha3(harvest.fecha3 || '');
-    setPre3Kilos(harvest.pre3Kilos ? harvest.pre3Kilos.toString() : '');
-    setPre3Gramos(harvest.pre3Gramos ? harvest.pre3Gramos.toString() : '');
-    setPre3Organismos(harvest.pre3Organismos ? harvest.pre3Organismos.toString() : '');
-
-    setFecha4(harvest.fecha4 || '');
-    setPre4Kilos(harvest.pre4Kilos ? harvest.pre4Kilos.toString() : '');
-    setPre4Gramos(harvest.pre4Gramos ? harvest.pre4Gramos.toString() : '');
-    setPre4Organismos(harvest.pre4Organismos ? harvest.pre4Organismos.toString() : '');
-
-    setPre5Kilos(harvest.pre5Kilos ? harvest.pre5Kilos.toString() : '');
-    setPre5Gramos(harvest.pre5Gramos ? harvest.pre5Gramos.toString() : '');
-    setPre5Organismos(harvest.pre5Organismos ? harvest.pre5Organismos.toString() : '');
-
-    setFinalKilos(harvest.finalKilos ? harvest.finalKilos.toString() : '');
-    setFinalGramos(harvest.finalGramos ? harvest.finalGramos.toString() : '');
-    setFinalOrganismos(harvest.finalOrganismos ? harvest.finalOrganismos.toString() : '');
+    setFechaFinal(h.fechaFinal || '');
+    setFinalKilos(h.finalKilos ? String(h.finalKilos) : '');
+    setFinalGramos(h.finalGramos ? String(h.finalGramos) : '');
+    setFinalOrganismos(h.finalOrganismos ? String(h.finalOrganismos) : '');
 
     setShowForm(true);
   };
 
-  const handleResetForm = () => {
-    setEditingHarvest(null);
-    setFormGranja('');
-    setFormEstanque('');
-    setFormFecha(new Date().toISOString().split('T')[0]);
-    setFecha1('');
-    setPre1Kilos('');
-    setPre1Gramos('');
-    setPre1Organismos('');
-    setFecha2('');
-    setPre2Kilos('');
-    setPre2Gramos('');
-    setPre2Organismos('');
-    setFecha3('');
-    setPre3Kilos('');
-    setPre3Gramos('');
-    setPre3Organismos('');
-    setFecha4('');
-    setPre4Kilos('');
-    setPre4Gramos('');
-    setPre4Organismos('');
-    setPre5Kilos('');
-    setPre5Gramos('');
-    setPre5Organismos('');
-    setFinalKilos('');
-    setFinalGramos('');
-    setFinalOrganismos('');
-    setShowForm(false);
+  // Auto calculate organisms on input change
+  const handlePreKilosOrGramsChange = (
+    stage: 1 | 2 | 3 | 4 | 5 | 'final',
+    kilosVal: string,
+    gramosVal: string
+  ) => {
+    const k = parseFlexibleNumber(kilosVal);
+    const g = parseFlexibleNumber(gramosVal);
+    const org = calculateStageOrganismos(k, g);
+    const orgStr = org > 0 ? String(org) : '';
+
+    if (stage === 1) {
+      setPre1Kilos(kilosVal); setPre1Gramos(gramosVal); setPre1Organismos(orgStr);
+    } else if (stage === 2) {
+      setPre2Kilos(kilosVal); setPre2Gramos(gramosVal); setPre2Organismos(orgStr);
+    } else if (stage === 3) {
+      setPre3Kilos(kilosVal); setPre3Gramos(gramosVal); setPre3Organismos(orgStr);
+    } else if (stage === 4) {
+      setPre4Kilos(kilosVal); setPre4Gramos(gramosVal); setPre4Organismos(orgStr);
+    } else if (stage === 5) {
+      setPre5Kilos(kilosVal); setPre5Gramos(gramosVal); setPre5Organismos(orgStr);
+    } else {
+      setFinalKilos(kilosVal); setFinalGramos(gramosVal); setFinalOrganismos(orgStr);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formGranja || !formEstanque || !formFecha) {
-      alert('Por favor complete los campos de Granja, Estanque y Fecha.');
+    if (!formGranja || !formEstanque) {
+      alert('Por favor selecciona Granja y Estanque.');
       return;
     }
 
-    const calculatedP1Org = pre1Organismos ? parseInt(pre1Organismos) : calculatedPre1Org;
-    const calculatedP2Org = pre2Organismos ? parseInt(pre2Organismos) : calculatedPre2Org;
-    const calculatedP3Org = pre3Organismos ? parseInt(pre3Organismos) : calculatedPre3Org;
-    const calculatedP4Org = pre4Organismos ? parseInt(pre4Organismos) : calculatedPre4Org;
-    const calculatedP5Org = pre5Organismos ? parseInt(pre5Organismos) : calculatedPre5Org;
-    const calculatedFOrg = finalOrganismos ? parseInt(finalOrganismos) : calculatedFinalOrg;
+    const p1k = parseFlexibleNumber(pre1Kilos);
+    const p1g = parseFlexibleNumber(pre1Gramos);
+    const p1o = parseFlexibleNumber(pre1Organismos) || calculateStageOrganismos(p1k, p1g);
 
-    const totalK = (parseFloat(pre1Kilos) || 0) + 
-                   (parseFloat(pre2Kilos) || 0) + 
-                   (parseFloat(pre3Kilos) || 0) + 
-                   (parseFloat(pre4Kilos) || 0) + 
-                   (parseFloat(pre5Kilos) || 0) + 
-                   (parseFloat(finalKilos) || 0);
+    const p2k = parseFlexibleNumber(pre2Kilos);
+    const p2g = parseFlexibleNumber(pre2Gramos);
+    const p2o = parseFlexibleNumber(pre2Organismos) || calculateStageOrganismos(p2k, p2g);
 
-    const totalO = calculatedP1Org + calculatedP2Org + calculatedP3Org + calculatedP4Org + calculatedP5Org + calculatedFOrg;
+    const p3k = parseFlexibleNumber(pre3Kilos);
+    const p3g = parseFlexibleNumber(pre3Gramos);
+    const p3o = parseFlexibleNumber(pre3Organismos) || calculateStageOrganismos(p3k, p3g);
 
-    const effectiveFecha = fecha4 || fecha3 || fecha2 || fecha1 || formFecha;
-    const pond = getPondData(formGranja, formEstanque);
-    const surv = pond && pond.sembrados > 0 ? Number(((totalO / pond.sembrados) * 100).toFixed(1)) : undefined;
-    const avgP = totalO > 0 ? Number(((totalK * 1000) / totalO).toFixed(2)) : undefined;
+    const p4k = parseFlexibleNumber(pre4Kilos);
+    const p4g = parseFlexibleNumber(pre4Gramos);
+    const p4o = parseFlexibleNumber(pre4Organismos) || calculateStageOrganismos(p4k, p4g);
 
-    const harvestData: HarvestRecord = {
-      id: editingHarvest ? editingHarvest.id : Math.random().toString(36).substring(2, 11),
-      granja: formGranja,
-      estanque: formEstanque,
-      fecha: effectiveFecha,
-      
+    const p5k = parseFlexibleNumber(pre5Kilos);
+    const p5g = parseFlexibleNumber(pre5Gramos);
+    const p5o = parseFlexibleNumber(pre5Organismos) || calculateStageOrganismos(p5k, p5g);
+
+    const fk = parseFlexibleNumber(finalKilos);
+    const fg = parseFlexibleNumber(finalGramos);
+    const fo = parseFlexibleNumber(finalOrganismos) || calculateStageOrganismos(fk, fg);
+
+    const totalK = p1k + p2k + p3k + p4k + p5k + fk;
+    const totalO = p1o + p2o + p3o + p4o + p5o + fo;
+    const avgG = totalK > 0 && totalO > 0 ? parseFloat(((totalK * 1000) / totalO).toFixed(2)) : 0;
+
+    const baseRecord: HarvestRecord = {
+      id: editingHarvest ? editingHarvest.id : `harvest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      granja: formGranja.trim(),
+      estanque: formEstanque.trim(),
+      fecha: formFecha,
       fecha1: fecha1 || undefined,
-      pre1Kilos: pre1Kilos ? parseFloat(pre1Kilos) : undefined,
-      pre1Gramos: pre1Gramos ? parseFloat(pre1Gramos) : undefined,
-      pre1Organismos: pre1Organismos ? parseInt(pre1Organismos) : undefined,
-
+      pre1Kilos: p1k || undefined,
+      pre1Gramos: p1g || undefined,
+      pre1Organismos: p1o || undefined,
       fecha2: fecha2 || undefined,
-      pre2Kilos: pre2Kilos ? parseFloat(pre2Kilos) : undefined,
-      pre2Gramos: pre2Gramos ? parseFloat(pre2Gramos) : undefined,
-      pre2Organismos: pre2Organismos ? parseInt(pre2Organismos) : undefined,
-
+      pre2Kilos: p2k || undefined,
+      pre2Gramos: p2g || undefined,
+      pre2Organismos: p2o || undefined,
       fecha3: fecha3 || undefined,
-      pre3Kilos: pre3Kilos ? parseFloat(pre3Kilos) : undefined,
-      pre3Gramos: pre3Gramos ? parseFloat(pre3Gramos) : undefined,
-      pre3Organismos: pre3Organismos ? parseInt(pre3Organismos) : undefined,
-
+      pre3Kilos: p3k || undefined,
+      pre3Gramos: p3g || undefined,
+      pre3Organismos: p3o || undefined,
       fecha4: fecha4 || undefined,
-      pre4Kilos: pre4Kilos ? parseFloat(pre4Kilos) : undefined,
-      pre4Gramos: pre4Gramos ? parseFloat(pre4Gramos) : undefined,
-      pre4Organismos: pre4Organismos ? parseInt(pre4Organismos) : undefined,
-
-      pre5Kilos: pre5Kilos ? parseFloat(pre5Kilos) : undefined,
-      pre5Gramos: pre5Gramos ? parseFloat(pre5Gramos) : undefined,
-      pre5Organismos: pre5Organismos ? parseInt(pre5Organismos) : undefined,
-
-      finalKilos: finalKilos ? parseFloat(finalKilos) : undefined,
-      finalGramos: finalGramos ? parseFloat(finalGramos) : undefined,
-      finalOrganismos: finalOrganismos ? parseInt(finalOrganismos) : undefined,
-
-      totalKilos: Number(totalK.toFixed(2)),
+      pre4Kilos: p4k || undefined,
+      pre4Gramos: p4g || undefined,
+      pre4Organismos: p4o || undefined,
+      fecha5: fecha5 || undefined,
+      pre5Kilos: p5k || undefined,
+      pre5Gramos: p5g || undefined,
+      pre5Organismos: p5o || undefined,
+      fechaFinal: fechaFinal || undefined,
+      finalKilos: fk || undefined,
+      finalGramos: fg || undefined,
+      finalOrganismos: fo || undefined,
+      totalKilos: totalK,
       totalOrganismos: totalO,
-      pesoPromedioPrecosechado: avgP,
-      sobrevivenciaFinal: editingHarvest?.sobrevivenciaFinal ?? surv,
+      pesoPromedioPrecosechado: avgG
     };
 
+    const normalized = normalizeHarvestRecord(baseRecord) || baseRecord;
+
     if (editingHarvest) {
-      onEditHarvest(harvestData);
+      onEditHarvest(normalized);
     } else {
-      onAddHarvest(harvestData);
+      onAddHarvest(normalized);
     }
-
-    handleResetForm();
+    setShowForm(false);
+    setEditingHarvest(null);
   };
 
-  // Quick auto-fill formula triggerers
-  const fillComputedPre1 = () => {
-    if (calculatedPre1Org > 0) setPre1Organismos(calculatedPre1Org.toString());
-  };
-  const fillComputedPre2 = () => {
-    if (calculatedPre2Org > 0) setPre2Organismos(calculatedPre2Org.toString());
-  };
-  const fillComputedPre3 = () => {
-    if (calculatedPre3Org > 0) setPre3Organismos(calculatedPre3Org.toString());
-  };
-  const fillComputedPre4 = () => {
-    if (calculatedPre4Org > 0) setPre4Organismos(calculatedPre4Org.toString());
-  };
-  const fillComputedPre5 = () => {
-    if (calculatedPre5Org > 0) setPre5Organismos(calculatedPre5Org.toString());
-  };
-  const fillComputedFinal = () => {
-    if (calculatedFinalOrg > 0) setFinalOrganismos(calculatedFinalOrg.toString());
-  };
+  // Filtered harvest records
+  const filteredHarvests = useMemo(() => {
+    return harvests.filter(h => {
+      const matchG = !granjaFilter || h.granja?.toLowerCase().trim() === granjaFilter.toLowerCase().trim();
+      const matchE = !estanqueFilter || normalizeEstanque(h.estanque) === normalizeEstanque(estanqueFilter);
+      return matchG && matchE;
+    });
+  }, [harvests, granjaFilter, estanqueFilter]);
 
-  const handleHarvestExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Overall Statistics Cards
+  const stats = useMemo(() => {
+    let totK = 0;
+    let totOrg = 0;
+    let preK = 0;
+    let finalK = 0;
+    filteredHarvests.forEach(h => {
+      const p1 = Number(h.pre1Kilos) || 0;
+      const p2 = Number(h.pre2Kilos) || 0;
+      const p3 = Number(h.pre3Kilos) || 0;
+      const p4 = Number(h.pre4Kilos) || 0;
+      const p5 = Number(h.pre5Kilos) || 0;
+      const fk = Number(h.finalKilos) || 0;
+      const tk = Number(h.totalKilos) || (p1 + p2 + p3 + p4 + p5 + fk);
+      const to = Number(h.totalOrganismos) || 0;
+
+      preK += (p1 + p2 + p3 + p4 + p5);
+      finalK += fk;
+      totK += tk;
+      totOrg += to;
+    });
+
+    const avgWeight = totK > 0 && totOrg > 0 ? (totK * 1000) / totOrg : 0;
+    return {
+      pondsCount: filteredHarvests.length,
+      totK,
+      preK,
+      finalK,
+      totOrg,
+      avgWeight: Number(avgWeight.toFixed(2))
+    };
+  }, [filteredHarvests]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredHarvests.length / recordsPerPage) || 1;
+  const paginatedHarvests = useMemo(() => {
+    const start = (currentPage - 1) * recordsPerPage;
+    return filteredHarvests.slice(start, start + recordsPerPage);
+  }, [filteredHarvests, currentPage]);
+
+  // Handle Excel upload
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -751,40 +309,22 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       try {
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames.find(n =>
+          n.toLowerCase().includes('cosecha') || n.toLowerCase().includes('precosecha') || n.toLowerCase().includes('raleo')
+        ) || workbook.SheetNames[0];
 
-        let targetSheetName = workbook.SheetNames.find(n => {
-          const lower = n.toLowerCase();
-          return lower.includes('cosecha') || lower.includes('precosecha') || lower.includes('raleo');
-        });
-
-        if (!targetSheetName) {
-          targetSheetName = workbook.SheetNames[0];
-        }
-
-        const parsedHarvests: HarvestRecord[] = parseHarvestWorksheet(workbook.Sheets[targetSheetName], XLSX);
-
-        if (!parsedHarvests || parsedHarvests.length === 0) {
-          alert('El archivo Excel no contiene filas con datos legibles de cosechas.');
-          return;
-        }
-
-        // Enrich survival and pond data if missing
-        parsedHarvests.forEach(h => {
-          if (!h.sobrevivenciaFinal) {
-            const pond = getPondData(h.granja, h.estanque);
-            if (pond && pond.sembrados > 0 && h.totalOrganismos > 0) {
-              h.sobrevivenciaFinal = Number(((h.totalOrganismos / pond.sembrados) * 100).toFixed(1));
-            }
+        if (sheetName) {
+          const parsed = parseHarvestWorksheet(workbook.Sheets[sheetName], XLSX);
+          if (parsed && parsed.length > 0 && onImportHarvests) {
+            onImportHarvests(parsed);
+            alert(`Se importaron ${parsed.length} registros de cosecha exitosamente.`);
+          } else {
+            alert('No se encontraron registros válidos de cosechas en la hoja seleccionada.');
           }
-        });
-
-        if (onImportHarvests) {
-          onImportHarvests(parsedHarvests);
-          alert(`✅ Se importaron exitosamente ${parsedHarvests.length} registros desde el archivo Excel con cálculo automático de biomasa y organismos totales.`);
         }
       } catch (err) {
-        console.error('Error al procesar archivo Excel de cosecha:', err);
-        alert('Hubo un error al leer el archivo Excel.');
+        console.error('Error parsing harvests excel:', err);
+        alert('Error al leer el archivo de cosechas. Verifica el formato.');
       }
     };
     reader.readAsBinaryString(file);
@@ -793,895 +333,255 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      
-      {/* Main Action Header & Filter Panel */}
-      <div className="flex flex-col gap-4 bg-[#0B4075] p-5 rounded-2xl border border-[#125699] shadow-sm">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-white">Ciclo de Cosechas</h2>
-            <p className="text-sm text-blue-300">Registro detallado de pre-cosechas y cosecha final por granja y estanque.</p>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            <select 
-              value={granjaFilter} 
-              onChange={(e) => setGranjaFilter(e.target.value)}
-              className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-            >
-              <option value="">Todas las Granjas</option>
-              {uniqueGranjas.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
-            <select 
-              value={estanqueFilter} 
-              onChange={(e) => setEstanqueFilter(e.target.value)}
-              className="bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-            >
-              <option value="">Todos los Estanques</option>
-              {uniqueEstanques.map(e => <option key={e} value={e}>Estanque {e}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Stats Panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-2.5 rounded-xl bg-indigo-900/40 border border-indigo-700/40 mb-2 flex items-center justify-center">
-            <Scale className="w-5 h-5 text-indigo-400" />
-          </div>
-          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Kilos Pre-Cosechados</p>
-          <p className="text-xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalKilos)} kg</p>
-          <p className="text-[10px] text-orange-300 mt-0.5">Extraído: {kpiStats.pctExtraido}%</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-2.5 rounded-xl bg-blue-900/40 border border-blue-700/40 mb-2 flex items-center justify-center">
-            <Hash className="w-5 h-5 text-blue-400" />
-          </div>
-          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Organismos Retirados</p>
-          <p className="text-xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.totalOrganismos)}</p>
-          <p className="text-[10px] text-blue-300 mt-0.5">{kpiStats.totalRegistros} registros</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-emerald-500/40 bg-gradient-to-b from-[#0B4075] to-emerald-950/30 flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-2.5 rounded-xl bg-emerald-900/50 border border-emerald-600/40 mb-2 flex items-center justify-center">
-            <Layers className="w-5 h-5 text-emerald-400" />
-          </div>
-          <p className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider mb-0.5">Biomasa en Agua</p>
-          <p className="text-xl font-black text-emerald-400 tracking-tight">{formatNumber(kpiStats.biomasaRemanente)} kg</p>
-          <span className="text-[9px] font-bold bg-emerald-900/60 text-emerald-200 px-2 py-0.5 rounded border border-emerald-500/30 mt-0.5">
-            {kpiStats.pctRestante}% remanente
-          </span>
-        </div>
-
-        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-cyan-500/40 bg-gradient-to-b from-[#0B4075] to-cyan-950/30 flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-2.5 rounded-xl bg-cyan-900/50 border border-cyan-600/40 mb-2 flex items-center justify-center">
-            <Fish className="w-5 h-5 text-cyan-400" />
-          </div>
-          <p className="text-[11px] font-semibold text-cyan-300 uppercase tracking-wider mb-0.5">Población en Agua</p>
-          <p className="text-xl font-black text-cyan-300 tracking-tight">{formatNumber(kpiStats.orgsRemanentes)}</p>
-          <p className="text-[10px] text-cyan-300/80 mt-0.5">Activos en estanques</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-2.5 rounded-xl bg-orange-900/40 border border-orange-700/40 mb-2 flex items-center justify-center">
-            <BarChart2 className="w-5 h-5 text-orange-400" />
-          </div>
-          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Peso Promedio Venta</p>
-          <p className="text-xl font-extrabold text-white tracking-tight">{formatNumber(kpiStats.pesoPromedio)} g</p>
-          <p className="text-[10px] text-blue-300 mt-0.5">Cosecha ponderada</p>
-        </div>
-
-        <div className="bg-[#0B4075] p-4 rounded-2xl shadow-sm border border-[#125699] flex flex-col items-center justify-center text-center transition-all hover:shadow-md hover:-translate-y-0.5">
-          <div className="p-2.5 rounded-xl bg-cyan-900/40 border border-cyan-700/40 mb-2 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-cyan-400" />
-          </div>
-          <p className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider mb-0.5">Rendimiento</p>
-          <p className="text-xl font-extrabold text-cyan-400 tracking-tight">
-            {kpiStats.rendimientoKgHa > 0 ? `${formatNumber(kpiStats.rendimientoKgHa)}` : '-'}
-          </p>
-          <p className="text-[10px] text-blue-300 mt-0.5">
-            {kpiStats.totalHectareas > 0 ? `${formatNumber(kpiStats.totalHectareas)} ha cosechadas` : 'kg por hectárea'}
+      {/* Top Banner / Summary */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#093661] p-6 rounded-2xl border border-[#125699] shadow-lg">
+        <div>
+          <h2 className="text-2xl font-black text-white flex items-center gap-3">
+            <Scale className="w-8 h-8 text-amber-400" />
+            <span>Ciclo de Cosechas y Pre-cosechas</span>
+          </h2>
+          <p className="text-sm text-blue-200 mt-1">
+            Gestión detallada de eventos de extracción parcial (Pre 1 a Pre 5) y cosechas finales por estanque.
           </p>
         </div>
-      </div>
 
-      {/* Registration/Edit Form */}
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-[#0B4075] p-6 rounded-xl border border-[#1963ad] shadow-lg space-y-6">
-          <div className="flex justify-between items-center border-b border-[#125699] pb-3">
-            <h3 className="text-md font-bold text-white flex items-center gap-2">
-              <span>⚖️</span> {editingHarvest ? 'Editar Cosecha Registrada' : 'Nuevo Registro de Cosecha'}
-            </h3>
-            <button type="button" onClick={handleResetForm} className="text-blue-200 hover:text-white transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Core Info (Granja, Estanque, Fecha) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-blue-200 uppercase mb-1.5">Granja *</label>
-              <select
-                value={formGranja}
-                onChange={(e) => setFormGranja(e.target.value)}
-                required
-                className="w-full bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-              >
-                <option value="">Seleccione Granja</option>
-                {uniqueGranjas.map(g => <option key={g} value={g}>{g}</option>)}
-                <option value="OTRA">-- Crear Nueva Granja --</option>
-              </select>
-              {formGranja === 'OTRA' && (
-                <input
-                  type="text"
-                  placeholder="Nombre de la Granja"
-                  onChange={(e) => setFormGranja(e.target.value)}
-                  className="mt-2 w-full bg-[#0E4680] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-blue-200 uppercase mb-1.5">Estanque *</label>
-              <select
-                value={formEstanque}
-                onChange={(e) => setFormEstanque(e.target.value)}
-                required
-                className="w-full bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-              >
-                <option value="">Seleccione Estanque</option>
-                {uniqueEstanques.map(e => <option key={e} value={e}>Estanque {e}</option>)}
-                <option value="OTRO">-- Crear Nuevo Estanque --</option>
-              </select>
-              {formEstanque === 'OTRO' && (
-                <input
-                  type="text"
-                  placeholder="Número de Estanque"
-                  onChange={(e) => setFormEstanque(e.target.value)}
-                  className="mt-2 w-full bg-[#0E4680] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-blue-200 uppercase mb-1.5">Fecha de Evento *</label>
-              <input
-                type="date"
-                value={formFecha}
-                onChange={(e) => setFormFecha(e.target.value)}
-                required
-                className="w-full bg-[#125699] text-white border-none rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-400"
-              />
-            </div>
-          </div>
-
-          {/* Harvesting Stages (Divided into nice sections: 5 pre-harvests + final harvest) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-            
-            {/* Stage 1: Pre-Cosecha 1 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span>1ra Pre-Cosecha</span>
-                {pondStats && pondStats.sembrados > 0 && (parseInt(pre1Organismos) || calculatedPre1Org) > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                    {(((parseInt(pre1Organismos) || calculatedPre1Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
-                  </span>
-                )}
-              </h4>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1">Fecha 1</label>
-                <input
-                  type="date"
-                  value={fecha1}
-                  onChange={(e) => setFecha1(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 2380"
-                    value={pre1Kilos}
-                    onChange={(e) => setPre1Kilos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 14.7"
-                    value={pre1Gramos}
-                    onChange={(e) => setPre1Gramos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Org Totales (calculados)</span>
-                  {calculatedPre1Org > 0 && (
-                    <button 
-                      type="button" 
-                      onClick={fillComputedPre1}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                    >
-                      Copiar {calculatedPre1Org}
-                    </button>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  placeholder="Sustituir / introducir directo"
-                  value={pre1Organismos}
-                  onChange={(e) => setPre1Organismos(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-            </div>
-
-            {/* Stage 2: Pre-Cosecha 2 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span>2da Pre-Cosecha</span>
-                {pondStats && pondStats.sembrados > 0 && (parseInt(pre2Organismos) || calculatedPre2Org) > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                    {(((parseInt(pre2Organismos) || calculatedPre2Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
-                  </span>
-                )}
-              </h4>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1">Fecha 2</label>
-                <input
-                  type="date"
-                  value={fecha2}
-                  onChange={(e) => setFecha2(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 756"
-                    value={pre2Kilos}
-                    onChange={(e) => setPre2Kilos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 20.55"
-                    value={pre2Gramos}
-                    onChange={(e) => setPre2Gramos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Org Totales (calculados)</span>
-                  {calculatedPre2Org > 0 && (
-                    <button 
-                      type="button" 
-                      onClick={fillComputedPre2}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                    >
-                      Copiar {calculatedPre2Org}
-                    </button>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  placeholder="Sustituir / introducir directo"
-                  value={pre2Organismos}
-                  onChange={(e) => setPre2Organismos(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-            </div>
-
-            {/* Stage 3: Pre-Cosecha 3 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span>3ra Pre-Cosecha</span>
-                {pondStats && pondStats.sembrados > 0 && (parseInt(pre3Organismos) || calculatedPre3Org) > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                    {(((parseInt(pre3Organismos) || calculatedPre3Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
-                  </span>
-                )}
-              </h4>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1">Fecha 3</label>
-                <input
-                  type="date"
-                  value={fecha3}
-                  onChange={(e) => setFecha3(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Kilos 3ra pre"
-                    value={pre3Kilos}
-                    onChange={(e) => setPre3Kilos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Gramos 3ra pre"
-                    value={pre3Gramos}
-                    onChange={(e) => setPre3Gramos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Org Totales (calculados)</span>
-                  {calculatedPre3Org > 0 && (
-                    <button 
-                      type="button" 
-                      onClick={fillComputedPre3}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                    >
-                      Copiar {calculatedPre3Org}
-                    </button>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  placeholder="Sustituir / introducir directo"
-                  value={pre3Organismos}
-                  onChange={(e) => setPre3Organismos(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-            </div>
-
-            {/* Stage 4: Pre-Cosecha 4 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-3">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span>4ta Pre-Cosecha / Final</span>
-                {pondStats && pondStats.sembrados > 0 && (parseInt(pre4Organismos) || calculatedPre4Org) > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                    {(((parseInt(pre4Organismos) || calculatedPre4Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
-                  </span>
-                )}
-              </h4>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1">Fecha 4</label>
-                <input
-                  type="date"
-                  value={fecha4}
-                  onChange={(e) => setFecha4(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Biomasa (Kg)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Kilos 4ta pre"
-                    value={pre4Kilos}
-                    onChange={(e) => setPre4Kilos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Peso (g)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Gramos 4ta pre"
-                    value={pre4Gramos}
-                    onChange={(e) => setPre4Gramos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Org Totales (calculados)</span>
-                  {calculatedPre4Org > 0 && (
-                    <button 
-                      type="button" 
-                      onClick={fillComputedPre4}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                    >
-                      Copiar {calculatedPre4Org}
-                    </button>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  placeholder="Sustituir / introducir directo"
-                  value={pre4Organismos}
-                  onChange={(e) => setPre4Organismos(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-            </div>
-
-            {/* Stage 5: Pre-Cosecha 5 */}
-            <div className="bg-[#0E4680] p-4 rounded-xl border border-[#125699] space-y-4">
-              <h4 className="text-sm font-bold text-blue-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span>5ta Pre-Cosecha</span>
-                {pondStats && pondStats.sembrados > 0 && (parseInt(pre5Organismos) || calculatedPre5Org) > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                    {(((parseInt(pre5Organismos) || calculatedPre5Org) / pondStats.sembrados) * 100).toFixed(1)}% estanque
-                  </span>
-                )}
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Kilos</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Kilos 5ta pre"
-                    value={pre5Kilos}
-                    onChange={(e) => setPre5Kilos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1">Gramos (Promedio)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Gramos 5ta pre"
-                    value={pre5Gramos}
-                    onChange={(e) => setPre5Gramos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Organismos calculados</span>
-                  {calculatedPre5Org > 0 && (
-                    <button 
-                      type="button" 
-                      onClick={fillComputedPre5}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                    >
-                      Copiar {calculatedPre5Org}
-                    </button>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  placeholder="Sustituir / introducir directo"
-                  value={pre5Organismos}
-                  onChange={(e) => setPre5Organismos(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-            </div>
-
-            {/* Stage 3: Cosecha Final */}
-            <div className="bg-[#0E4680]/90 p-4 rounded-xl border border-[#1963ad] space-y-4 shadow-sm">
-              <h4 className="text-sm font-bold text-indigo-300 border-b border-[#125699] pb-1.5 flex justify-between items-center">
-                <span className="flex items-center gap-1.5"><span>🎯</span> Cosecha Final</span>
-                {pondStats && pondStats.sembrados > 0 && (parseInt(finalOrganismos) || calculatedFinalOrg) > 0 && (
-                  <span className="text-[10px] font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
-                    {(((parseInt(finalOrganismos) || calculatedFinalOrg) / pondStats.sembrados) * 100).toFixed(1)}% estanque
-                  </span>
-                )}
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1 font-semibold">Peso Kilos</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 3600"
-                    value={finalKilos}
-                    onChange={(e) => setFinalKilos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400 font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-blue-200 mb-1 font-semibold">Gramos (Prom.)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 31.44"
-                    value={finalGramos}
-                    onChange={(e) => setFinalGramos(e.target.value)}
-                    className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400 font-semibold"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] text-blue-200 mb-1 flex justify-between items-center">
-                  <span>Organismos calculados</span>
-                  {calculatedFinalOrg > 0 && (
-                    <button 
-                      type="button" 
-                      onClick={fillComputedFinal}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                    >
-                      Copiar {calculatedFinalOrg}
-                    </button>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  placeholder="Sustituir / introducir directo"
-                  value={finalOrganismos}
-                  onChange={(e) => setFinalOrganismos(e.target.value)}
-                  className="w-full bg-[#125699] text-white border-none rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-400"
-                />
-              </div>
-            </div>
-
-          </div>
-
-          {/* Form Real-Time Computed Review Panel */}
-          <div className="bg-[#0A345C] p-4 rounded-xl border border-[#125699] flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
-                <p className="text-xs font-semibold text-blue-300">Resumen Proyectado de Cosecha:</p>
-                {pondStats && pondStats.sembrados > 0 && (
-                  <span className="text-[11px] font-medium text-blue-200 bg-blue-900/50 border border-blue-600/30 px-2 py-0.5 rounded-md">
-                    Estanque {formEstanque} ({formatNumber(pondStats.sembrados)} orgs. sembrados | Sobrev. {pondStats.surv}%)
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-white pt-1 justify-center sm:justify-start">
-                <span>
-                  Kilos Totales: <strong className="font-extrabold text-white text-base mr-2">{formatNumber(tempTotalKilos)} kg</strong>
-                </span>
-                <span>
-                  Organismos Totales: <strong className="font-extrabold text-indigo-300 text-base mr-2">{formatNumber(tempTotalOrganismos)} orgs.</strong>
-                </span>
-
-                {pondStats && pondStats.sembrados > 0 && tempTotalOrganismos > 0 && (
-                  <>
-                    <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full text-xs font-bold">
-                      📊 {((tempTotalOrganismos / pondStats.sembrados) * 100).toFixed(1)}% del Total Sembrado
-                    </span>
-                    {pondStats.pobVivaEst > 0 && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-full text-xs font-bold">
-                        🦐 {((tempTotalOrganismos / pondStats.pobVivaEst) * 100).toFixed(1)}% de Pob. Viva Est. ({formatNumber(pondStats.pobVivaEst)} orgs)
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleResetForm}
-                className="bg-slate-700 hover:bg-slate-800 text-blue-100 font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-sm transition-colors"
-              >
-                <Save className="w-4 h-4" />
-                <span>{editingHarvest ? 'Guardar Cambios' : 'Registrar'}</span>
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
-
-      {/* Hidden File Input for Excel Import */}
-      <input 
-        type="file" 
-        ref={harvestFileInputRef} 
-        onChange={handleHarvestExcelUpload} 
-        accept=".xlsx, .xls, .csv" 
-        className="hidden" 
-      />
-
-      {/* Multiple Farms / Phantom Data Alert Banner */}
-      {uniqueGranjas.length > 1 && (
-        <div className="bg-amber-950/40 border border-amber-500/40 p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200 text-xs">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>
-              Se detectaron registros de más de una granja en la memoria virtual: <strong>{uniqueGranjas.join(', ')}</strong>.
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {uniqueGranjas.map(g => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => {
-                  if (confirm(`¿Deseas eliminar todos los registros guardados de la granja "${g}" de la memoria?`)) {
-                    if (onDeleteByGranja) {
-                      onDeleteByGranja(g);
-                    } else {
-                      harvests.filter(h => h.granja === g).forEach(h => onDeleteHarvest(h.id));
-                    }
-                  }
-                }}
-                className="bg-amber-900/60 hover:bg-amber-700 border border-amber-600/50 text-amber-100 px-2.5 py-1 rounded text-xs transition-colors flex items-center gap-1 active:scale-95"
-                title={`Eliminar registros de ${g}`}
-              >
-                <Trash2 className="w-3 h-3 text-amber-300" />
-                <span>Borrar registros de {g}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Table Actions Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0A345C] p-4 rounded-xl border border-[#125699] shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">📋</span>
-          <div>
-            <h3 className="text-md font-bold text-white">Registros de Cosechas</h3>
-            <p className="text-xs text-blue-300">Historial completo y controles de captura para pre-cosechas y cosechas finales.</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-          <button 
-            type="button"
+        <div className="flex items-center gap-3 flex-wrap">
+          <input
+            type="file"
+            ref={harvestFileInputRef}
+            onChange={handleExcelUpload}
+            accept=".xlsx, .xls, .csv"
+            className="hidden"
+          />
+          <button
             onClick={() => harvestFileInputRef.current?.click()}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all shadow-md active:scale-95"
-            title="Importar y reemplazar directamente desde archivo Excel (.xlsx, .csv)"
+            className="bg-[#0B4075] hover:bg-[#125699] text-blue-100 border border-[#1B5CB3] px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm"
+            title="Importar pestaña de cosechas desde Excel"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Cargar Excel de Cosechas</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Cargar Excel</span>
           </button>
 
-          {harvests.length > 0 && (
-            <button 
-              type="button"
-              onClick={() => {
-                if (confirm('¿Deseas vaciar todos los registros de cosecha guardados en la memoria virtual para dejar la tabla limpia?')) {
-                  if (onClearAllHarvests) {
-                    onClearAllHarvests();
-                  } else {
-                    harvests.forEach(h => onDeleteHarvest(h.id));
-                  }
-                }
-              }}
-              className="flex items-center gap-1.5 bg-rose-950/60 hover:bg-rose-800 border border-rose-600/40 text-rose-200 hover:text-white px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all shadow-md active:scale-95"
-              title="Vaciar todas las cosechas guardadas en memoria"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Vaciar Tabla</span>
-            </button>
-          )}
-
-          <button 
-            type="button"
-            onClick={() => { handleResetForm(); setShowForm(true); }}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-md hover:shadow-lg active:scale-95"
+          <button
+            onClick={handleOpenCreate}
+            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all shadow-md shadow-amber-500/20 active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>Registrar Cosecha</span>
+            <span>+ Registrar Pre-cosecha</span>
           </button>
         </div>
       </div>
 
-      {/* Harvest records Table */}
-      <div className="bg-[#0B4075] rounded-xl border border-[#125699] shadow-sm overflow-hidden">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
+          <p className="text-xs text-blue-300 font-medium">Estanques Cosechados</p>
+          <p className="text-2xl font-black text-white mt-1">{stats.pondsCount}</p>
+          <p className="text-[11px] text-blue-400 mt-0.5">En ciclo actual</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
+          <p className="text-xs text-amber-300 font-medium">Kilos Pre-cosechas</p>
+          <p className="text-2xl font-black text-amber-400 mt-1">{formatNumber(stats.preK)} kg</p>
+          <p className="text-[11px] text-blue-400 mt-0.5">Raleos parciales</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
+          <p className="text-xs text-emerald-300 font-medium">Kilos Cosecha Final</p>
+          <p className="text-2xl font-black text-emerald-400 mt-1">{formatNumber(stats.finalK)} kg</p>
+          <p className="text-[11px] text-blue-400 mt-0.5">Vaciado final</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
+          <p className="text-xs text-cyan-300 font-medium">Total Extraído</p>
+          <p className="text-2xl font-black text-white mt-1">{formatNumber(stats.totK)} kg</p>
+          <p className="text-[11px] text-blue-400 mt-0.5">Biomasa cosechada</p>
+        </div>
+
+        <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm">
+          <p className="text-xs text-purple-300 font-medium">Peso Promedio Extraído</p>
+          <p className="text-2xl font-black text-purple-300 mt-1">{stats.avgWeight > 0 ? `${stats.avgWeight} g` : '-'}</p>
+          <p className="text-[11px] text-blue-400 mt-0.5">Ponderado global</p>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="bg-[#072C52] p-4 rounded-xl border border-[#125699] flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <label className="block text-xs font-semibold text-blue-200 mb-1">Filtrar por Granja:</label>
+            <select
+              value={granjaFilter}
+              onChange={(e) => { setGranjaFilter(e.target.value); setCurrentPage(1); }}
+              className="bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
+            >
+              <option value="">Todas las Granjas</option>
+              {uniqueGranjas.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-blue-200 mb-1">Filtrar por Estanque:</label>
+            <input
+              type="text"
+              placeholder="Ej. 11, 2, 4..."
+              value={estanqueFilter}
+              onChange={(e) => { setEstanqueFilter(e.target.value); setCurrentPage(1); }}
+              className="bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none w-36 placeholder-blue-300"
+            />
+          </div>
+        </div>
+
+        <div className="text-xs text-blue-300">
+          Mostrando {filteredHarvests.length} registro(s) de cosechas
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-[#0B4075] rounded-xl border border-[#125699] overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
-          <table className="w-full text-center border-collapse text-[11px]">
-            <thead>
-              <tr className="bg-[#0A345C] text-slate-100 text-[10px] uppercase tracking-wider font-extrabold border-b border-[#125699]">
-                <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-left align-middle font-bold text-slate-200">Acciones</th>
-                <th rowSpan={2} className="px-3 py-3 border-r border-[#125699] text-left align-middle font-bold text-slate-200">Granja</th>
-                <th rowSpan={2} className="px-2.5 py-3 border-r border-[#125699] text-center align-middle font-bold text-slate-200">Estanque</th>
-                
-                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">1ra Pre-Cosecha</th>
-                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/30 text-center text-[9px] font-extrabold uppercase tracking-widest text-slate-300">2da Pre-Cosecha</th>
-                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#93c5fd]">3ra Pre-Cosecha</th>
-                <th colSpan={4} className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/40 text-center text-[9px] font-extrabold uppercase tracking-widest text-[#a5b4fc]">4ta Pre-Cosecha / Final</th>
-                <th colSpan={7} className="px-2 py-1.5 bg-indigo-950/50 text-center text-[9px] font-extrabold uppercase tracking-widest text-indigo-200">Resumen Precosechado y Balance</th>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#072C52] text-blue-100 uppercase tracking-wider font-bold border-b border-[#125699]">
+              <tr>
+                <th className="px-3 py-3 border-r border-[#125699]">Granja</th>
+                <th className="px-3 py-3 border-r border-[#125699]">Est.</th>
+                <th className="px-3 py-3 border-r border-[#125699]">Fecha</th>
+                <th className="px-3 py-3 border-r border-[#125699] bg-amber-950/30 text-amber-300 text-center" colSpan={3}>Pre-Cosecha 1</th>
+                <th className="px-3 py-3 border-r border-[#125699] bg-amber-950/20 text-amber-200 text-center" colSpan={3}>Pre-Cosecha 2</th>
+                <th className="px-3 py-3 border-r border-[#125699] bg-blue-950/30 text-blue-200 text-center" colSpan={3}>Cosecha Final</th>
+                <th className="px-3 py-3 border-r border-[#125699] text-emerald-300 text-right">Total Kg</th>
+                <th className="px-3 py-3 border-r border-[#125699] text-cyan-300 text-right">Total Org</th>
+                <th className="px-3 py-3 border-r border-[#125699] text-purple-300 text-right">Prom. g</th>
+                <th className="px-3 py-3 text-center">Acciones</th>
               </tr>
-              <tr className="bg-[#0D4075] text-slate-200 text-[9px] font-bold uppercase tracking-wider border-b border-[#125699] text-center">
-                {/* 1ra Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Fecha 1</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Biomasa (Kg)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Org Totales</th>
-                
-                {/* 2da Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Fecha 2</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Biomasa (Kg)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Org Totales</th>
-
-                {/* 3ra Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Fecha 3</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium">Biomasa (Kg)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#0E4680]/40 font-medium text-blue-300">Org Totales</th>
-
-                {/* 4ta Pre-cosecha Column Subheaders */}
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Fecha 4</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Peso (g)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium">Biomasa (Kg)</th>
-                <th className="px-2 py-1.5 border-r border-[#125699] bg-[#125699]/20 font-medium text-slate-300">Org Totales</th>
-
-                {/* Totales Column Subheaders */}
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Biomasa (Kg)</th>
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Org Totales</th>
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Peso Prom (g)</th>
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-emerald-950/60 text-emerald-300">Biomasa en Agua</th>
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-cyan-950/60 text-cyan-300">Org en Agua</th>
-                <th className="px-2.5 py-1.5 border-r border-[#125699] bg-indigo-950/40 text-indigo-200">Sobrevivencia</th>
-                <th className="px-2.5 py-1.5 bg-indigo-950/40 text-indigo-200">Rend (Kg/Ha)</th>
+              <tr className="bg-[#062444] text-[10px] text-blue-300 border-b border-[#125699]">
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                {/* Pre 1 */}
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Kilos</th>
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Gramos</th>
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Org</th>
+                {/* Pre 2 */}
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Kilos</th>
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Gramos</th>
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Org</th>
+                {/* Final */}
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Kilos</th>
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Gramos</th>
+                <th className="px-2 py-1.5 text-right border-r border-[#125699]">Org</th>
+                {/* Totals */}
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#125699]/60">
               {paginatedHarvests.length === 0 ? (
                 <tr>
-                  <td colSpan={26} className="px-4 py-8 text-center text-slate-400 italic text-xs">No hay registros de cosechas.</td>
+                  <td colSpan={16} className="py-12 text-center text-blue-300">
+                    No se encontraron registros de cosechas. Puedes agregar uno nuevo con el botón "+ Registrar Pre-cosecha".
+                  </td>
                 </tr>
               ) : (
                 paginatedHarvests.map((h) => {
-                  const pond = getPondData(h.granja, h.estanque);
-                  const pondHa = pond?.hectareas || 0;
-                  const pondSembrados = pond?.sembrados || 0;
+                  const p1k = Number(h.pre1Kilos) || 0;
+                  const p1g = Number(h.pre1Gramos) || 0;
+                  const p1o = Number(h.pre1Organismos) || 0;
 
-                  const p1Kilos = parseFlexibleNumber(h.pre1Kilos);
-                  const p1Gramos = parseFlexibleNumber(h.pre1Gramos);
-                  const p1Org = calculateStageOrganismos(p1Kilos, p1Gramos, h.pre1Organismos);
+                  const p2k = Number(h.pre2Kilos) || 0;
+                  const p2g = Number(h.pre2Gramos) || 0;
+                  const p2o = Number(h.pre2Organismos) || 0;
 
-                  const p2Kilos = parseFlexibleNumber(h.pre2Kilos);
-                  const p2Gramos = parseFlexibleNumber(h.pre2Gramos);
-                  const p2Org = calculateStageOrganismos(p2Kilos, p2Gramos, h.pre2Organismos);
+                  const fk = Number(h.finalKilos) || 0;
+                  const fg = Number(h.finalGramos) || 0;
+                  const fo = Number(h.finalOrganismos) || 0;
 
-                  const p3Kilos = parseFlexibleNumber(h.pre3Kilos);
-                  const p3Gramos = parseFlexibleNumber(h.pre3Gramos);
-                  const p3Org = calculateStageOrganismos(p3Kilos, p3Gramos, h.pre3Organismos);
-
-                  const p4Kilos = parseFlexibleNumber(h.pre4Kilos || h.finalKilos);
-                  const p4Gramos = parseFlexibleNumber(h.pre4Gramos || h.finalGramos);
-                  const p4Org = calculateStageOrganismos(p4Kilos, p4Gramos, h.pre4Organismos || h.finalOrganismos);
-
-                  const p5Kilos = parseFlexibleNumber(h.pre5Kilos);
-                  const p5Gramos = parseFlexibleNumber(h.pre5Gramos);
-                  const p5Org = calculateStageOrganismos(p5Kilos, p5Gramos, h.pre5Organismos);
-
-                  const effectiveTotalKilos = (h.totalKilos && parseFlexibleNumber(h.totalKilos) > 0)
-                    ? parseFlexibleNumber(h.totalKilos)
-                    : (p1Kilos + p2Kilos + p3Kilos + p4Kilos + p5Kilos);
-
-                  const effectiveTotalOrg = (h.totalOrganismos && parseFlexibleNumber(h.totalOrganismos) > 0)
-                    ? parseFlexibleNumber(h.totalOrganismos)
-                    : (p1Org + p2Org + p3Org + p4Org + p5Org);
-                  
-                  const avgWeight = h.pesoPromedioPrecosechado || (effectiveTotalKilos > 0 && effectiveTotalOrg > 0 
-                    ? Number(((effectiveTotalKilos * 1000) / effectiveTotalOrg).toFixed(1)) 
-                    : 0);
-                  
-                  let rawSurv = parseFlexibleNumber(h.sobrevivenciaFinal);
-                  if (rawSurv > 0 && rawSurv <= 1) {
-                    rawSurv = rawSurv * 100;
-                  }
-
-                  const calculatedSurv = rawSurv 
-                    ? Number(rawSurv.toFixed(1)) 
-                    : (pondSembrados > 0 && effectiveTotalOrg > 0 
-                        ? Number(((effectiveTotalOrg / pondSembrados) * 100).toFixed(1)) 
-                        : null);
-
-                  const rendKgHa = pondHa > 0 && effectiveTotalKilos > 0 
-                    ? Math.round(effectiveTotalKilos / pondHa) 
-                    : null;
-
-                  const bioInicial = Number(pond?.biomasaTotal) || 0;
-                  const bioEnAgua = bioInicial > 0 ? Math.max(0, bioInicial - effectiveTotalKilos) : null;
-                  const pctBioEnAgua = bioInicial > 0 ? Math.round((bioEnAgua! / bioInicial) * 100) : null;
-
-                  const orgInicial = Number(pond?.densidadActual) || Number(pond?.sembrados) || 0;
-                  const orgEnAgua = orgInicial > 0 ? Math.max(0, orgInicial - effectiveTotalOrg) : null;
+                  const totK = Number(h.totalKilos) || (p1k + p2k + fk);
+                  const totO = Number(h.totalOrganismos) || (p1o + p2o + fo);
+                  const avgG = Number(h.pesoPromedioPrecosechado) || (totK > 0 && totO > 0 ? (totK * 1000) / totO : 0);
 
                   return (
-                    <tr key={h.id} className="hover:bg-[#125699]/20 transition-colors text-center text-[10.5px] whitespace-nowrap text-blue-100/90">
-                      <td className="px-2 py-2 border-r border-[#125699]/40 text-left align-middle">
-                        <div className="flex items-center gap-1 justify-start">
-                          <button 
-                            onClick={() => handleStartEdit(h)}
-                            className="text-blue-300 hover:text-white hover:bg-blue-600 bg-blue-900/30 border border-blue-700/20 p-1 rounded-md transition-colors"
-                            title="Editar Registro"
+                    <tr key={h.id} className="hover:bg-[#0E4680]/60 transition-colors">
+                      <td className="px-3 py-2.5 font-bold text-white border-r border-[#125699] whitespace-nowrap">
+                        {h.granja}
+                      </td>
+                      <td className="px-3 py-2.5 font-bold text-amber-300 border-r border-[#125699] whitespace-nowrap">
+                        E{normalizeEstanque(h.estanque)}
+                      </td>
+                      <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699] whitespace-nowrap">
+                        {h.fecha1 || h.fecha || '-'}
+                      </td>
+
+                      {/* Pre 1 */}
+                      <td className="px-2 py-2.5 text-right font-medium text-amber-300 border-r border-[#125699]/40 bg-amber-950/10">
+                        {p1k > 0 ? formatNumber(p1k) : '-'}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]/40 bg-amber-950/10">
+                        {p1g > 0 ? `${p1g} g` : '-'}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-400 border-r border-[#125699] bg-amber-950/10">
+                        {p1o > 0 ? formatNumber(p1o) : '-'}
+                      </td>
+
+                      {/* Pre 2 */}
+                      <td className="px-2 py-2.5 text-right font-medium text-amber-200 border-r border-[#125699]/40 bg-amber-950/5">
+                        {p2k > 0 ? formatNumber(p2k) : '-'}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]/40 bg-amber-950/5">
+                        {p2g > 0 ? `${p2g} g` : '-'}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-400 border-r border-[#125699] bg-amber-950/5">
+                        {p2o > 0 ? formatNumber(p2o) : '-'}
+                      </td>
+
+                      {/* Final */}
+                      <td className="px-2 py-2.5 text-right font-medium text-blue-200 border-r border-[#125699]/40 bg-blue-950/10">
+                        {fk > 0 ? formatNumber(fk) : '-'}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]/40 bg-blue-950/10">
+                        {fg > 0 ? `${fg} g` : '-'}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-400 border-r border-[#125699] bg-blue-950/10">
+                        {fo > 0 ? formatNumber(fo) : '-'}
+                      </td>
+
+                      {/* Totals */}
+                      <td className="px-3 py-2.5 text-right font-black text-emerald-300 border-r border-[#125699] whitespace-nowrap">
+                        {formatNumber(totK)} kg
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-bold text-cyan-300 border-r border-[#125699] whitespace-nowrap">
+                        {formatNumber(totO)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-bold text-purple-300 border-r border-[#125699] whitespace-nowrap">
+                        {avgG > 0 ? `${avgG.toFixed(2)} g` : '-'}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handleOpenEdit(h)}
+                            className="p-1 hover:bg-blue-600/50 rounded text-blue-300 hover:text-white transition-colors"
+                            title="Editar registro"
                           >
-                            <Edit2 className="w-3 h-3" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
-                              if (confirm('¿Está seguro de eliminar esta cosecha?')) {
+                              if (confirm(`¿Eliminar registro de cosecha para Estanque ${h.estanque} (${h.granja})?`)) {
                                 onDeleteHarvest(h.id);
                               }
                             }}
-                            className="text-red-400 hover:text-white hover:bg-red-600 bg-red-900/30 border border-red-700/20 p-1 rounded-md transition-colors"
-                            title="Eliminar Registro"
+                            className="p-1 hover:bg-red-600/50 rounded text-red-300 hover:text-white transition-colors"
+                            title="Eliminar registro"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </td>
-                      <td className="px-3 py-2 border-r border-[#125699]/40 text-left font-semibold text-slate-100 align-middle truncate max-w-[120px]">{h.granja}</td>
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-white align-middle">{h.estanque}</td>
-                      
-                      {/* 1ra Pre-cosecha Cells */}
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-blue-200 text-[10px]">{formatDate(h.fecha1 || h.fecha)}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{p1Gramos > 0 ? formatNumber(p1Gramos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{p1Kilos > 0 ? formatNumber(p1Kilos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{p1Org > 0 ? formatNumber(p1Org) : '-'}</td>
-                      
-                      {/* 2da Pre-cosecha Cells */}
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-blue-200 text-[10px]">{h.fecha2 ? formatDate(h.fecha2) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{p2Gramos > 0 ? formatNumber(p2Gramos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{p2Kilos > 0 ? formatNumber(p2Kilos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{p2Org > 0 ? formatNumber(p2Org) : '-'}</td>
-                      
-                      {/* 3ra Pre-cosecha Cells */}
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-blue-200 text-[10px]">{h.fecha3 ? formatDate(h.fecha3) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-300 font-medium">{p3Gramos > 0 ? formatNumber(p3Gramos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/15 align-middle text-slate-200">{p3Kilos > 0 ? formatNumber(p3Kilos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 bg-[#0E4680]/20 align-middle text-blue-300 font-mono text-[10px]">{p3Org > 0 ? formatNumber(p3Org) : '-'}</td>
-
-                      {/* 4ta Pre-cosecha Cells */}
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-blue-200 text-[10px]">{h.fecha4 ? formatDate(h.fecha4) : (h.fechaFinal ? formatDate(h.fechaFinal) : '-')}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-medium">{p4Gramos > 0 ? formatNumber(p4Gramos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-200">{p4Kilos > 0 ? formatNumber(p4Kilos) : '-'}</td>
-                      <td className="px-2 py-2 border-r border-[#125699]/40 align-middle text-slate-300 font-mono text-[10px]">{p4Org > 0 ? formatNumber(p4Org) : '-'}</td>
-
-                      {/* Resumen Precosecha Cells */}
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-emerald-300 bg-indigo-950/30 align-middle">{formatNumber(effectiveTotalKilos)} kg</td>
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-extrabold text-[#818cf8] bg-indigo-950/30 align-middle font-mono text-[10px]">{formatNumber(effectiveTotalOrg)}</td>
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-amber-300 bg-indigo-950/30 align-middle">{avgWeight ? `${formatNumber(avgWeight)} g` : '-'}</td>
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-black text-emerald-400 bg-emerald-950/40 align-middle">
-                        {bioEnAgua !== null ? (
-                          <div>
-                            <span>{formatNumber(bioEnAgua)} kg</span>
-                            {pctBioEnAgua !== null && (
-                              <span className="block text-[9px] text-emerald-300/80 font-normal">{pctBioEnAgua}% remanente</span>
-                            )}
-                          </div>
-                        ) : '-'}
-                      </td>
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold text-cyan-300 bg-cyan-950/40 align-middle font-mono text-[10px]">
-                        {orgEnAgua !== null ? formatNumber(orgEnAgua) : '-'}
-                      </td>
-                      <td className="px-2.5 py-2 border-r border-[#125699]/40 font-bold bg-indigo-950/30 align-middle">
-                        {calculatedSurv ? (
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${
-                            calculatedSurv >= 65 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
-                          }`}>
-                            {calculatedSurv}%
-                          </span>
-                        ) : '-'}
-                      </td>
-                      <td className="px-2.5 py-2 bg-indigo-950/30 font-semibold text-cyan-300 align-middle">
-                        {rendKgHa ? `${formatNumber(rendKgHa)}` : '-'}
                       </td>
                     </tr>
                   );
@@ -1691,479 +591,287 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
           </table>
         </div>
 
-        {/* Pagination Toolbar */}
+        {/* Pagination Footer */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[#125699] px-4 py-3 bg-[#0B4075]">
-            <div className="flex flex-1 justify-between sm:hidden w-full">
+          <div className="px-4 py-3 bg-[#072C52] border-t border-[#125699] flex items-center justify-between">
+            <span className="text-xs text-blue-300">
+              Página {currentPage} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="relative inline-flex items-center rounded-md bg-[#125699] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a6ebd] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1 rounded bg-[#0B4075] text-white disabled:opacity-40"
               >
-                Anterior
+                <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="relative ml-2 inline-flex items-center rounded-md bg-[#125699] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a6ebd] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1 rounded bg-[#0B4075] text-white disabled:opacity-40"
               >
-                Siguiente
+                <ChevronRight className="w-4 h-4" />
               </button>
-            </div>
-            
-            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between w-full">
-              <div>
-                <p className="text-xs text-blue-200">
-                  Mostrando <span className="font-semibold text-white">{(currentPage - 1) * recordsPerPage + 1}</span> a{' '}
-                  <span className="font-semibold text-white">
-                    {Math.min(currentPage * recordsPerPage, filteredHarvests.length)}
-                  </span>{' '}
-                  de <span className="font-semibold text-white">{filteredHarvests.length}</span> cosechas
-                </p>
-              </div>
-              
-              <div>
-                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm border border-[#125699] bg-[#0E4680]" aria-label="Pagination">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-blue-200 hover:bg-[#125699] focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">Anterior</span>
-                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold focus:z-20 focus:outline-[#125699] ${
-                        currentPage === page
-                          ? 'bg-indigo-600 text-white z-10'
-                          : 'text-blue-200 hover:bg-[#125699]'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-blue-200 hover:bg-[#125699] focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">Siguiente</span>
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </nav>
-              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Gráficos de Cosechas (100% Independientes con Filtros Locales) */}
-      <div className="mt-8 mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <BarChart2 className="w-5 h-5 text-indigo-400" />
-              Gráfico de Ciclo de Cosechas
-            </h2>
-            <p className="text-xs text-blue-200 mt-0.5">
-              Visualizando {harvestChartData.length} registros según los filtros de Granja y Estanque seleccionados
-            </p>
-          </div>
-          
-          <div className="flex bg-[#0B4075] rounded-lg p-1 border border-[#125699] flex-wrap gap-1">
-            <button 
-              onClick={() => setChartView('kilos')} 
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'kilos' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-            >
-              ⚖️ Kilos Totales
-            </button>
-            <button 
-              onClick={() => setChartView('organismos')} 
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'organismos' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-            >
-              📈 Organismos
-            </button>
-            <button 
-              onClick={() => setChartView('etapas')} 
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'etapas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-            >
-              📈 Desglose Etapas
-            </button>
-            <button 
-              onClick={() => setChartView('tallas')} 
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartView === 'tallas' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-            >
-              📈 Tallas Promedio
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-[#0B4075] p-6 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[420px]">
-          {chartView === 'kilos' && (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span className="text-blue-400">⚖️</span> Kilos Totales Cosechados (kg)
+      {/* Modal Form for Add/Edit */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#072C52] border border-[#1B5CB3] rounded-2xl w-full max-w-4xl p-6 shadow-2xl space-y-6 my-8">
+            <div className="flex items-center justify-between border-b border-[#125699] pb-4">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Scale className="w-5 h-5 text-amber-400" />
+                  <span>{editingHarvest ? 'Editar Cosecha / Pre-cosecha' : 'Registrar Nueva Pre-cosecha o Cosecha'}</span>
                 </h3>
-                <span className="text-xs text-blue-300">Total por estanque / fecha</span>
+                <p className="text-xs text-blue-300 mt-0.5">
+                  Captura las etapas de extracción por fecha, kilos y peso promedio.
+                </p>
               </div>
-              <div className="flex-1 min-h-0">
-                {harvestChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(15, 76, 138, 0.4)' }} 
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }} 
-                        formatter={(value: number) => [`${formatNumber(value)} kg`, 'Kilos Totales']} 
-                      />
-                      <Bar dataKey="totalKilos" name="Kilos Totales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                    <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                    <span>Sin registros de cosechas para los filtros seleccionados</span>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+              <button
+                onClick={() => setShowForm(false)}
+                className="p-1 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-          {chartView === 'organismos' && (
-            <>
-              <div className="flex items-center justify-between mb-4">
+            <form onSubmit={handleSave} className="space-y-6">
+              {/* General Pond Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#093661] p-4 rounded-xl border border-[#125699]">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span className="text-emerald-400">📈</span> 
-                    {isSinglePond 
-                      ? `Línea de Tiempo de Organismos por Etapa (${filteredHarvests[0]?.granja} - Estanque ${filteredHarvests[0]?.estanque})`
-                      : 'Organismos Cosechados Totales'}
-                  </h3>
-                  <span className="text-xs text-blue-300">
-                    {isSinglePond 
-                      ? 'Evolución de camarones cosechados en cada sacada a lo largo de las fechas'
-                      : (organismosChartType === 'line' ? 'Línea de tiempo cronológica de organismos cosechados por fecha' : 'Comparativa de organismos cosechados por estanque')}
-                  </span>
+                  <label className="block text-xs font-semibold text-blue-200 mb-1">Granja:</label>
+                  <select
+                    value={formGranja}
+                    onChange={(e) => {
+                      setFormGranja(e.target.value);
+                      setFormEstanque('');
+                    }}
+                    required
+                    className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  >
+                    <option value="">-- Seleccionar Granja --</option>
+                    {uniqueGranjas.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {!isSinglePond && (
-                  <div className="flex items-center bg-[#093661] p-1 rounded-lg border border-[#1a6ebd] text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setOrganismosChartType('line')}
-                      className={`px-2.5 py-1 rounded transition-colors font-medium ${organismosChartType === 'line' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                    >
-                      📈 Línea
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOrganismosChartType('bar')}
-                      className={`px-2.5 py-1 rounded transition-colors font-medium ${organismosChartType === 'bar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                    >
-                      📊 Barras
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 min-h-0">
-                {isSinglePond ? (
-                  singlePondTimelineData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={singlePondTimelineData} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                          formatter={(value: any, name: string, item: any) => {
-                            return [
-                              `${formatNumber(value)} org`,
-                              `Organismos (${item.payload.etapaCompleta})`
-                            ];
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="organismos"
-                          name="Organismos Cosechados"
-                          stroke="#10b981"
-                          strokeWidth={3}
-                          dot={{ r: 6, fill: '#059669', stroke: '#ffffff', strokeWidth: 2 }}
-                          activeDot={{ r: 8, fill: '#34d399' }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                      <span>Sin datos de organismos para este estanque</span>
-                    </div>
-                  )
-                ) : (
-                  harvestChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      {organismosChartType === 'line' ? (
-                        <LineChart data={harvestChartData} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                            formatter={(value: number) => [`${formatNumber(value)} org`, 'Total Organismos']}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="totalOrganismos"
-                            name="Organismos Totales"
-                            stroke="#10b981"
-                            strokeWidth={2.5}
-                            dot={{ r: 4, fill: '#10b981', stroke: '#0B4075', strokeWidth: 1.5 }}
-                            activeDot={{ r: 7, fill: '#34d399' }}
-                          />
-                        </LineChart>
-                      ) : (
-                        <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                          <Tooltip
-                            cursor={{ fill: 'rgba(15, 76, 138, 0.4)' }}
-                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                            formatter={(value: number) => [`${formatNumber(value)} org`, 'Organismos']}
-                          />
-                          <Bar dataKey="totalOrganismos" name="Organismos" fill="#10b981" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      )}
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                      <span>Sin registros de cosechas para los filtros seleccionados</span>
-                    </div>
-                  )
-                )}
-              </div>
-            </>
-          )}
-
-          {chartView === 'etapas' && (
-            <>
-              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span className="text-indigo-400">📊</span> 
-                    {isSinglePond 
-                      ? `Kilos Extraídos por Etapa (${filteredHarvests[0]?.granja} - Estanque ${filteredHarvests[0]?.estanque})`
-                      : 'Desglose de Kilos por Etapa (kg)'}
-                  </h3>
-                  <span className="text-xs text-blue-300">
-                    {isSinglePond 
-                      ? 'Biomasa cosechada en cada sacada a lo largo del tiempo'
-                      : (etapasChartType === 'stacked' ? 'Barras apiladas: Aporte de cada etapa al volumen total' : 'Líneas de evolución comparativa por etapa')}
-                  </span>
+                  <label className="block text-xs font-semibold text-blue-200 mb-1">Estanque:</label>
+                  {availableEstanques.length > 0 ? (
+                    <select
+                      value={formEstanque}
+                      onChange={(e) => setFormEstanque(e.target.value)}
+                      required
+                      className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                    >
+                      <option value="">-- Seleccionar --</option>
+                      {availableEstanques.map(e => (
+                        <option key={e} value={e}>Estanque {e}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Número de estanque"
+                      value={formEstanque}
+                      onChange={(e) => setFormEstanque(e.target.value)}
+                      required
+                      className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                    />
+                  )}
                 </div>
 
-                {!isSinglePond && (
-                  <div className="flex items-center bg-[#093661] p-1 rounded-lg border border-[#1a6ebd] text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setEtapasChartType('stacked')}
-                      className={`px-2.5 py-1 rounded transition-colors font-medium ${etapasChartType === 'stacked' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                    >
-                      📊 Barras Apiladas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEtapasChartType('line')}
-                      className={`px-2.5 py-1 rounded transition-colors font-medium ${etapasChartType === 'line' ? 'bg-indigo-600 text-white shadow-sm' : 'text-blue-200 hover:text-white'}`}
-                    >
-                      📈 Líneas
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 min-h-0">
-                {isSinglePond ? (
-                  singlePondTimelineData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={singlePondTimelineData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                          formatter={(value: any, name: string, item: any) => {
-                            return [
-                              `${formatNumber(value)} kg (${formatNumber(item.payload.organismos)} org)`,
-                              item.payload.etapaCompleta
-                            ];
-                          }}
-                        />
-                        <Bar dataKey="kilos" name="Kilos" radius={[6, 6, 0, 0]}>
-                          {singlePondTimelineData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                      <span>Sin datos de etapas para este estanque</span>
-                    </div>
-                  )
-                ) : (
-                  harvestChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      {etapasChartType === 'stacked' ? (
-                        <BarChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                            formatter={(value: any, name: string) => {
-                              if (!value) return ['-', name];
-                              return [`${formatNumber(value)} kg`, name];
-                            }}
-                          />
-                          <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
-                          <Bar dataKey="pre1Kilos" stackId="a" name="1ra Pre (kg)" fill="#60a5fa" />
-                          <Bar dataKey="pre2Kilos" stackId="a" name="2da Pre (kg)" fill="#34d399" />
-                          <Bar dataKey="pre3Kilos" stackId="a" name="3ra Pre (kg)" fill="#a78bfa" />
-                          <Bar dataKey="pre4Kilos" stackId="a" name="4ta Pre (kg)" fill="#f472b6" />
-                          <Bar dataKey="pre5Kilos" stackId="a" name="5ta Pre (kg)" fill="#fbbf24" />
-                          <Bar dataKey="finalKilos" stackId="a" name="Final (kg)" fill="#f97316" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      ) : (
-                        <LineChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => formatNumber(val)} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                            formatter={(value: any, name: string) => {
-                              if (value === null || value === undefined) return ['-', name];
-                              return [`${formatNumber(value)} kg`, name];
-                            }}
-                          />
-                          <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
-                          <Line type="monotone" dataKey="pre1Kilos" name="1ra Pre (kg)" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 4, fill: '#60a5fa', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                          <Line type="monotone" dataKey="pre2Kilos" name="2da Pre (kg)" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                          <Line type="monotone" dataKey="pre3Kilos" name="3ra Pre (kg)" stroke="#a78bfa" strokeWidth={2.5} dot={{ r: 4, fill: '#a78bfa', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                          <Line type="monotone" dataKey="pre4Kilos" name="4ta Pre (kg)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4, fill: '#f472b6', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                          <Line type="monotone" dataKey="pre5Kilos" name="5ta Pre (kg)" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 4, fill: '#fbbf24', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                          <Line type="monotone" dataKey="finalKilos" name="Final (kg)" stroke="#f97316" strokeWidth={2.5} dot={{ r: 4, fill: '#f97316', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                        </LineChart>
-                      )}
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                      <span>Sin registros de cosechas para los filtros seleccionados</span>
-                    </div>
-                  )
-                )}
-              </div>
-            </>
-          )}
-
-          {chartView === 'tallas' && (
-            <>
-              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span className="text-orange-400">📈</span> 
-                    {isSinglePond 
-                      ? `Curva de Crecimiento - Talla por Etapa (${filteredHarvests[0]?.granja} - Estanque ${filteredHarvests[0]?.estanque})`
-                      : 'Tallas Promedio por Etapa (g)'}
-                  </h3>
-                  <span className="text-xs text-blue-300">
-                    {isSinglePond 
-                      ? 'Evolución del peso individual del camarón entre etapas de pre-cosecha'
-                      : 'Comparativa lineal de pesos promedio de camarón por estanque'}
-                  </span>
+                  <label className="block text-xs font-semibold text-blue-200 mb-1">Fecha General:</label>
+                  <input
+                    type="date"
+                    value={formFecha}
+                    onChange={(e) => setFormFecha(e.target.value)}
+                    required
+                    className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none [color-scheme:dark]"
+                  />
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0">
-                {isSinglePond ? (
-                  singlePondTimelineData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={singlePondTimelineData} margin={{ top: 15, right: 25, left: 10, bottom: 25 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => `${val} g`} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                          formatter={(value: any, name: string, item: any) => {
-                            return [
-                              `${formatNumber(value)} g`,
-                              `Talla Promedio (${item.payload.etapaCompleta})`
-                            ];
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="gramos"
-                          name="Talla Promedio"
-                          stroke="#38bdf8"
-                          strokeWidth={3}
-                          dot={{ r: 6, fill: '#0284c7', stroke: '#ffffff', strokeWidth: 2 }}
-                          activeDot={{ r: 8, fill: '#38bdf8' }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                      <span>Sin datos de tallas para este estanque</span>
-                    </div>
-                  )
-                ) : (
-                  harvestChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={harvestChartData} margin={{ top: 10, right: 15, left: 10, bottom: 25 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-25} textAnchor="end" height={50} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(val) => `${val} g`} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: '8px', border: '1px solid #1a6ebd', backgroundColor: '#093661', color: '#fff' }}
-                          formatter={(value: any, name: string) => {
-                            if (value === null || value === undefined) return ['-', name];
-                            return [`${formatNumber(value)} g`, name];
-                          }}
-                        />
-                        <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px' }} />
-                        <Line type="monotone" dataKey="pre1Gramos" name="1ra Pre (g)" stroke="#818cf8" strokeWidth={2.5} dot={{ r: 4, fill: '#818cf8', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                        <Line type="monotone" dataKey="pre2Gramos" name="2da Pre (g)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4, fill: '#38bdf8', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                        <Line type="monotone" dataKey="pre3Gramos" name="3ra Pre (g)" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                        <Line type="monotone" dataKey="pre4Gramos" name="4ta Pre (g)" stroke="#fbbf24" strokeWidth={2.5} dot={{ r: 4, fill: '#fbbf24', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                        <Line type="monotone" dataKey="pre5Gramos" name="5ta Pre (g)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4, fill: '#f472b6', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                        <Line type="monotone" dataKey="finalGramos" name="Final (g)" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 4, fill: '#f43f5e', stroke: '#0B4075', strokeWidth: 1.5 }} activeDot={{ r: 6 }} connectNulls />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm italic">
-                      <BarChart2 className="w-8 h-8 text-blue-400 mb-2 opacity-50" />
-                      <span>Sin registros de cosechas para los filtros seleccionados</span>
-                    </div>
-                  )
-                )}
+              {/* Stage 1: Pre-cosecha 1 */}
+              <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] space-y-3">
+                <h4 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span>Pre-Cosecha 1 (Primer Raleo)</span>
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Fecha Pre 1:</label>
+                    <input
+                      type="date"
+                      value={fecha1}
+                      onChange={(e) => setFecha1(e.target.value)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs [color-scheme:dark]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Kilos Extraídos:</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej. 1152"
+                      value={pre1Kilos}
+                      onChange={(e) => handlePreKilosOrGramsChange(1, e.target.value, pre1Gramos)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Peso Promedio (g):</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej. 9.06"
+                      value={pre1Gramos}
+                      onChange={(e) => handlePreKilosOrGramsChange(1, pre1Kilos, e.target.value)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Organismos (Auto):</label>
+                    <input
+                      type="number"
+                      value={pre1Organismos}
+                      onChange={(e) => setPre1Organismos(e.target.value)}
+                      placeholder="Cálculo auto"
+                      className="w-full bg-[#051E38] text-cyan-300 font-semibold border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                </div>
               </div>
-            </>
-          )}
+
+              {/* Stage 2: Pre-cosecha 2 */}
+              <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] space-y-3">
+                <h4 className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-300"></span>
+                  <span>Pre-Cosecha 2 (Segundo Raleo - Opcional)</span>
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Fecha Pre 2:</label>
+                    <input
+                      type="date"
+                      value={fecha2}
+                      onChange={(e) => setFecha2(e.target.value)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs [color-scheme:dark]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Kilos Extraídos:</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej. 1324"
+                      value={pre2Kilos}
+                      onChange={(e) => handlePreKilosOrGramsChange(2, e.target.value, pre2Gramos)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Peso Promedio (g):</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej. 12.5"
+                      value={pre2Gramos}
+                      onChange={(e) => handlePreKilosOrGramsChange(2, pre2Kilos, e.target.value)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Organismos (Auto):</label>
+                    <input
+                      type="number"
+                      value={pre2Organismos}
+                      onChange={(e) => setPre2Organismos(e.target.value)}
+                      placeholder="Cálculo auto"
+                      className="w-full bg-[#051E38] text-cyan-300 font-semibold border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Stage Final: Cosecha Final */}
+              <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] space-y-3">
+                <h4 className="text-sm font-bold text-emerald-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span>Cosecha Final (Vaciado de Estanque)</span>
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Fecha Cosecha Final:</label>
+                    <input
+                      type="date"
+                      value={fechaFinal}
+                      onChange={(e) => setFechaFinal(e.target.value)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs [color-scheme:dark]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Kilos Finales:</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej. 5200"
+                      value={finalKilos}
+                      onChange={(e) => handlePreKilosOrGramsChange('final', e.target.value, finalGramos)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Peso Promedio Final (g):</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Ej. 17.5"
+                      value={finalGramos}
+                      onChange={(e) => handlePreKilosOrGramsChange('final', finalKilos, e.target.value)}
+                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-blue-200 mb-1">Organismos (Auto):</label>
+                    <input
+                      type="number"
+                      value={finalOrganismos}
+                      onChange={(e) => setFinalOrganismos(e.target.value)}
+                      placeholder="Cálculo auto"
+                      className="w-full bg-[#051E38] text-cyan-300 font-semibold border border-[#125699] rounded px-2.5 py-1.5 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#125699]">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-[#0B4075] hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Guardar Registro</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
-
+      )}
     </div>
   );
 };

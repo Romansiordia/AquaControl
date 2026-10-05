@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { PondRecord, EvaluationRecord } from '../types';
 import { calculateFeedProjection } from '../utils/feedCalculator';
@@ -47,7 +46,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
 
   const latestRecordsByPond = useMemo(() => {
     const latest = new Map<string, PondRecord>();
-    existingRecords.forEach(record => {
+    existingRecords.forEach((record) => {
       const key = `${record.granja}-${record.estanque}`;
       const current = latest.get(key);
       if (!current || record.diasCultivo > current.diasCultivo) {
@@ -55,7 +54,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
       }
     });
     return Array.from(latest.values()).sort((a, b) => {
-      if (a.granja === b.granja) return a.estanque.toString().localeCompare(b.estanque.toString(), undefined, {numeric: true});
+      if (a.granja === b.granja) return a.estanque.toString().localeCompare(b.estanque.toString(), undefined, { numeric: true });
       return a.granja.localeCompare(b.granja);
     });
   }, [existingRecords]);
@@ -64,10 +63,10 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     const key = e.target.value;
     if (!key) return;
     const [granja, estanque] = key.split('|');
-    const record = latestRecordsByPond.find(r => r.granja === granja && r.estanque.toString() === estanque);
-    
-        if (record) {
-      setForm(prev => ({
+    const record = latestRecordsByPond.find((r) => r.granja === granja && r.estanque.toString() === estanque);
+
+    if (record) {
+      setForm((prev) => ({
         ...prev,
         granja: record.granja,
         estanque: record.estanque.toString(),
@@ -88,13 +87,13 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
   };
 
   const uniqueGranjas = useMemo(() => {
-    const granjas = evaluations.map(e => String(e.granja)).filter(Boolean);
+    const granjas = evaluations.map((e) => String(e.granja)).filter(Boolean);
     return Array.from(new Set(granjas)).sort();
   }, [evaluations]);
 
   const uniqueAlimentos = useMemo(() => {
     const set = new Set<string>(['A.D.M.', 'ALAB', 'CARGILL', 'PURINA', 'SKRETTING', 'BASTIDA']);
-    existingRecords.forEach(r => {
+    existingRecords.forEach((r) => {
       if (r.alimento && r.alimento.trim()) set.add(r.alimento.trim());
     });
     return Array.from(set).sort();
@@ -107,27 +106,27 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    setForm(prev => {
+    setForm((prev) => {
       const updates = {
         ...prev,
         [name]: type === 'number' ? parseFloat(value) || 0 : value
       };
-      
+
       // Removed automatic fetching of fechaSiembra from evaluation on granja change
-      
+
       // Auto-calcular proyecciones de alimento si los campos relevantes cambian
       if (['pesoActual', 'densidadInicial', 'sobrevivencia'].includes(name)) {
         const totalOrganisms = updates.densidadInicial || 0;
         const survival = updates.sobrevivencia || 0;
         const weight = updates.pesoActual || 0;
-        
+
         if (totalOrganisms > 0 && weight > 0) {
           const projection = calculateFeedProjection(totalOrganisms, survival, weight);
           updates.alimentoProyectadoDia = projection.projectedDailyKg;
           updates.alimentoProyectadoSemana = projection.projectedWeeklyKg;
         }
       }
-      
+
       return updates;
     });
   };
@@ -144,19 +143,19 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
           </button>
         </div>
 
-        {latestRecordsByPond.length > 0 && (
-          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
+        {latestRecordsByPond.length > 0 &&
+        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
             <label className="block text-sm font-medium text-indigo-800 mb-2">Cargar datos desde estanque activo (Autocompletar)</label>
             <select onChange={handleLoadFromExisting} className="block w-full max-w-md rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white text-slate-900">
               <option value="" className="text-slate-500">-- Seleccionar Granja - Estanque --</option>
-              {latestRecordsByPond.map(r => (
-                <option key={`${r.granja}-${r.estanque}`} value={`${r.granja}|${r.estanque}`} className="text-slate-900">
+              {latestRecordsByPond.map((r) =>
+            <option key={`${r.granja}-${r.estanque}`} value={`${r.granja}|${r.estanque}`} className="text-slate-900">
                   {r.granja} - Estanque {r.estanque} (Último muestreo: {r.fecha})
                 </option>
-              ))}
+            )}
             </select>
           </div>
-        )}
+        }
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-4">
@@ -165,9 +164,9 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
               <label className="block text-sm font-medium text-slate-300">Granja</label>
               <select name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required>
                 <option value="" disabled>-- Selecciona una Granja --</option>
-                {uniqueGranjas.map(g => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
+                {uniqueGranjas.map((g) =>
+                <option key={g} value={g}>{g}</option>
+                )}
                 {uniqueGranjas.length === 0 && <option value="" disabled>No hay granjas evaluadas aún</option>}
               </select>
             </div>
@@ -213,20 +212,20 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
             <h3 className="font-semibold text-slate-400 uppercase text-xs tracking-wider">Densidad y Alimento</h3>
             <div>
               <label className="block text-sm font-medium text-slate-300">Tipo / Marca de Alimento</label>
-              <input 
-                type="text" 
-                name="alimento" 
-                list="alimentos-list" 
-                value={form.alimento || ''} 
-                onChange={handleChange} 
-                placeholder="Ej. A.D.M., CARGILL, ALAB..." 
-                className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" 
-                required 
-              />
+              <input
+                type="text"
+                name="alimento"
+                list="alimentos-list"
+                value={form.alimento || ''}
+                onChange={handleChange}
+                placeholder="Ej. A.D.M., CARGILL, ALAB..."
+                className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white"
+                required />
+              
               <datalist id="alimentos-list">
-                {uniqueAlimentos.map(a => (
-                  <option key={a} value={a} />
-                ))}
+                {uniqueAlimentos.map((a) =>
+                <option key={a} value={a} />
+                )}
               </datalist>
             </div>
             <div>
@@ -261,8 +260,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
           </div>
         </form>
       </div>
-    </div>
-  );
-};
+    </div>);
 
-export default PondForm;
+};export default PondForm;
+
