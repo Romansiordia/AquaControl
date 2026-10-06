@@ -7,6 +7,7 @@ interface Props {
   config: GoogleSheetsConfig;
   onUpdateConfig: (config: GoogleSheetsConfig) => void;
   onImportData?: (data: { production?: PondRecord[], evaluations?: any[], harvests?: HarvestRecord[] }) => void;
+  onClearAllLocalData?: () => void;
   data: {
     stocking?: StockingProgramRecord[];
     production: PondRecord[];
@@ -15,7 +16,7 @@ interface Props {
   };
 }
 
-const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportData, data }) => {
+const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportData, onClearAllLocalData, data }) => {
   const [url, setUrl] = useState(config.webAppUrl || '');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -99,6 +100,20 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
         const importedEvaluations = result.data?.evaluations || [];
         const importedHarvests = result.data?.harvests || [];
 
+        if (importedProduction.length === 0 && importedHarvests.length === 0) {
+          const confirmEmpty = confirm("En tu Google Sheets no hay registros (la hoja está vacía). ¿Deseas vaciar los datos del app para que coincidan con la hoja?");
+          if (confirmEmpty && onImportData) {
+            onImportData({
+              production: [],
+              evaluations: [],
+              harvests: []
+            });
+            setStatus('import_success');
+            alert("Se han vaciado los datos de la aplicación para coincidir con tu Google Sheets.");
+            return;
+          }
+        }
+
         if (onImportData) {
           onImportData({
             production: importedProduction,
@@ -124,7 +139,7 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
   };
 
   const appsScriptCode = `/**
- * CÓDIGO GOOGLE APPS SCRIPT PARA AQUACONTROL (Soporta Ciclo de Cosechas)
+ * CÓDIGO GOOGLE APPS SCRIPT PARA AQUACONTROL (Soporta Ciclo de Cosechas - ESCRITURA EN BLOQUE RÁPIDA)
  */
 function doPost(e) {
   try {
@@ -132,29 +147,31 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     if (data.action === 'sync_data') {
-      // 1. Sincronizar Produccion
+      // 1. Sincronizar Produccion de forma atómica sin parpadeos
       var sheetProd = ss.getSheetByName('Produccion') || ss.insertSheet('Produccion');
       sheetProd.clear();
+      var headersP = ["id", "granja", "estanque", "fecha", "hectareas", "pesoAnterior", "pesoActual", "incrementoSemanal", "diasCultivo", "sobrevivencia", "densidadActual", "biomasaTotal", "alimentoAcumulado", "fca"];
+      var rowsP = [headersP];
       if (data.production && data.production.length > 0) {
-        var headersP = ["id", "granja", "estanque", "fecha", "hectareas", "pesoAnterior", "pesoActual", "incrementoSemanal", "diasCultivo", "sobrevivencia", "densidadActual", "biomasaTotal", "alimentoAcumulado", "fca"];
-        sheetProd.appendRow(headersP);
         data.production.forEach(function(row) {
           var vals = headersP.map(function(h) { return (row[h] !== undefined && row[h] !== null) ? row[h] : ""; });
-          sheetProd.appendRow(vals);
+          rowsP.push(vals);
         });
       }
+      sheetProd.getRange(1, 1, rowsP.length, headersP.length).setValues(rowsP);
 
-      // 2. Sincronizar Ciclo de Cosechas
+      // 2. Sincronizar Ciclo de Cosechas de forma atómica sin parpadeos
       var sheetHarvest = ss.getSheetByName('Ciclo de Cosechas') || ss.insertSheet('Ciclo de Cosechas');
       sheetHarvest.clear();
+      var headersH = ["id", "granja", "estanque", "fecha", "pre1Kilos", "pre1Gramos", "pre1Organismos", "pre2Kilos", "pre2Gramos", "pre2Organismos", "finalKilos", "finalGramos", "finalOrganismos", "totalOrganismos", "totalKilos", "pesoPromedioPrecosechado"];
+      var rowsH = [headersH];
       if (data.harvests && data.harvests.length > 0) {
-        var headersH = ["id", "granja", "estanque", "fecha", "pre1Kilos", "pre1Gramos", "pre1Organismos", "pre2Kilos", "pre2Gramos", "pre2Organismos", "finalKilos", "finalGramos", "finalOrganismos", "totalOrganismos", "totalKilos", "pesoPromedioPrecosechado"];
-        sheetHarvest.appendRow(headersH);
         data.harvests.forEach(function(row) {
           var vals = headersH.map(function(h) { return row[h] !== undefined ? row[h] : ""; });
-          sheetHarvest.appendRow(vals);
+          rowsH.push(vals);
         });
       }
+      sheetHarvest.getRange(1, 1, rowsH.length, headersH.length).setValues(rowsH);
 
       return ContentService.createTextOutput(JSON.stringify({status: 'success'}))
         .setMimeType(ContentService.MimeType.JSON);
@@ -242,10 +259,26 @@ function doGet(e) {
               onClick={handleImport}
               disabled={isImporting || !url}
               className="bg-[#0B4075] hover:bg-[#125699] disabled:opacity-50 text-blue-100 border border-[#1B5CB3] font-bold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all shadow-sm"
+              title="Sincronizar datos desde tu hoja de Google Sheets"
             >
               <RefreshCw className={`w-4 h-4 ${isImporting ? 'animate-spin' : ''}`} />
-              <span>{isImporting ? 'Importando...' : 'Descargar Datos de Google Sheets'}</span>
+              <span>{isImporting ? 'Sincronizando...' : 'Sincronizar Datos'}</span>
             </button>
+
+            {onClearAllLocalData && (
+              <button
+                onClick={() => {
+                  if (confirm('¿Deseas vaciar completamente todos los datos locales del app (Producción, Cosechas y Evaluaciones)? Esta acción limpiará la memoria de la aplicación.')) {
+                    onClearAllLocalData();
+                    alert('Se han vaciado todos los datos del app.');
+                  }
+                }}
+                className="bg-red-950/40 hover:bg-red-900 text-red-300 border border-red-700/50 font-bold px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all ml-auto"
+                title="Vaciar la memoria del app para comenzar en blanco"
+              >
+                <span>Vaciar Memoria del App</span>
+              </button>
+            )}
           </div>
 
           {config.lastSync && (
@@ -264,7 +297,7 @@ function doGet(e) {
           {status === 'import_success' && (
             <div className="p-3 bg-cyan-900/30 border border-cyan-500/50 rounded-xl text-cyan-200 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-              <span>¡Datos importados con éxito desde Google Sheets!</span>
+              <span>¡Datos sincronizados con éxito desde Google Sheets!</span>
             </div>
           )}
 

@@ -8,6 +8,7 @@ interface ProductionProgramProps {
   onAdd: () => void;
   onEdit: (record: PondRecord) => void;
   onDelete: (id: string) => void;
+  onClearAll?: () => void;
   googleSheetsConfig?: GoogleSheetsConfig;
   onSyncNow?: () => Promise<void>;
   onOpenSyncConfig?: () => void;
@@ -18,6 +19,7 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
   onAdd,
   onEdit,
   onDelete,
+  onClearAll,
   googleSheetsConfig,
   onSyncNow,
   onOpenSyncConfig
@@ -166,6 +168,20 @@ const ProductionProgram: React.FC<ProductionProgramProps> = ({
                                 <span className="hidden md:inline">Configurar Sync</span>
                             </button>
             }
+
+                        {onClearAll && records.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (confirm('¿Estás seguro de que deseas eliminar TODOS los registros de producción? Esta acción vaciará la tabla por completo.')) {
+                                        onClearAll();
+                                    }
+                                }}
+                                className="flex items-center gap-1.5 bg-red-900/40 hover:bg-red-800 text-red-200 border border-red-700/50 px-3 py-2 rounded-lg font-medium text-sm transition-all shadow-sm"
+                                title="Eliminar todos los registros de producción">
+                                <Trash2 className="w-4 h-4 text-red-400" />
+                                <span className="hidden sm:inline">Vaciar Todo</span>
+                            </button>
+                        )}
 
                         <button
               onClick={onAdd}

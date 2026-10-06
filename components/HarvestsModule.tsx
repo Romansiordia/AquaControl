@@ -362,6 +362,21 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             <span>Cargar Excel</span>
           </button>
 
+          {onClearAllHarvests && harvests.length > 0 && (
+            <button
+              onClick={() => {
+                if (confirm('¿Estás seguro de que deseas eliminar TODOS los registros del Ciclo de Cosechas y Pre-cosechas?')) {
+                  onClearAllHarvests();
+                }
+              }}
+              className="bg-red-900/40 hover:bg-red-800 text-red-200 border border-red-700/50 px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+              title="Vaciar todos los registros de cosechas y pre-cosechas"
+            >
+              <Trash2 className="w-4 h-4 text-red-400" />
+              <span>Vaciar Cosechas</span>
+            </button>
+          )}
+
           <button
             onClick={handleOpenCreate}
             className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all shadow-md shadow-amber-500/20 active:scale-95"

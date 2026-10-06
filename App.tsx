@@ -21,10 +21,10 @@ import html2canvas from 'html2canvas';
 const App: React.FC = () => {
   const [actualRecords, setRecords] = useState<PondRecord[]>(() => {
     const saved = localStorage.getItem('camaronera_records');
-    if (saved) {
+    if (saved !== null) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed.map((r: any) => calculatePondMetrics(r));
         }
       } catch (e) {
@@ -257,8 +257,8 @@ const App: React.FC = () => {
   };
 
   const handleImportData = (importedData: { production?: PondRecord[], evaluations?: EvaluationRecord[], harvests?: HarvestRecord[] }, isLocal = false) => {
-    if (importedData.production && importedData.production.length > 0) {
-      const parsedRecords = importedData.production.map(r => calculatePondMetrics(r));
+    if (importedData.production !== undefined) {
+      const parsedRecords = (importedData.production || []).map(r => calculatePondMetrics(r));
       if (isLocal) {
         setLocalRecords(parsedRecords);
       } else {
@@ -267,17 +267,18 @@ const App: React.FC = () => {
       }
     }
 
-    if (importedData.evaluations && importedData.evaluations.length > 0) {
+    if (importedData.evaluations !== undefined) {
+      const evals = importedData.evaluations || [];
       if (isLocal) {
-        setLocalEvaluations(importedData.evaluations);
+        setLocalEvaluations(evals);
       } else {
-        setEvaluations(importedData.evaluations);
-        localStorage.setItem('camaronera_evaluations', JSON.stringify(importedData.evaluations));
+        setEvaluations(evals);
+        localStorage.setItem('camaronera_evaluations', JSON.stringify(evals));
       }
     }
 
-    if (importedData.harvests && importedData.harvests.length > 0) {
-      const normalizedH = importedData.harvests.map(h => normalizeHarvestRecord(h) || h);
+    if (importedData.harvests !== undefined) {
+      const normalizedH = (importedData.harvests || []).map(h => normalizeHarvestRecord(h) || h);
       if (isLocal) {
         setLocalHarvests(normalizedH);
       } else {
@@ -311,28 +312,38 @@ const App: React.FC = () => {
   // Harvest record actions
   const handleAddHarvest = (newHarvest: HarvestRecord) => {
     if (isLocalMode) return;
-    const updated = [newHarvest, ...harvests.filter(h => h.id !== newHarvest.id)];
+    const updated = [newHarvest, ...actualHarvests.filter(h => h.id !== newHarvest.id)];
     setHarvests(updated);
+    localStorage.setItem('camaronera_harvests', JSON.stringify(updated));
     syncDataToSheets(records, evaluations, updated);
   };
 
   const handleEditHarvest = (editedHarvest: HarvestRecord) => {
     if (isLocalMode) return;
-    const updated = harvests.map(h => h.id === editedHarvest.id ? editedHarvest : h);
+    const updated = actualHarvests.map(h => h.id === editedHarvest.id ? editedHarvest : h);
     setHarvests(updated);
+    localStorage.setItem('camaronera_harvests', JSON.stringify(updated));
     syncDataToSheets(records, evaluations, updated);
   };
 
   const handleDeleteHarvest = (id: string) => {
-    if (isLocalMode) return;
-    const updated = harvests.filter(h => h.id !== id);
+    if (isLocalMode) {
+      setLocalHarvests(prev => prev.filter(h => h.id !== id));
+      return;
+    }
+    const updated = actualHarvests.filter(h => h.id !== id);
     setHarvests(updated);
+    localStorage.setItem('camaronera_harvests', JSON.stringify(updated));
     syncDataToSheets(records, evaluations, updated);
   };
 
   const handleClearAllHarvests = () => {
-    if (isLocalMode) return;
+    if (isLocalMode) {
+      setLocalHarvests([]);
+      return;
+    }
     setHarvests([]);
+    localStorage.setItem('camaronera_harvests', JSON.stringify([]));
     syncDataToSheets(records, evaluations, []);
   };
 
@@ -341,6 +352,7 @@ const App: React.FC = () => {
       setLocalHarvests(newHarvests);
     } else {
       setHarvests(newHarvests);
+      localStorage.setItem('camaronera_harvests', JSON.stringify(newHarvests));
       syncDataToSheets(records, evaluations, newHarvests);
     }
   };
@@ -360,16 +372,44 @@ const App: React.FC = () => {
       updated = [newRecord, ...actualRecords];
     }
     setRecords(updated);
+    localStorage.setItem('camaronera_records', JSON.stringify(updated));
     setShowForm(false);
     setEditingRecord(null);
     syncDataToSheets(updated, evaluations, harvests);
   };
 
   const handleDeleteRecord = (id: string) => {
-    if (isLocalMode) return;
+    if (isLocalMode) {
+      setLocalRecords(prev => prev.filter(r => r.id !== id));
+      return;
+    }
     const updated = actualRecords.filter(r => r.id !== id);
     setRecords(updated);
+    localStorage.setItem('camaronera_records', JSON.stringify(updated));
     syncDataToSheets(updated, evaluations, harvests);
+  };
+
+  const handleClearAllRecords = () => {
+    if (isLocalMode) {
+      setLocalRecords([]);
+      return;
+    }
+    setRecords([]);
+    localStorage.setItem('camaronera_records', JSON.stringify([]));
+    syncDataToSheets([], evaluations, harvests);
+  };
+
+  const handleResetAllData = () => {
+    setLocalRecords([]);
+    setLocalEvaluations([]);
+    setLocalHarvests([]);
+    setRecords([]);
+    setEvaluations([]);
+    setHarvests([]);
+    localStorage.setItem('camaronera_records', JSON.stringify([]));
+    localStorage.setItem('camaronera_evaluations', JSON.stringify([]));
+    localStorage.setItem('camaronera_harvests', JSON.stringify([]));
+    syncDataToSheets([], [], []);
   };
 
   // Evaluation actions
@@ -382,14 +422,19 @@ const App: React.FC = () => {
     };
     const updated = [newEval, ...actualEvaluations];
     setEvaluations(updated);
+    localStorage.setItem('camaronera_evaluations', JSON.stringify(updated));
     setActiveView('evaluationsList');
     syncDataToSheets(records, updated, harvests);
   };
 
   const handleDeleteEvaluation = (id: string) => {
-    if (isLocalMode) return;
+    if (isLocalMode) {
+      setLocalEvaluations(prev => prev.filter(e => e.id !== id));
+      return;
+    }
     const updated = actualEvaluations.filter(e => e.id !== id);
     setEvaluations(updated);
+    localStorage.setItem('camaronera_evaluations', JSON.stringify(updated));
     syncDataToSheets(records, updated, harvests);
   };
 
@@ -447,8 +492,19 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col w-full min-w-0">
         {isLocalMode && (
-          <div className="bg-yellow-500 text-yellow-950 px-4 py-2 text-center text-xs font-bold shadow-md relative z-50 flex items-center justify-center gap-2">
-            <span>⚠️ Modo Local: Viendo datos de archivo. Edición bloqueada. Recarga la página para volver a la nube.</span>
+          <div className="bg-yellow-500 text-yellow-950 px-4 py-2 text-center text-xs font-bold shadow-md relative z-50 flex items-center justify-center gap-3">
+            <span>⚠️ Modo Local: Viendo datos cargados desde archivo local.</span>
+            <button
+              onClick={() => {
+                setIsLocalMode(false);
+                setLocalRecords([]);
+                setLocalEvaluations([]);
+                setLocalHarvests([]);
+              }}
+              className="bg-yellow-900 hover:bg-yellow-950 text-white px-2.5 py-1 rounded-md text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Salir de Modo Local (Volver a Datos de Nube)
+            </button>
           </div>
         )}
 
@@ -510,6 +566,7 @@ const App: React.FC = () => {
               onAdd={() => { setEditingRecord(null); setShowForm(true); }}
               onEdit={(rec) => { setEditingRecord(rec); setShowForm(true); }}
               onDelete={handleDeleteRecord}
+              onClearAll={handleClearAllRecords}
               googleSheetsConfig={googleSheetsConfig}
               onSyncNow={() => syncDataToSheets(records, evaluations, harvests)}
               onOpenSyncConfig={() => setActiveView('googleSync')}
@@ -559,6 +616,7 @@ const App: React.FC = () => {
               config={googleSheetsConfig}
               onUpdateConfig={isLocalMode ? () => alert("Modo local activo. Configuración bloqueada.") : setGoogleSheetsConfig}
               onImportData={isLocalMode ? () => alert("Modo local activo. Importación bloqueada.") : handleImportData}
+              onClearAllLocalData={handleResetAllData}
               data={{
                 production: records,
                 evaluations: evaluations,
