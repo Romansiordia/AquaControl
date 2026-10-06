@@ -363,15 +363,98 @@ export const getPondExtractions = (
   const stages: PondExtractionStage[] = [];
   let finalSurv: number | undefined = undefined;
 
-  // Si existen múltiples registros para el mismo estanque, tomar el más completo/representativo
-  // para evitar sumar dos veces el mismo ciclo de cosechas/precosechas.
-  const targetHarvests = matching.length <= 1 ? matching : [
-    matching.reduce((best, curr) => {
-      const bestK = parseFlexibleNumber(best.totalKilos) || (parseFlexibleNumber(best.pre1Kilos) + parseFlexibleNumber(best.pre2Kilos));
-      const currK = parseFlexibleNumber(curr.totalKilos) || (parseFlexibleNumber(curr.pre1Kilos) + parseFlexibleNumber(curr.pre2Kilos));
-      return currK >= bestK ? curr : best;
-    }, matching[0])
-  ];
+  // Si existen múltiples registros para el mismo estanque:
+  // Si son registros con diferentes etapas (por ejemplo, una fila con Pre-1 y otra fila con Pre-2),
+  // los fusionamos para no perder ninguna pre-cosecha.
+  let targetHarvests: HarvestRecord[] = [];
+  if (matching.length <= 1) {
+    targetHarvests = matching;
+  } else {
+    const merged: HarvestRecord = { ...matching[0] };
+    let hasMergedDistinctStages = false;
+
+    matching.forEach(h => {
+      // Pre 1
+      if ((parseFlexibleNumber(h.pre1Kilos) > 0 || parseFlexibleNumber(h.pre1Organismos) > 0) && !merged.pre1Kilos) {
+        merged.pre1Kilos = h.pre1Kilos;
+        merged.pre1Gramos = h.pre1Gramos;
+        merged.pre1Organismos = h.pre1Organismos;
+        merged.fecha1 = h.fecha1 || h.fecha;
+        hasMergedDistinctStages = true;
+      }
+      // Pre 2
+      if ((parseFlexibleNumber(h.pre2Kilos) > 0 || parseFlexibleNumber(h.pre2Organismos) > 0) && !merged.pre2Kilos) {
+        merged.pre2Kilos = h.pre2Kilos;
+        merged.pre2Gramos = h.pre2Gramos;
+        merged.pre2Organismos = h.pre2Organismos;
+        merged.fecha2 = h.fecha2 || (h.fecha && h.fecha !== merged.fecha1 ? h.fecha : undefined);
+        hasMergedDistinctStages = true;
+      }
+      // Pre 3
+      if ((parseFlexibleNumber(h.pre3Kilos) > 0 || parseFlexibleNumber(h.pre3Organismos) > 0) && !merged.pre3Kilos) {
+        merged.pre3Kilos = h.pre3Kilos;
+        merged.pre3Gramos = h.pre3Gramos;
+        merged.pre3Organismos = h.pre3Organismos;
+        merged.fecha3 = h.fecha3 || h.fecha;
+        hasMergedDistinctStages = true;
+      }
+      // Pre 4
+      if ((parseFlexibleNumber(h.pre4Kilos) > 0 || parseFlexibleNumber(h.pre4Organismos) > 0) && !merged.pre4Kilos) {
+        merged.pre4Kilos = h.pre4Kilos;
+        merged.pre4Gramos = h.pre4Gramos;
+        merged.pre4Organismos = h.pre4Organismos;
+        merged.fecha4 = h.fecha4 || h.fecha;
+        hasMergedDistinctStages = true;
+      }
+      // Pre 5
+      if ((parseFlexibleNumber(h.pre5Kilos) > 0 || parseFlexibleNumber(h.pre5Organismos) > 0) && !merged.pre5Kilos) {
+        merged.pre5Kilos = h.pre5Kilos;
+        merged.pre5Gramos = h.pre5Gramos;
+        merged.pre5Organismos = h.pre5Organismos;
+        merged.fecha5 = h.fecha5 || h.fecha;
+        hasMergedDistinctStages = true;
+      }
+      // Final
+      if ((parseFlexibleNumber(h.finalKilos) > 0 || parseFlexibleNumber(h.finalOrganismos) > 0) && !merged.finalKilos) {
+        merged.finalKilos = h.finalKilos;
+        merged.finalGramos = h.finalGramos;
+        merged.finalOrganismos = h.finalOrganismos;
+        merged.fechaFinal = h.fechaFinal || h.fecha;
+        hasMergedDistinctStages = true;
+      }
+      if (h.sobrevivenciaFinal) {
+        merged.sobrevivenciaFinal = h.sobrevivenciaFinal;
+      }
+    });
+
+    if (hasMergedDistinctStages) {
+      const p1k = parseFlexibleNumber(merged.pre1Kilos);
+      const p2k = parseFlexibleNumber(merged.pre2Kilos);
+      const p3k = parseFlexibleNumber(merged.pre3Kilos);
+      const p4k = parseFlexibleNumber(merged.pre4Kilos);
+      const p5k = parseFlexibleNumber(merged.pre5Kilos);
+      const fk = parseFlexibleNumber(merged.finalKilos);
+      merged.totalKilos = p1k + p2k + p3k + p4k + p5k + fk;
+
+      const p1o = parseFlexibleNumber(merged.pre1Organismos);
+      const p2o = parseFlexibleNumber(merged.pre2Organismos);
+      const p3o = parseFlexibleNumber(merged.pre3Organismos);
+      const p4o = parseFlexibleNumber(merged.pre4Organismos);
+      const p5o = parseFlexibleNumber(merged.pre5Organismos);
+      const fo = parseFlexibleNumber(merged.finalOrganismos);
+      merged.totalOrganismos = p1o + p2o + p3o + p4o + p5o + fo;
+
+      targetHarvests = [merged];
+    } else {
+      targetHarvests = [
+        matching.reduce((best, curr) => {
+          const bestK = parseFlexibleNumber(best.totalKilos) || (parseFlexibleNumber(best.pre1Kilos) + parseFlexibleNumber(best.pre2Kilos));
+          const currK = parseFlexibleNumber(curr.totalKilos) || (parseFlexibleNumber(curr.pre1Kilos) + parseFlexibleNumber(curr.pre2Kilos));
+          return currK >= bestK ? curr : best;
+        }, matching[0])
+      ];
+    }
+  }
 
   targetHarvests.forEach(h => {
     const rawStages: { name: string; dateStr?: string; kilos: number; gramos: number; org: number }[] = [];
@@ -387,12 +470,12 @@ export const getPondExtractions = (
       }
     };
 
-    checkStage('Pre-Cosecha 1', h.fecha1 || h.fecha, h.pre1Kilos, h.pre1Gramos, h.pre1Organismos);
-    checkStage('Pre-Cosecha 2', h.fecha2, h.pre2Kilos, h.pre2Gramos, h.pre2Organismos);
-    checkStage('Pre-Cosecha 3', h.fecha3, h.pre3Kilos, h.pre3Gramos, h.pre3Organismos);
-    checkStage('Pre-Cosecha 4', h.fecha4, h.pre4Kilos, h.pre4Gramos, h.pre4Organismos);
-    checkStage('Pre-Cosecha 5', h.fecha5, h.pre5Kilos, h.pre5Gramos, h.pre5Organismos);
-    checkStage('Cosecha Final', h.fechaFinal || h.fecha, h.finalKilos, h.finalGramos, h.finalOrganismos);
+    checkStage('Pre-Cosecha 1', h.fecha1 || (h.pre1Kilos ? h.fecha : undefined), h.pre1Kilos, h.pre1Gramos, h.pre1Organismos);
+    checkStage('Pre-Cosecha 2', h.fecha2 || (h.pre2Kilos && !h.pre1Kilos ? h.fecha : undefined), h.pre2Kilos, h.pre2Gramos, h.pre2Organismos);
+    checkStage('Pre-Cosecha 3', h.fecha3 || (h.pre3Kilos && !h.pre1Kilos && !h.pre2Kilos ? h.fecha : undefined), h.pre3Kilos, h.pre3Gramos, h.pre3Organismos);
+    checkStage('Pre-Cosecha 4', h.fecha4 || (h.pre4Kilos && !h.pre1Kilos && !h.pre2Kilos ? h.fecha : undefined), h.pre4Kilos, h.pre4Gramos, h.pre4Organismos);
+    checkStage('Pre-Cosecha 5', h.fecha5 || (h.pre5Kilos && !h.pre1Kilos && !h.pre2Kilos ? h.fecha : undefined), h.pre5Kilos, h.pre5Gramos, h.pre5Organismos);
+    checkStage('Cosecha Final', h.fechaFinal || (h.finalKilos && !h.pre1Kilos ? h.fecha : undefined), h.finalKilos, h.finalGramos, h.finalOrganismos);
 
     const declaredKilos = parseFlexibleNumber(h.totalKilos);
     const declaredOrg = parseFlexibleNumber(h.totalOrganismos);
