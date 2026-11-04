@@ -177,7 +177,8 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         fca: sumBiomasaTotal > 0 ? Number((sumAlimentoAcum / sumBiomasaTotal).toFixed(2)) : count > 0 ? Number((sumFca / count).toFixed(2)) : 0,
         biomasaAgua: Math.round(sumBiomasaAgua),
         precosechaExtraida: Math.round(sumPreKilos),
-        biomasaTotal: Math.round(sumBiomasaTotal)
+        biomasaTotal: Math.round(sumBiomasaTotal),
+        porcentajeCosechado: sumBiomasaTotal > 0 ? Number(((sumPreKilos / sumBiomasaTotal) * 100).toFixed(1)) : 0
       };
     });
   }, [enrichedRecords]);
@@ -231,7 +232,8 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         fca: Number(fcaVal.toFixed(2)),
         biomasaAgua: Math.round(bioAgua),
         precosechaExtraida: Math.round(preKilos),
-        biomasaTotal: Math.round(bioTotal)
+        biomasaTotal: Math.round(bioTotal),
+        porcentajeCosechado: bioTotal > 0 ? Number(((preKilos / bioTotal) * 100).toFixed(1)) : 0
       };
     });
   }, [enrichedRecords]);
@@ -568,9 +570,10 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
                     color: '#fff',
                     fontSize: '12px'
                   }}
-                  formatter={(val: number) => [`${formatNumber(val, 1)}%`, 'Sobrevivencia']}
+                  formatter={(val: number, name: string) => [`${formatNumber(val, 1)}%`, name]}
                   labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
                 
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
                   <ReferenceLine y={70} stroke="#10b981" strokeDasharray="4 4" label={{ value: '70% esperado', fill: '#10b981', fontSize: 10, position: 'right' }} />
                   <Line
                   type="monotone"
@@ -580,6 +583,15 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
                   strokeWidth={3}
                   dot={{ fill: '#10b981', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
                   activeDot={{ r: 6, fill: '#059669' }} />
+
+                  <Line
+                  type="monotone"
+                  dataKey="porcentajeCosechado"
+                  name="% Cosechado / Raleos"
+                  stroke="#f97316"
+                  strokeWidth={2.5}
+                  dot={{ fill: '#f97316', r: 3, strokeWidth: 1, stroke: '#ffffff' }}
+                  activeDot={{ r: 5, fill: '#ea580c' }} />
                 
                 </LineChart>
               </ResponsiveContainer> :
