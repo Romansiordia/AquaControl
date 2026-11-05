@@ -288,24 +288,26 @@ const App: React.FC = () => {
     }
   };
 
-  // Synchronize data to Google Sheets
-  const syncDataToSheets = async (currentRecords: PondRecord[], currentEvals: EvaluationRecord[], currentHarvests: HarvestRecord[]) => {
+  // Synchronize a single record change to Google Sheets
+  const syncRecordToSheets = async (action: 'UPDATE_OR_ADD' | 'DELETE', sheetName: string, recordOrId: any) => {
     if (!googleSheetsConfig.webAppUrl || isLocalMode) return;
     try {
+      const payload = {
+        operation: action,
+        sheetName: sheetName,
+        record: action === 'UPDATE_OR_ADD' ? recordOrId : undefined,
+        id: action === 'DELETE' ? recordOrId : undefined,
+        timestamp: new Date().toISOString()
+      };
+
       await fetch(googleSheetsConfig.webAppUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'sync_data',
-          production: currentRecords,
-          evaluations: currentEvals,
-          harvests: currentHarvests,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(payload)
       });
     } catch (e) {
-      console.error("Auto sync failed:", e);
+      console.error("Individual sync failed:", e);
     }
   };
 
@@ -315,7 +317,7 @@ const App: React.FC = () => {
     const updated = [newHarvest, ...actualHarvests.filter(h => h.id !== newHarvest.id)];
     setHarvests(updated);
     localStorage.setItem('camaronera_harvests', JSON.stringify(updated));
-    syncDataToSheets(records, evaluations, updated);
+    syncRecordToSheets('UPDATE_OR_ADD', 'Ciclo de Cosechas', newHarvest);
   };
 
   const handleEditHarvest = (editedHarvest: HarvestRecord) => {
@@ -323,7 +325,7 @@ const App: React.FC = () => {
     const updated = actualHarvests.map(h => h.id === editedHarvest.id ? editedHarvest : h);
     setHarvests(updated);
     localStorage.setItem('camaronera_harvests', JSON.stringify(updated));
-    syncDataToSheets(records, evaluations, updated);
+    syncRecordToSheets('UPDATE_OR_ADD', 'Ciclo de Cosechas', editedHarvest);
   };
 
   const handleDeleteHarvest = (id: string) => {
@@ -334,27 +336,14 @@ const App: React.FC = () => {
     const updated = actualHarvests.filter(h => h.id !== id);
     setHarvests(updated);
     localStorage.setItem('camaronera_harvests', JSON.stringify(updated));
-    syncDataToSheets(records, evaluations, updated);
+    syncRecordToSheets('DELETE', 'Ciclo de Cosechas', id);
   };
 
   const handleClearAllHarvests = () => {
-    if (isLocalMode) {
-      setLocalHarvests([]);
-      return;
-    }
-    setHarvests([]);
-    localStorage.setItem('camaronera_harvests', JSON.stringify([]));
-    syncDataToSheets(records, evaluations, []);
-  };
-
-  const handleImportHarvests = (newHarvests: HarvestRecord[]) => {
-    if (isLocalMode) {
-      setLocalHarvests(newHarvests);
-    } else {
-      setHarvests(newHarvests);
-      localStorage.setItem('camaronera_harvests', JSON.stringify(newHarvests));
-      syncDataToSheets(records, evaluations, newHarvests);
-    }
+    // Note: Deleting all would require individual DELETE calls or a bulk clear action in the script
+    // For now, retaining existing bulk logic but it will be out of sync.
+    // Recommend not using bulk clear until script supports it.
+    alert("Para evitar pérdida de datos, por favor borra los registros uno a uno.");
   };
 
   // Production record actions
@@ -375,7 +364,7 @@ const App: React.FC = () => {
     localStorage.setItem('camaronera_records', JSON.stringify(updated));
     setShowForm(false);
     setEditingRecord(null);
-    syncDataToSheets(updated, evaluations, harvests);
+    syncRecordToSheets('UPDATE_OR_ADD', 'Produccion', newRecord);
   };
 
   const handleDeleteRecord = (id: string) => {
@@ -386,7 +375,7 @@ const App: React.FC = () => {
     const updated = actualRecords.filter(r => r.id !== id);
     setRecords(updated);
     localStorage.setItem('camaronera_records', JSON.stringify(updated));
-    syncDataToSheets(updated, evaluations, harvests);
+    syncRecordToSheets('DELETE', 'Produccion', id);
   };
 
   const handleClearAllRecords = () => {
