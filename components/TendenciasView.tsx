@@ -289,13 +289,19 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
     const divisorBiomasa = totalBiomasaGenerada > 0 ? totalBiomasaGenerada : sumBiomasaTotalTeorica;
     const fcaPoscosecha = divisorBiomasa > 0 ? totalAlimentoAcumulado / divisorBiomasa : 0;
 
+    // 6. Porcentaje total cosechado
+    const totalOrgSembrados = activeCycleRecords.reduce((s, r) => s + (Number(r.densidadInicial) || 0), 0);
+    const totalOrgExtraidos = activeNetPonds.reduce((s, item) => s + item.net.organismosExtraidos, 0);
+    const totalPorcentajeCosechado = totalOrgSembrados > 0 ? (totalOrgExtraidos / totalOrgSembrados) * 100 : 0;
+
     return {
       avgInc: avgInc.toFixed(2),
       avgSurv: avgSurv.toFixed(1),
       totalAlimDia: Math.round(totalAlimDiaAjustado),
       avgFca: fcaPoscosecha.toFixed(2),
       totalPreKilos: Math.round(totalExtKilos),
-      totalBioTotal: Math.round(divisorBiomasa)
+      totalBioTotal: Math.round(divisorBiomasa),
+      totalPorcentajeCosechado: totalPorcentajeCosechado.toFixed(1)
     };
   }, [activeCycleRecords, activeNetPonds]);
 
@@ -351,7 +357,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
             </div>
 
             {/* Granja Filter */}
-            {uniqueGranjas.length > 1 &&
+            {uniqueGranjas.length > 0 &&
             <div className="flex items-center gap-1.5 bg-[#072C52] border border-[#125699] rounded-lg px-2.5 py-1 text-xs text-white">
                 <span className="text-blue-300 font-medium">Granja:</span>
                 <select
@@ -449,6 +455,17 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
                 +{formatNumber(summary.totalPreKilos)} <span className="text-[10px] font-normal text-orange-200">kg</span>
               </p>
               <span className="text-[10px] text-slate-400 truncate block">raleo acumulado</span>
+            </div>
+
+            {/* KPI 6: Rendimiento Total */}
+            <div className="bg-[#072C52]/90 border border-purple-500/30 rounded-lg p-2.5 col-span-2 sm:col-span-1">
+              <span className="text-[10px] text-purple-300 uppercase font-bold tracking-wider block truncate">
+                Rendimiento Total (Surv + Harv)
+              </span>
+              <p className="text-sm sm:text-base font-bold text-purple-400 mt-0.5 truncate">
+                {(Number(summary.avgSurv) + Number(summary.totalPorcentajeCosechado)).toFixed(1)} <span className="text-[10px] font-normal text-purple-200">%</span>
+              </p>
+              <span className="text-[10px] text-slate-400 truncate block">Sobrevivencia + Cosechado</span>
             </div>
 
           </div>
