@@ -217,7 +217,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Layers className="w-4 h-4 text-amber-400" />
-              <span>Biomasa Total Producida (Agua + Pre-cosechas)</span>
+              <span>Biomasa por Hectárea (Agua + Pre-cosechas)</span>
             </h3>
           </div>
           <div className="h-64">
@@ -225,11 +225,11 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
               <BarChart
                 data={records.map(r => {
                   const net = calculatePondNetMetrics(r, harvests);
+                  const has = Number(r.hectareas) || 1;
                   return {
                     name: `E${normalizeEstanque(r.estanque)}`,
-                    enAgua: net.biomasaEnAgua,
-                    precosechas: net.kilosExtraidos,
-                    total: net.biomasaTotal
+                    enAguaHa: net.biomasaEnAgua / has,
+                    precosechasHa: net.kilosExtraidos / has,
                   };
                 })}
                 margin={{ top: 10, right: 10, left: -10, bottom: 20 }}
@@ -239,11 +239,11 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                 <YAxis stroke="#93c5fd" fontSize={11} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#072C52', borderColor: '#1B5CB3', borderRadius: '8px', color: '#fff' }}
-                  formatter={(val: any) => [`${formatNumber(Number(val))} kg`]}
+                  formatter={(val: any) => [`${formatNumber(Number(val))} kg/ha`]}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', color: '#93c5fd' }} />
-                <Bar dataKey="enAgua" name="Biomasa en Agua" fill="#10b981" stackId="a" />
-                <Bar dataKey="precosechas" name="Pre-cosechas" fill="#f59e0b" stackId="a" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="enAguaHa" name="Biomasa en Agua (kg/ha)" fill="#10b981" stackId="a" />
+                <Bar dataKey="precosechasHa" name="Pre-cosechas (kg/ha)" fill="#f59e0b" stackId="a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -311,6 +311,27 @@ const App: React.FC = () => {
     }
   };
 
+  // Synchronize entire datasets (Bulk Sync)
+  const syncBulkToSheets = async (currentRecords: PondRecord[], currentEvals: EvaluationRecord[], currentHarvests: HarvestRecord[]) => {
+    if (!googleSheetsConfig.webAppUrl || isLocalMode) return;
+    try {
+      await fetch(googleSheetsConfig.webAppUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'sync_data',
+          production: currentRecords,
+          evaluations: currentEvals,
+          harvests: currentHarvests,
+          timestamp: new Date().toISOString()
+        })
+      });
+    } catch (e) {
+      console.error("Bulk sync failed:", e);
+    }
+  };
+
   // Harvest record actions
   const handleAddHarvest = (newHarvest: HarvestRecord) => {
     if (isLocalMode) return;
@@ -340,10 +361,17 @@ const App: React.FC = () => {
   };
 
   const handleClearAllHarvests = () => {
-    // Note: Deleting all would require individual DELETE calls or a bulk clear action in the script
-    // For now, retaining existing bulk logic but it will be out of sync.
-    // Recommend not using bulk clear until script supports it.
     alert("Para evitar pérdida de datos, por favor borra los registros uno a uno.");
+  };
+
+  const handleImportHarvests = (newHarvests: HarvestRecord[]) => {
+    if (isLocalMode) {
+      setLocalHarvests(newHarvests);
+    } else {
+      setHarvests(newHarvests);
+      localStorage.setItem('camaronera_harvests', JSON.stringify(newHarvests));
+      syncBulkToSheets(records, evaluations, newHarvests);
+    }
   };
 
   // Production record actions
@@ -385,7 +413,7 @@ const App: React.FC = () => {
     }
     setRecords([]);
     localStorage.setItem('camaronera_records', JSON.stringify([]));
-    syncDataToSheets([], evaluations, harvests);
+    syncBulkToSheets([], evaluations, harvests);
   };
 
   const handleResetAllData = () => {
@@ -398,7 +426,7 @@ const App: React.FC = () => {
     localStorage.setItem('camaronera_records', JSON.stringify([]));
     localStorage.setItem('camaronera_evaluations', JSON.stringify([]));
     localStorage.setItem('camaronera_harvests', JSON.stringify([]));
-    syncDataToSheets([], [], []);
+    syncBulkToSheets([], [], []);
   };
 
   // Evaluation actions
@@ -413,7 +441,7 @@ const App: React.FC = () => {
     setEvaluations(updated);
     localStorage.setItem('camaronera_evaluations', JSON.stringify(updated));
     setActiveView('evaluationsList');
-    syncDataToSheets(records, updated, harvests);
+    syncBulkToSheets(records, updated, harvests);
   };
 
   const handleDeleteEvaluation = (id: string) => {
@@ -424,8 +452,9 @@ const App: React.FC = () => {
     const updated = actualEvaluations.filter(e => e.id !== id);
     setEvaluations(updated);
     localStorage.setItem('camaronera_evaluations', JSON.stringify(updated));
-    syncDataToSheets(records, updated, harvests);
+    syncBulkToSheets(records, updated, harvests);
   };
+
 
   // PDF Export
   const handleExportPDF = async () => {
@@ -557,7 +586,7 @@ const App: React.FC = () => {
               onDelete={handleDeleteRecord}
               onClearAll={handleClearAllRecords}
               googleSheetsConfig={googleSheetsConfig}
-              onSyncNow={() => syncDataToSheets(records, evaluations, harvests)}
+              onSyncNow={() => syncBulkToSheets(records, evaluations, harvests)}
               onOpenSyncConfig={() => setActiveView('googleSync')}
             />
           )}
