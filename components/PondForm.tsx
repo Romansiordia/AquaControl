@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PondRecord, EvaluationRecord } from '../types';
 import { calculateFeedProjection } from '../utils/feedCalculator';
+import { normalizeEstanque } from '../utils';
 
 interface Props {
   onAdd: (record: Partial<PondRecord>) => void;
@@ -44,12 +45,14 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
 
   const [form, setForm] = useState<Partial<PondRecord>>(getInitialState());
 
+  const normGranja = (g: string) => g?.trim().toLowerCase() || 'unknown';
+
   const latestRecordsByPond = useMemo(() => {
     const latest = new Map<string, PondRecord>();
     existingRecords.forEach((record) => {
-      const key = `${record.granja}-${record.estanque}`;
+      const key = `${normGranja(record.granja)}|${normalizeEstanque(record.estanque)}`;
       const current = latest.get(key);
-      if (!current || record.diasCultivo > current.diasCultivo) {
+      if (!current || Number(record.diasCultivo) > Number(current.diasCultivo)) {
         latest.set(key, record);
       }
     });
@@ -63,7 +66,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     const key = e.target.value;
     if (!key) return;
     const [granja, estanque] = key.split('|');
-    const record = latestRecordsByPond.find((r) => r.granja === granja && r.estanque.toString() === estanque);
+    const record = latestRecordsByPond.find((r) => normGranja(r.granja) === granja && normalizeEstanque(r.estanque) === estanque);
 
     if (record) {
       setForm((prev) => ({
@@ -149,7 +152,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
             <select onChange={handleLoadFromExisting} className="block w-full max-w-md rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white text-slate-900">
               <option value="" className="text-slate-500">-- Seleccionar Granja - Estanque --</option>
               {latestRecordsByPond.map((r) =>
-            <option key={`${r.granja}-${r.estanque}`} value={`${r.granja}|${r.estanque}`} className="text-slate-900">
+            <option key={`${normGranja(r.granja)}|${normalizeEstanque(r.estanque)}`} value={`${normGranja(r.granja)}|${normalizeEstanque(r.estanque)}`} className="text-slate-900">
                   {r.granja} - Estanque {r.estanque} (Último muestreo: {r.fecha})
                 </option>
             )}
