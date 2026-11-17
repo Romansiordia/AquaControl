@@ -3,6 +3,14 @@ import { PondRecord, NewPondRecord, EvaluationRecord, EvaluationFormData, Harves
 import { INITIAL_DATA } from './constants';
 import { calculatePondMetrics, formatNumber, normalizeEstanque, cleanDateString, parseFlexibleNumber } from './utils';
 import { normalizeHarvestRecord, parseHarvestWorksheet } from './utils/harvestUtils';
+import {
+  postToAppsScript,
+  fetchFromAppsScript,
+  sanitizeProductionRecord,
+  sanitizeEvaluationRecord,
+  sanitizeHarvestRecord
+} from './utils/sheetsSync';
+import { RefreshCw, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import PondForm from './components/PondForm';
 import FilterPanel, { FilterState } from './components/FilterPanel';
 import EstadisticasView from './components/EstadisticasView';
@@ -73,12 +81,28 @@ const App: React.FC = () => {
 
   const [activeView, setActiveView] = useState<View>('estadisticas');
   const [editingRecord, setEditingRecord] = useState<PondRecord | null>(null);
-  const [editingEvaluation, setEditingEvaluation] = useState<EvaluationFormData | null>(null);
+  const [editingEvaluation, setEditingEvaluation] = useState<Partial<EvaluationRecord> | null>(null);
   const [selectedPond, setSelectedPond] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ type: 'syncing' | 'success' | 'error'; message: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const syncStatusTimeoutRef = useRef<number | null>(null);
+
+  const showSyncStatus = (type: 'syncing' | 'success' | 'error', message: string, autoClearMs?: number) => {
+    if (syncStatusTimeoutRef.current) {
+      window.clearTimeout(syncStatusTimeoutRef.current);
+      syncStatusTimeoutRef.current = null;
+    }
+    setSyncStatus({ type, message });
+    if (autoClearMs) {
+      syncStatusTimeoutRef.current = window.setTimeout(() => {
+        setSyncStatus(null);
+        syncStatusTimeoutRef.current = null;
+      }, autoClearMs);
+    }
+  };
 
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState<GoogleSheetsConfig>(() => {
     const saved = localStorage.getItem('camaronera_google_sheets');
@@ -109,6 +133,45 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('camaronera_google_sheets', JSON.stringify(googleSheetsConfig));
   }, [googleSheetsConfig]);
+
+  useEffect(() => {
+    const url = googleSheetsConfig.webAppUrl?.trim();
+    if (!url || isLocalMode) return;
+
+    let isCancelled = false;
+    const syncOnStartup = async () => {
+      showSyncStatus('syncing', 'Sincronizando datos con Google Sheets...');
+      const res = await fetchFromAppsScript(url);
+      if (isCancelled) return;
+
+      if (res.ok && res.data) {
+        const prod = res.data.production || [];
+        const evals = res.data.evaluations || [];
+        const harvs = res.data.harvests || [];
+        const hasCloudData = prod.length > 0 || evals.length > 0 || harvs.length > 0;
+
+        if (hasCloudData) {
+          handleImportData(res.data, false);
+        }
+
+        setGoogleSheetsConfig(prev => ({ ...prev, lastSync: new Date().toLocaleTimeString() }));
+        showSyncStatus(
+          'success',
+          hasCloudData
+            ? `Datos actualizados desde Google Sheets (${prod.length} producción, ${evals.length} evaluaciones, ${harvs.length} cosechas).`
+            : 'Conectado a Google Sheets (hoja vacía lista para recibir registros).',
+          4000
+        );
+      } else {
+        showSyncStatus('error', res.message || 'No se pudo cargar automáticamente desde Google Sheets. Mostrando copia local.');
+      }
+    };
+
+    syncOnStartup();
+    return () => {
+      isCancelled = true;
+    };
+  }, [googleSheetsConfig.webAppUrl, isLocalMode]);
 
   // Filters state
   const [filters, setFilters] = useState<FilterState>({
@@ -249,7 +312,7 @@ const App: React.FC = () => {
         setIsLocalMode(true);
       } catch (error) {
         console.error("Error reading local Excel", error);
-        alert("Hubo un error al leer el archivo. Asegúrate de que sea el formato correcto.");
+        showSyncStatus('error', 'Hubo un error al leer el archivo local. Asegúrate de que sea el formato correcto.');
       }
     };
     reader.readAsBinaryString(file);
@@ -268,7 +331,14 @@ const App: React.FC = () => {
     }
 
     if (importedData.evaluations !== undefined) {
-      const evals = importedData.evaluations || [];
+      const evals: EvaluationRecord[] = (importedData.evaluations || []).map((ev: any, idx: number) => ({
+        ...ev,
+        id: ev.id || `eval_${Date.now()}_${idx}`,
+        granja: ev.granja ? String(ev.granja).trim() : '',
+        fecha: cleanDateString(ev.fecha) || (ev.fecha ? String(ev.fecha) : ''),
+        fecha_siembra: cleanDateString(ev.fecha_siembra) || (ev.fecha_siembra ? String(ev.fecha_siembra) : ''),
+        submissionDate: ev.submissionDate || new Date().toISOString()
+      }));
       if (isLocal) {
         setLocalEvaluations(evals);
       } else {
@@ -288,47 +358,62 @@ const App: React.FC = () => {
     }
   };
 
-  // Synchronize a single record change to Google Sheets
-  const syncRecordToSheets = async (action: 'UPDATE_OR_ADD' | 'DELETE', sheetName: string, recordOrId: any) => {
-    if (!googleSheetsConfig.webAppUrl || isLocalMode) return;
-    try {
-      const payload = {
-        operation: action,
-        sheetName: sheetName,
-        record: action === 'UPDATE_OR_ADD' ? recordOrId : undefined,
-        id: action === 'DELETE' ? recordOrId : undefined,
-        timestamp: new Date().toISOString()
-      };
+  // Synchronize a single record change to Google Sheets with real confirmation
+  const syncRecordToSheets = async (action: 'UPDATE_OR_ADD' | 'DELETE', sheetName: string, recordOrId: any): Promise<boolean> => {
+    if (!googleSheetsConfig.webAppUrl || isLocalMode) return false;
 
-      await fetch(googleSheetsConfig.webAppUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-      });
-    } catch (e) {
-      console.error("Individual sync failed:", e);
+    let sanitizedRecord = recordOrId;
+    if (action === 'UPDATE_OR_ADD' && recordOrId) {
+      if (sheetName === 'Produccion') sanitizedRecord = sanitizeProductionRecord(recordOrId);
+      else if (sheetName === 'Evaluacion Tecnica') sanitizedRecord = sanitizeEvaluationRecord(recordOrId);
+      else if (sheetName === 'Ciclo de Cosechas') sanitizedRecord = sanitizeHarvestRecord(recordOrId);
+    }
+
+    showSyncStatus('syncing', `Guardando en Google Sheets (${sheetName})...`);
+    const payload = {
+      operation: action,
+      sheetName,
+      record: action === 'UPDATE_OR_ADD' ? sanitizedRecord : undefined,
+      id: action === 'DELETE' ? recordOrId : undefined,
+      timestamp: new Date().toISOString()
+    };
+
+    const res = await postToAppsScript(googleSheetsConfig.webAppUrl, payload);
+    if (res.ok) {
+      setGoogleSheetsConfig(prev => ({ ...prev, lastSync: new Date().toLocaleTimeString() }));
+      showSyncStatus('success', `Guardado y confirmado en Google Sheets (${sheetName}).`, 3500);
+      return true;
+    } else {
+      showSyncStatus('error', res.message || `No se pudo confirmar el guardado en Google Sheets (${sheetName}).`);
+      return false;
     }
   };
 
-  // Synchronize entire datasets (Bulk Sync)
-  const syncBulkToSheets = async (currentRecords: PondRecord[], currentEvals: EvaluationRecord[], currentHarvests: HarvestRecord[]) => {
-    if (!googleSheetsConfig.webAppUrl || isLocalMode) return;
-    try {
-      await fetch(googleSheetsConfig.webAppUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'sync_data',
-          production: currentRecords,
-          evaluations: currentEvals,
-          harvests: currentHarvests,
-          timestamp: new Date().toISOString()
-        })
-      });
-    } catch (e) {
-      console.error("Bulk sync failed:", e);
+  // Synchronize entire datasets (Bulk Sync) with real confirmation
+  const syncBulkToSheets = async (
+    currentRecords: PondRecord[],
+    currentEvals: EvaluationRecord[],
+    currentHarvests: HarvestRecord[]
+  ): Promise<boolean> => {
+    if (!googleSheetsConfig.webAppUrl || isLocalMode) return false;
+
+    showSyncStatus('syncing', 'Sincronizando respaldo completo con Google Sheets...');
+    const payload = {
+      action: 'sync_data',
+      production: currentRecords.map(sanitizeProductionRecord),
+      evaluations: currentEvals.map(sanitizeEvaluationRecord),
+      harvests: currentHarvests.map(sanitizeHarvestRecord),
+      timestamp: new Date().toISOString()
+    };
+
+    const res = await postToAppsScript(googleSheetsConfig.webAppUrl, payload);
+    if (res.ok) {
+      setGoogleSheetsConfig(prev => ({ ...prev, lastSync: new Date().toLocaleTimeString() }));
+      showSyncStatus('success', 'Respaldo completo guardado y confirmado en Google Sheets.', 3500);
+      return true;
+    } else {
+      showSyncStatus('error', res.message || 'No se pudo confirmar el respaldo con Google Sheets.');
+      return false;
     }
   };
 
@@ -361,7 +446,7 @@ const App: React.FC = () => {
   };
 
   const handleClearAllHarvests = () => {
-    alert("Para evitar pérdida de datos, por favor borra los registros uno a uno.");
+    showSyncStatus('error', 'Para evitar pérdida de datos, por favor borra los registros de cosecha uno a uno.', 4500);
   };
 
   const handleImportHarvests = (newHarvests: HarvestRecord[]) => {
@@ -432,16 +517,22 @@ const App: React.FC = () => {
   // Evaluation actions
   const handleSaveEvaluation = (formData: EvaluationFormData) => {
     if (isLocalMode) return;
-    const newEval: EvaluationRecord = {
+    const isEditing = Boolean(editingEvaluation?.id);
+    const newEval: EvaluationRecord = sanitizeEvaluationRecord({
       ...formData,
-      id: `eval_${Date.now()}`,
-      submissionDate: new Date().toISOString()
-    };
-    const updated = [newEval, ...actualEvaluations];
+      id: editingEvaluation?.id || `eval_${Date.now()}`,
+      submissionDate: editingEvaluation?.submissionDate || new Date().toISOString()
+    } as EvaluationRecord);
+
+    const updated = isEditing && actualEvaluations.some(e => e.id === newEval.id)
+      ? actualEvaluations.map(e => e.id === newEval.id ? newEval : e)
+      : [newEval, ...actualEvaluations];
+
     setEvaluations(updated);
     localStorage.setItem('camaronera_evaluations', JSON.stringify(updated));
+    setEditingEvaluation(null);
     setActiveView('evaluationsList');
-    syncBulkToSheets(records, updated, harvests);
+    syncRecordToSheets('UPDATE_OR_ADD', 'Evaluacion Tecnica', newEval);
   };
 
   const handleDeleteEvaluation = (id: string) => {
@@ -452,7 +543,7 @@ const App: React.FC = () => {
     const updated = actualEvaluations.filter(e => e.id !== id);
     setEvaluations(updated);
     localStorage.setItem('camaronera_evaluations', JSON.stringify(updated));
-    syncBulkToSheets(records, updated, harvests);
+    syncRecordToSheets('DELETE', 'Evaluacion Tecnica', id);
   };
 
 
@@ -489,7 +580,7 @@ const App: React.FC = () => {
       doc.save(`AquaControl_Reporte_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
       console.error("Export PDF error:", e);
-      alert("Error al exportar PDF.");
+      showSyncStatus('error', 'Error al exportar el reporte PDF.', 4500);
     } finally {
       setIsExporting(false);
     }
@@ -555,6 +646,32 @@ const App: React.FC = () => {
         </nav>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-12 space-y-6 w-full flex-1" id="report-content">
+          {syncStatus && (
+            <div
+              className={`px-4 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-between gap-3 shadow-sm ${
+                syncStatus.type === 'syncing'
+                  ? 'bg-blue-950/70 border-blue-500/40 text-blue-200'
+                  : syncStatus.type === 'success'
+                  ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-200'
+                  : 'bg-red-950/80 border-red-500/50 text-red-200'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {syncStatus.type === 'syncing' && <RefreshCw className="w-4 h-4 animate-spin text-blue-400 shrink-0" />}
+                {syncStatus.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+                {syncStatus.type === 'error' && <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />}
+                <span>{syncStatus.message}</span>
+              </div>
+              <button
+                onClick={() => setSyncStatus(null)}
+                className="text-current opacity-70 hover:opacity-100 p-0.5 rounded transition-opacity"
+                aria-label="Cerrar notificación"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {activeView === 'estadisticas' && (
             <div className="space-y-6">
               <FilterPanel
@@ -586,7 +703,10 @@ const App: React.FC = () => {
               onDelete={handleDeleteRecord}
               onClearAll={handleClearAllRecords}
               googleSheetsConfig={googleSheetsConfig}
-              onSyncNow={() => syncBulkToSheets(records, evaluations, harvests)}
+              onSyncNow={async () => {
+                const ok = await syncBulkToSheets(records, evaluations, harvests);
+                if (!ok) throw new Error('Error al sincronizar con Google Sheets');
+              }}
               onOpenSyncConfig={() => setActiveView('googleSync')}
             />
           )}
@@ -632,8 +752,8 @@ const App: React.FC = () => {
           {activeView === 'googleSync' && (
             <GoogleSheetsSync
               config={googleSheetsConfig}
-              onUpdateConfig={isLocalMode ? () => alert("Modo local activo. Configuración bloqueada.") : setGoogleSheetsConfig}
-              onImportData={isLocalMode ? () => alert("Modo local activo. Importación bloqueada.") : handleImportData}
+              onUpdateConfig={isLocalMode ? () => showSyncStatus('error', 'Modo local activo. Configuración bloqueada.') : setGoogleSheetsConfig}
+              onImportData={isLocalMode ? () => showSyncStatus('error', 'Modo local activo. Importación bloqueada.') : handleImportData}
               onClearAllLocalData={handleResetAllData}
               data={{
                 production: records,

@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
 import { EvaluationFormData } from '../types';
+import { cleanDateString } from '../utils';
 
 interface Props {
   onSave: (data: EvaluationFormData) => void;
   initialData?: EvaluationFormData;
 }
+
+const normalizeInitialEval = (data?: EvaluationFormData): EvaluationFormData => {
+  if (!data) return {};
+  return {
+    ...data,
+    fecha: cleanDateString(data.fecha) || (data.fecha ? String(data.fecha) : ''),
+    fecha_siembra: cleanDateString(data.fecha_siembra) || (data.fecha_siembra ? String(data.fecha_siembra) : '')
+  };
+};
 
 const Section: React.FC<{title: string;children: React.ReactNode;defaultOpen?: boolean;}> = ({ title, children, defaultOpen = false }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -28,14 +38,10 @@ const Section: React.FC<{title: string;children: React.ReactNode;defaultOpen?: b
   <input type={type} name={name} value={value} onChange={onChange} className="w-full text-sm rounded-lg border-[#125699] focus:ring-blue-500 focus:border-blue-500 border p-2 bg-[#072C52] text-white placeholder-blue-400 [color-scheme:dark]" placeholder={placeholder} />
   }
     </div>;const FarmEvaluationForm: React.FC<Props> = ({ onSave, initialData }) => {
-  const [formData, setFormData] = useState<EvaluationFormData>(initialData || {});
+  const [formData, setFormData] = useState<EvaluationFormData>(() => normalizeInitialEval(initialData));
 
   React.useEffect(() => {
-    if (initialData) {
-      setFormData(initialData);
-    } else {
-      setFormData({});
-    }
+    setFormData(normalizeInitialEval(initialData));
   }, [initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

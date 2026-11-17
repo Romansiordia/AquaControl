@@ -1,17 +1,24 @@
-import React, { useState } from 'react';
-import { GoogleSheetsConfig, StockingProgramRecord, PondRecord, HarvestRecord } from '../types';
-import { Share2, Link as LinkIcon, CheckCircle2, AlertCircle, Copy, ExternalLink, RefreshCw } from 'lucide-react';
-import { cleanDateString } from '../utils';
+import React, { useState, useEffect } from 'react';
+import { GoogleSheetsConfig, StockingProgramRecord, PondRecord, HarvestRecord, EvaluationRecord } from '../types';
+import { Share2, CheckCircle2, AlertCircle, Copy, RefreshCw } from 'lucide-react';
+import {
+  postToAppsScript,
+  fetchFromAppsScript,
+  sanitizeProductionRecord,
+  sanitizeEvaluationRecord,
+  sanitizeHarvestRecord,
+  UNIFIED_APPS_SCRIPT_CODE
+} from '../utils/sheetsSync';
 
 interface Props {
   config: GoogleSheetsConfig;
   onUpdateConfig: (config: GoogleSheetsConfig) => void;
-  onImportData?: (data: { production?: PondRecord[], evaluations?: any[], harvests?: HarvestRecord[] }) => void;
+  onImportData?: (data: { production?: PondRecord[], evaluations?: EvaluationRecord[], harvests?: HarvestRecord[] }) => void;
   onClearAllLocalData?: () => void;
   data: {
     stocking?: StockingProgramRecord[];
     production: PondRecord[];
-    evaluations?: any[];
+    evaluations?: EvaluationRecord[];
     harvests?: HarvestRecord[];
   };
 }
@@ -21,15 +28,25 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
   const [isSyncing, setIsSyncing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'import_success'>('idle');
+  const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setUrl(config.webAppUrl || '');
+  }, [config.webAppUrl]);
 
   const handleSaveConfig = () => {
-    onUpdateConfig({ ...config, webAppUrl: url });
-    alert('Configuración guardada correctamente.');
+    const trimmed = url.trim();
+    setUrl(trimmed);
+    onUpdateConfig({ ...config, webAppUrl: trimmed });
+    setStatus('success');
+    setStatusMessage('URL guardada correctamente.');
   };
 
   const handleSync = async () => {
-    if (!url) {
+    const trimmed = url.trim();
+    if (!trimmed) {
       setStatus('error');
       setErrorMessage('Por favor, ingresa una URL de Web App válida.');
       return;
@@ -37,71 +54,55 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
 
     setIsSyncing(true);
     setStatus('idle');
+    setErrorMessage('');
 
     try {
-      const sanitizedProd = (data.production || []).map(p => ({
-        ...p,
-        fecha: cleanDateString(p.fecha) || p.fecha,
-        fechaSiembra: cleanDateString(p.fechaSiembra) || p.fechaSiembra,
-        fechaCosecha: cleanDateString(p.fechaCosecha) || p.fechaCosecha
-      }));
-
-      const sanitizedEvals = (data.evaluations || []).map(e => ({
-        ...e,
-        fecha: cleanDateString(e.fecha) || e.fecha,
-        fecha_siembra: cleanDateString(e.fecha_siembra) || e.fecha_siembra
-      }));
-
-      const sanitizedHarvests = (data.harvests || []).map(h => ({
-        ...h,
-        fecha: cleanDateString(h.fecha) || h.fecha
-      }));
-
       const payload = {
         action: 'sync_data',
         stocking: data.stocking || [],
-        production: sanitizedProd,
-        evaluations: sanitizedEvals,
-        harvests: sanitizedHarvests,
+        production: (data.production || []).map(sanitizeProductionRecord),
+        evaluations: (data.evaluations || []).map(sanitizeEvaluationRecord),
+        harvests: (data.harvests || []).map(sanitizeHarvestRecord),
         timestamp: new Date().toISOString()
       };
 
-      await fetch(url, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-      });
-
-      setStatus('success');
-      onUpdateConfig({ ...config, lastSync: new Date().toLocaleTimeString() });
-    } catch (error) {
-      console.error('Error syncing with Google Sheets:', error);
-      setStatus('error');
-      setErrorMessage('Error de conexión. Verifica la URL y los permisos del script.');
+      const res = await postToAppsScript(trimmed, payload);
+      if (res.ok) {
+        setStatus('success');
+        setStatusMessage(
+          `¡Respaldo completado! Se enviaron ${payload.production.length} registros de producción, ${payload.evaluations.length} evaluaciones y ${payload.harvests.length} cosechas a Google Sheets.`
+        );
+        onUpdateConfig({ ...config, webAppUrl: trimmed, lastSync: new Date().toLocaleTimeString() });
+      } else {
+        setStatus('error');
+        setErrorMessage(res.message || 'No se pudo confirmar el envío con Google Sheets.');
+      }
     } finally {
       setIsSyncing(false);
     }
   };
 
   const handleImport = async () => {
-    if (!url) {
+    const trimmed = url.trim();
+    if (!trimmed) {
       setStatus('error');
       setErrorMessage('Por favor, ingresa una URL de Web App válida.');
       return;
     }
+
     setIsImporting(true);
     setStatus('idle');
-    try {
-      const response = await fetch(`${url}?action=get_data`);
-      const result = await response.json();
-      if (result.status === 'success') {
-        const importedProduction = result.data?.production || [];
-        const importedEvaluations = result.data?.evaluations || [];
-        const importedHarvests = result.data?.harvests || [];
+    setErrorMessage('');
 
-        if (importedProduction.length === 0 && importedHarvests.length === 0) {
-          const confirmEmpty = confirm("En tu Google Sheets no hay registros (la hoja está vacía). ¿Deseas vaciar los datos del app para que coincidan con la hoja?");
+    try {
+      const res = await fetchFromAppsScript(trimmed);
+      if (res.ok && res.data) {
+        const importedProduction = res.data.production || [];
+        const importedEvaluations = res.data.evaluations || [];
+        const importedHarvests = res.data.harvests || [];
+
+        if (importedProduction.length === 0 && importedHarvests.length === 0 && importedEvaluations.length === 0) {
+          const confirmEmpty = confirm("En tu Google Sheets no hay registros (las hojas están vacías). ¿Deseas vaciar los datos del app para que coincidan con la hoja?");
           if (confirmEmpty && onImportData) {
             onImportData({
               production: [],
@@ -109,9 +110,12 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
               harvests: []
             });
             setStatus('import_success');
-            alert("Se han vaciado los datos de la aplicación para coincidir con tu Google Sheets.");
+            setStatusMessage('Se vaciaron los datos de la aplicación para coincidir con Google Sheets.');
+            onUpdateConfig({ ...config, webAppUrl: trimmed, lastSync: new Date().toLocaleTimeString() });
             return;
           }
+          setIsImporting(false);
+          return;
         }
 
         if (onImportData) {
@@ -123,94 +127,18 @@ const GoogleSheetsSync: React.FC<Props> = ({ config, onUpdateConfig, onImportDat
         }
 
         setStatus('import_success');
-        onUpdateConfig({ ...config, lastSync: new Date().toLocaleTimeString() });
-        alert(`Se importaron ${importedProduction.length} registros de producción, ${importedEvaluations.length} evaluaciones y ${importedHarvests.length} cosechas.`);
+        setStatusMessage(
+          `¡Sincronizado desde Google Sheets! (${importedProduction.length} producción, ${importedEvaluations.length} evaluaciones y ${importedHarvests.length} cosechas).`
+        );
+        onUpdateConfig({ ...config, webAppUrl: trimmed, lastSync: new Date().toLocaleTimeString() });
       } else {
         setStatus('error');
-        setErrorMessage('Error del script: ' + (result.message || 'Desconocido'));
+        setErrorMessage(res.message || 'No se pudo leer de la hoja.');
       }
-    } catch (error) {
-      console.error('Error al importar:', error);
-      setStatus('error');
-      setErrorMessage('No se pudo leer de la hoja. Asegúrate de que el script esté publicado como aplicación web.');
     } finally {
       setIsImporting(false);
     }
   };
-
-  const appsScriptCode = `/**
- * CÓDIGO GOOGLE APPS SCRIPT PARA AQUACONTROL (Soporta Ciclo de Cosechas - ESCRITURA EN BLOQUE RÁPIDA)
- */
-function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    if (data.action === 'sync_data') {
-      // 1. Sincronizar Produccion de forma atómica sin parpadeos
-      var sheetProd = ss.getSheetByName('Produccion') || ss.insertSheet('Produccion');
-      sheetProd.clear();
-      var headersP = ["id", "granja", "estanque", "fecha", "hectareas", "pesoAnterior", "pesoActual", "incrementoSemanal", "diasCultivo", "sobrevivencia", "densidadActual", "biomasaTotal", "alimentoAcumulado", "fca"];
-      var rowsP = [headersP];
-      if (data.production && data.production.length > 0) {
-        data.production.forEach(function(row) {
-          var vals = headersP.map(function(h) { return (row[h] !== undefined && row[h] !== null) ? row[h] : ""; });
-          rowsP.push(vals);
-        });
-      }
-      sheetProd.getRange(1, 1, rowsP.length, headersP.length).setValues(rowsP);
-
-      // 2. Sincronizar Ciclo de Cosechas de forma atómica sin parpadeos
-      var sheetHarvest = ss.getSheetByName('Ciclo de Cosechas') || ss.insertSheet('Ciclo de Cosechas');
-      sheetHarvest.clear();
-      var headersH = ["id", "granja", "estanque", "fecha", "pre1Kilos", "pre1Gramos", "pre1Organismos", "pre2Kilos", "pre2Gramos", "pre2Organismos", "finalKilos", "finalGramos", "finalOrganismos", "totalOrganismos", "totalKilos", "pesoPromedioPrecosechado"];
-      var rowsH = [headersH];
-      if (data.harvests && data.harvests.length > 0) {
-        data.harvests.forEach(function(row) {
-          var vals = headersH.map(function(h) { return row[h] !== undefined ? row[h] : ""; });
-          rowsH.push(vals);
-        });
-      }
-      sheetHarvest.getRange(1, 1, rowsH.length, headersH.length).setValues(rowsH);
-
-      return ContentService.createTextOutput(JSON.stringify({status: 'success'}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({status: 'error', message: err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function doGet(e) {
-  var action = e.parameter.action;
-  if (action === 'get_data') {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    function sheetToObjects(sheetName) {
-      var sheet = ss.getSheetByName(sheetName);
-      if (!sheet) return [];
-      var data = sheet.getDataRange().getValues();
-      if (data.length < 2) return [];
-      var headers = data[0];
-      return data.slice(1).map(function(row) {
-        var obj = {};
-        headers.forEach(function(h, i) { obj[h] = row[i]; });
-        return obj;
-      });
-    }
-
-    var result = {
-      status: 'success',
-      data: {
-        production: sheetToObjects('Produccion'),
-        harvests: sheetToObjects('Ciclo de Cosechas'),
-        evaluations: sheetToObjects('Evaluacion Tecnica')
-      }
-    };
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}`;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -220,7 +148,7 @@ function doGet(e) {
           <span>Sincronización con Google Sheets</span>
         </h2>
         <p className="text-xs text-blue-200 mt-1">
-          Conecta tu hoja de Google Sheets en la nube para sincronizar la producción y el ciclo de cosechas en tiempo real.
+          Conecta tu hoja de Google Sheets independiente para sincronizar Producción, Registro de Granjas (Evaluación Técnica) y Ciclo de Cosechas con confirmación real.
         </p>
 
         <div className="mt-6 space-y-4">
@@ -245,21 +173,21 @@ function doGet(e) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               onClick={handleSync}
               disabled={isSyncing || !url}
               className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all shadow-md shadow-emerald-600/20"
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Sincronizando...' : 'Enviar Datos a Google Sheets'}</span>
+              <span>{isSyncing ? 'Enviando...' : 'Enviar Datos a Google Sheets'}</span>
             </button>
 
             <button
               onClick={handleImport}
               disabled={isImporting || !url}
               className="bg-[#0B4075] hover:bg-[#125699] disabled:opacity-50 text-blue-100 border border-[#1B5CB3] font-bold px-5 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all shadow-sm"
-              title="Sincronizar datos desde tu hoja de Google Sheets"
+              title="Descargar datos actualizados desde tu hoja de Google Sheets"
             >
               <RefreshCw className={`w-4 h-4 ${isImporting ? 'animate-spin' : ''}`} />
               <span>{isImporting ? 'Sincronizando...' : 'Sincronizar Datos'}</span>
@@ -268,9 +196,10 @@ function doGet(e) {
             {onClearAllLocalData && (
               <button
                 onClick={() => {
-                  if (confirm('¿Deseas vaciar completamente todos los datos locales del app (Producción, Cosechas y Evaluaciones)? Esta acción limpiará la memoria de la aplicación.')) {
+                  if (confirm('¿Deseas vaciar completamente todos los datos locales del app (Producción, Cosechas y Evaluaciones)? Esta acción limpiará la memoria de la aplicación y la hoja conectada.')) {
                     onClearAllLocalData();
-                    alert('Se han vaciado todos los datos del app.');
+                    setStatus('success');
+                    setStatusMessage('Se han vaciado todos los datos del app.');
                   }
                 }}
                 className="bg-red-950/40 hover:bg-red-900 text-red-300 border border-red-700/50 font-bold px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all ml-auto"
@@ -289,21 +218,21 @@ function doGet(e) {
 
           {status === 'success' && (
             <div className="p-3 bg-emerald-900/30 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>¡Datos enviados con éxito a tu hoja de Google Sheets!</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{statusMessage || '¡Datos enviados con éxito a tu hoja de Google Sheets!'}</span>
             </div>
           )}
 
           {status === 'import_success' && (
             <div className="p-3 bg-cyan-900/30 border border-cyan-500/50 rounded-xl text-cyan-200 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-              <span>¡Datos sincronizados con éxito desde Google Sheets!</span>
+              <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>{statusMessage || '¡Datos sincronizados con éxito desde Google Sheets!'}</span>
             </div>
           )}
 
           {status === 'error' && (
             <div className="p-3 bg-red-900/30 border border-red-500/50 rounded-xl text-red-200 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400" />
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -312,20 +241,24 @@ function doGet(e) {
 
       <div className="bg-[#0B4075] p-6 rounded-2xl border border-[#125699] shadow-lg">
         <h3 className="text-sm font-bold text-white mb-2 flex items-center justify-between">
-          <span>Código para Google Apps Script</span>
+          <span>Código Unificado para Google Apps Script (Producción, Cosechas y Evaluaciones)</span>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(appsScriptCode);
-              alert('Código copiado al portapapeles');
+              navigator.clipboard.writeText(UNIFIED_APPS_SCRIPT_CODE);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2500);
             }}
             className="text-xs text-blue-200 hover:text-white flex items-center gap-1 bg-[#072C52] px-3 py-1.5 rounded-lg border border-[#125699]"
           >
             <Copy className="w-3.5 h-3.5" />
-            <span>Copiar Código</span>
+            <span>{copied ? '¡Copiado!' : 'Copiar Código'}</span>
           </button>
         </h3>
+        <p className="text-xs text-blue-200 mb-3">
+          Pega este código en <strong>Extensiones &gt; Apps Script</strong> de tu hoja de Google Sheets, guarda e implementa como <strong>Aplicación web</strong> con acceso para <strong>Cualquiera</strong>.
+        </p>
         <pre className="p-4 bg-[#051C33] rounded-xl text-[11px] text-blue-100 font-mono overflow-x-auto max-h-60 border border-[#125699]/60">
-          {appsScriptCode}
+          {UNIFIED_APPS_SCRIPT_CODE}
         </pre>
       </div>
     </div>

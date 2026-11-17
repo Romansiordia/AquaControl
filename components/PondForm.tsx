@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PondRecord, EvaluationRecord } from '../types';
 import { calculateFeedProjection } from '../utils/feedCalculator';
-import { normalizeEstanque } from '../utils';
+import { normalizeEstanque, cleanDateString } from '../utils';
 
 interface Props {
   onAdd: (record: Partial<PondRecord>) => void;
@@ -16,8 +16,9 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     if (initialData) {
       return {
         ...initialData,
-        fecha: initialData.fecha ? String(initialData.fecha).split('T')[0] : '',
-        fechaSiembra: initialData.fechaSiembra ? String(initialData.fechaSiembra).split('T')[0] : ''
+        fecha: cleanDateString(initialData.fecha) || (initialData.fecha ? String(initialData.fecha).split('T')[0] : ''),
+        fechaSiembra: cleanDateString(initialData.fechaSiembra) || (initialData.fechaSiembra ? String(initialData.fechaSiembra).split('T')[0] : ''),
+        fechaCosecha: cleanDateString(initialData.fechaCosecha) || (initialData.fechaCosecha ? String(initialData.fechaCosecha).split('T')[0] : '')
       };
     }
     return {
@@ -52,7 +53,13 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     existingRecords.forEach((record) => {
       const key = `${normGranja(record.granja)}|${normalizeEstanque(record.estanque)}`;
       const current = latest.get(key);
-      if (!current || Number(record.diasCultivo) > Number(current.diasCultivo)) {
+      if (!current) {
+        latest.set(key, record);
+        return;
+      }
+      const dateRec = cleanDateString(record.fecha) || '';
+      const dateCur = cleanDateString(current.fecha) || '';
+      if (dateRec > dateCur || (dateRec === dateCur && Number(record.diasCultivo) > Number(current.diasCultivo))) {
         latest.set(key, record);
       }
     });
@@ -75,7 +82,7 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
         estanque: record.estanque.toString(),
         especie: record.especie || 'L. Vannamei',
         hectareas: record.hectareas,
-        fechaSiembra: record.fechaSiembra ? String(record.fechaSiembra).split('T')[0] : prev.fechaSiembra,
+        fechaSiembra: cleanDateString(record.fechaSiembra) || prev.fechaSiembra,
         alimento: record.alimento || prev.alimento || 'A.D.M.',
         laboratorio: record.laboratorio,
         densidadInicial: record.densidadInicial,
@@ -89,10 +96,21 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
     }
   };
 
-  const uniqueGranjas = useMemo(() => {
-    const granjas = evaluations.map((e) => String(e.granja)).filter(Boolean);
-    return Array.from(new Set(granjas)).sort();
+  const evalGranjasSet = useMemo(() => {
+    return new Set(evaluations.map((e) => String(e.granja || '').trim()).filter(Boolean));
   }, [evaluations]);
+
+  const uniqueGranjas = useMemo(() => {
+    const set = new Set<string>(evalGranjasSet);
+    const currentGranja = (form.granja || initialData?.granja || '').trim();
+    if (currentGranja) {
+      const existsInsensitive = Array.from(set).some((g) => g.toLowerCase() === currentGranja.toLowerCase());
+      if (!existsInsensitive) {
+        set.add(currentGranja);
+      }
+    }
+    return Array.from(set).sort();
+  }, [evalGranjasSet, form.granja, initialData?.granja]);
 
   const uniqueAlimentos = useMemo(() => {
     const set = new Set<string>(['A.D.M.', 'ALAB', 'CARGILL', 'PURINA', 'SKRETTING', 'BASTIDA']);
@@ -167,9 +185,11 @@ const PondForm: React.FC<Props> = ({ onAdd, onCancel, initialData, existingRecor
               <label className="block text-sm font-medium text-slate-300">Granja</label>
               <select name="granja" value={form.granja} onChange={handleChange} className="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 text-slate-900 bg-white" required>
                 <option value="" disabled>-- Selecciona una Granja --</option>
-                {uniqueGranjas.map((g) =>
-                <option key={g} value={g}>{g}</option>
-                )}
+                {uniqueGranjas.map((g) => (
+                  <option key={g} value={g}>
+                    {evalGranjasSet.has(g) ? g : `${g} (Sin evaluación técnica)`}
+                  </option>
+                ))}
                 {uniqueGranjas.length === 0 && <option value="" disabled>No hay granjas evaluadas aún</option>}
               </select>
             </div>
