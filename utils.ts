@@ -1,8 +1,40 @@
 
 import { PondRecord, HarvestRecord, PondExtractionStage, PondHarvestSummary, PondNetMetrics } from './types';
 
+const buildValidIsoDate = (yearNum: number, monthNum: number, dayNum: number): string => {
+  let y = yearNum;
+  let m = monthNum;
+  let d = dayNum;
+
+  if (y >= 0 && y < 100) {
+    y += y < 70 ? 2000 : 1900;
+  }
+
+  // Auto-corregir si mes y día vienen invertidos (ej. 2026-23-04 o 04/23/2026)
+  if (m > 12 && m <= 31 && d >= 1 && d <= 12) {
+    const tmp = m;
+    m = d;
+    d = tmp;
+  }
+
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) {
+    return '';
+  }
+
+  const check = new Date(Date.UTC(y, m - 1, d));
+  if (
+    check.getUTCFullYear() !== y ||
+    check.getUTCMonth() !== m - 1 ||
+    check.getUTCDate() !== d
+  ) {
+    return '';
+  }
+
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+};
+
 export const cleanDateString = (val: any): string => {
-  if (val === undefined || val === null || val === '' || val === 'Invalid Date' || val === 'null' || val === 'undefined') {
+  if (val === undefined || val === null || val === '' || val === 'Invalid Date' || val === 'null' || val === 'undefined' || val === 'S/F' || val === '-') {
     return '';
   }
   if (val instanceof Date) {
@@ -12,52 +44,44 @@ export const cleanDateString = (val: any): string => {
     return '';
   }
   if (typeof val === 'number') {
-    // If it's a timestamp (epoch ms)
+    // Timestamp (epoch ms)
     if (val > 1000000000000) {
       const d = new Date(val);
       return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : '';
     }
-    // If it's Excel serial number (e.g. 45000-48000)
+    // Excel serial number (e.g. 45000-48000)
     if (val > 20000 && val < 70000) {
       const base = new Date(Date.UTC(1899, 11, 30));
       base.setUTCDate(base.getUTCDate() + Math.floor(val));
       return base.toISOString().split('T')[0];
     }
+    return '';
   }
-  const str = String(val).trim();
-  if (!str || str === 'Invalid Date') return '';
 
-  // If format is ISO or contains T
-  if (str.includes('T')) {
-    const part = str.split('T')[0].trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
+  const str = String(val).trim();
+  if (!str || str === 'Invalid Date' || str === 'S/F') return '';
+
+  // YYYY-MM-DD, YYYY/MM/DD, YYYY-DD-MM (with optional ISO time suffix)
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T\s].*)?$/);
+  if (ymdMatch) {
+    const valid = buildValidIsoDate(Number(ymdMatch[1]), Number(ymdMatch[2]), Number(ymdMatch[3]));
+    if (valid) return valid;
   }
-  // If format is space separated YYYY-MM-DD HH:mm:ss
-  if (str.includes(' ')) {
-    const part = str.split(' ')[0].trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
-  }
-  // Standard YYYY-MM-DD or YYYY/MM/DD
-  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
-    const parts = str.split(/[-/]/);
-    const y = parts[0];
-    const m = parts[1].padStart(2, '0');
-    const d = parts[2].padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  // DD/MM/YYYY or DD-MM-YYYY
-  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
-    const parts = str.split(/[-/]/);
-    const d = parts[0].padStart(2, '0');
-    const m = parts[1].padStart(2, '0');
-    const y = parts[2];
-    return `${y}-${m}-${d}`;
+
+  // DD/MM/YYYY, DD-MM-YYYY, MM/DD/YYYY (with optional time suffix)
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:\s.*)?$/);
+  if (dmyMatch) {
+    const valid = buildValidIsoDate(Number(dmyMatch[3]), Number(dmyMatch[2]), Number(dmyMatch[1]));
+    if (valid) return valid;
   }
 
   // General fallback parse
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
-    return parsed.toISOString().split('T')[0];
+    if (/Z$|[+-]\d{2}:?\d{2}$/.test(str)) {
+      return parsed.toISOString().split('T')[0];
+    }
+    return buildValidIsoDate(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
   }
   return '';
 };
@@ -288,21 +312,7 @@ export const formatNumber = (num: number | string | undefined | null, decimals: 
 
 export const formatDate = (dateStr: string) => {
   const clean = cleanDateString(dateStr);
-  if (!clean) {
-    return 'S/F';
-  }
-  try {
-    const parts = clean.split('-').map(Number);
-    const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
-    return d.toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'UTC'
-    });
-  } catch (e) {
-    return clean;
-  }
+  return clean || 'S/F';
 };
 
 export const normalizeEstanque = (val: any): string => {

@@ -5,29 +5,29 @@ export const sanitizeProductionRecord = (p: PondRecord): PondRecord => ({
   ...p,
   granja: p.granja ? String(p.granja).trim() : '',
   estanque: p.estanque !== undefined && p.estanque !== null ? String(p.estanque).trim() : '',
-  fecha: cleanDateString(p.fecha) || p.fecha || '',
-  fechaSiembra: cleanDateString(p.fechaSiembra) || p.fechaSiembra || '',
-  fechaCosecha: cleanDateString(p.fechaCosecha) || p.fechaCosecha || ''
+  fecha: cleanDateString(p.fecha),
+  fechaSiembra: cleanDateString(p.fechaSiembra),
+  fechaCosecha: cleanDateString(p.fechaCosecha)
 });
 
 export const sanitizeEvaluationRecord = (e: EvaluationRecord): EvaluationRecord => ({
   ...e,
   granja: e.granja ? String(e.granja).trim() : '',
-  fecha: cleanDateString(e.fecha) || (e.fecha ? String(e.fecha) : ''),
-  fecha_siembra: cleanDateString(e.fecha_siembra) || (e.fecha_siembra ? String(e.fecha_siembra) : '')
+  fecha: cleanDateString(e.fecha),
+  fecha_siembra: cleanDateString(e.fecha_siembra)
 });
 
 export const sanitizeHarvestRecord = (h: HarvestRecord): HarvestRecord => ({
   ...h,
   granja: h.granja ? String(h.granja).trim() : '',
   estanque: h.estanque !== undefined && h.estanque !== null ? String(h.estanque).trim() : '',
-  fecha: cleanDateString(h.fecha) || h.fecha || '',
-  fecha1: cleanDateString(h.fecha1) || h.fecha1 || '',
-  fecha2: cleanDateString(h.fecha2) || h.fecha2 || '',
-  fecha3: cleanDateString(h.fecha3) || h.fecha3 || '',
-  fecha4: cleanDateString(h.fecha4) || h.fecha4 || '',
-  fecha5: cleanDateString(h.fecha5) || h.fecha5 || '',
-  fechaFinal: cleanDateString(h.fechaFinal) || h.fechaFinal || ''
+  fecha: cleanDateString(h.fecha),
+  fecha1: cleanDateString(h.fecha1),
+  fecha2: cleanDateString(h.fecha2),
+  fecha3: cleanDateString(h.fecha3),
+  fecha4: cleanDateString(h.fecha4),
+  fecha5: cleanDateString(h.fecha5),
+  fechaFinal: cleanDateString(h.fechaFinal)
 });
 
 export interface SyncResult {
@@ -212,10 +212,62 @@ function ensureSheetAndHeaders(ss, sheetName, extraKeys) {
   return { sheet: sheet, headers: existingHeaders };
 }
 
-function recordToRow(headers, record) {
+var DATE_HEADERS = {
+  fecha: true,
+  fechaSiembra: true,
+  fechaCosecha: true,
+  fecha_siembra: true,
+  fecha1: true,
+  fecha2: true,
+  fecha3: true,
+  fecha4: true,
+  fecha5: true,
+  fechaFinal: true
+};
+
+function normalizeSheetDate(val, tz) {
+  if (val === undefined || val === null || val === '') return "";
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, tz, "yyyy-MM-dd");
+  }
+  var s = String(val).trim();
+  if (!s) return "";
+
+  var ymd = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T\s].*)?$/);
+  if (ymd) {
+    var y = parseInt(ymd[1], 10);
+    var m = parseInt(ymd[2], 10);
+    var d = parseInt(ymd[3], 10);
+    if (m > 12 && m <= 31 && d >= 1 && d <= 12) {
+      var tmp = m; m = d; d = tmp;
+    }
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return String(y) + "-" + ("0" + m).slice(-2) + "-" + ("0" + d).slice(-2);
+    }
+  }
+
+  var dmy = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:\s.*)?$/);
+  if (dmy) {
+    var dd = parseInt(dmy[1], 10);
+    var mm = parseInt(dmy[2], 10);
+    var yy = parseInt(dmy[3], 10);
+    if (yy < 100) yy += (yy < 70 ? 2000 : 1900);
+    if (mm > 12 && mm <= 31 && dd >= 1 && dd <= 12) {
+      var t = mm; mm = dd; dd = t;
+    }
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      return String(yy) + "-" + ("0" + mm).slice(-2) + "-" + ("0" + dd).slice(-2);
+    }
+  }
+  return val;
+}
+
+function recordToRow(headers, record, tz) {
   return headers.map(function(h) {
     var val = record[h];
-    return (val !== undefined && val !== null) ? val : "";
+    if (val === undefined || val === null) return "";
+    if (DATE_HEADERS[h]) return normalizeSheetDate(val, tz);
+    return val;
   });
 }
 
@@ -223,8 +275,9 @@ function upsertRecord(ss, sheetName, record) {
   var info = ensureSheetAndHeaders(ss, sheetName, Object.keys(record || {}));
   var sheet = info.sheet;
   var headers = info.headers;
+  var tz = ss.getSpreadsheetTimeZone();
   var idColIndex = headers.indexOf('id');
-  var vals = recordToRow(headers, record);
+  var vals = recordToRow(headers, record, tz);
 
   if (idColIndex === -1 || !record.id) {
     sheet.appendRow(vals);
@@ -276,11 +329,12 @@ function syncFullSheet(ss, sheetName, records) {
   var info = ensureSheetAndHeaders(ss, sheetName, extraKeys);
   var sheet = info.sheet;
   var headers = info.headers;
+  var tz = ss.getSpreadsheetTimeZone();
 
   var rows = [headers];
   if (records && records.length > 0) {
     records.forEach(function(rec) {
-      rows.push(recordToRow(headers, rec));
+      rows.push(recordToRow(headers, rec, tz));
     });
   }
   sheet.clearContents();
@@ -334,6 +388,8 @@ function doGet(e) {
           var val = row[i];
           if (val instanceof Date) {
             obj[h] = Utilities.formatDate(val, tz, "yyyy-MM-dd");
+          } else if (DATE_HEADERS[h]) {
+            obj[h] = normalizeSheetDate(val, tz);
           } else {
             obj[h] = val;
           }

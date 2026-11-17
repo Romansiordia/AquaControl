@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { PondRecord, HarvestRecord } from '../types';
-import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics, cleanDateString } from '../utils';
 import { X, Scale, Fish, Layers, Flame, TrendingUp, Calendar, ShieldCheck, Activity } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
@@ -25,7 +25,7 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
         r.granja?.toLowerCase().trim() === currentRecord.granja?.toLowerCase().trim() &&
         normalizeEstanque(r.estanque) === normalizeEstanque(currentRecord.estanque)
       )
-      .sort((a, b) => new Date(a.fecha || '').getTime() - new Date(b.fecha || '').getTime());
+      .sort((a, b) => (cleanDateString(a.fecha) || '').localeCompare(cleanDateString(b.fecha) || ''));
   }, [records, currentRecord]);
 
   // Net metrics for the latest record
@@ -51,7 +51,7 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
                 <span className="text-sm font-semibold text-blue-300">({currentRecord.granja})</span>
               </h2>
               <p className="text-xs text-blue-200 mt-0.5">
-                {currentRecord.hectareas} Has | Siembra: {currentRecord.fechaSiembra || '-'} | Días: {currentRecord.diasCultivo}
+                {currentRecord.hectareas} Has | Siembra: {cleanDateString(currentRecord.fechaSiembra) || '-'} | Días: {currentRecord.diasCultivo}
               </p>
             </div>
           </div>

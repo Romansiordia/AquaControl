@@ -109,34 +109,34 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     setEditingHarvest(h);
     setFormGranja(h.granja);
     setFormEstanque(normalizeEstanque(h.estanque));
-    setFormFecha(h.fecha || new Date().toISOString().split('T')[0]);
+    setFormFecha(cleanDateString(h.fecha) || new Date().toISOString().split('T')[0]);
 
-    setFecha1(h.fecha1 || '');
+    setFecha1(cleanDateString(h.fecha1));
     setPre1Kilos(h.pre1Kilos ? String(h.pre1Kilos) : '');
     setPre1Gramos(h.pre1Gramos ? String(h.pre1Gramos) : '');
     setPre1Organismos(h.pre1Organismos ? String(h.pre1Organismos) : '');
 
-    setFecha2(h.fecha2 || '');
+    setFecha2(cleanDateString(h.fecha2));
     setPre2Kilos(h.pre2Kilos ? String(h.pre2Kilos) : '');
     setPre2Gramos(h.pre2Gramos ? String(h.pre2Gramos) : '');
     setPre2Organismos(h.pre2Organismos ? String(h.pre2Organismos) : '');
 
-    setFecha3(h.fecha3 || '');
+    setFecha3(cleanDateString(h.fecha3));
     setPre3Kilos(h.pre3Kilos ? String(h.pre3Kilos) : '');
     setPre3Gramos(h.pre3Gramos ? String(h.pre3Gramos) : '');
     setPre3Organismos(h.pre3Organismos ? String(h.pre3Organismos) : '');
 
-    setFecha4(h.fecha4 || '');
+    setFecha4(cleanDateString(h.fecha4));
     setPre4Kilos(h.pre4Kilos ? String(h.pre4Kilos) : '');
     setPre4Gramos(h.pre4Gramos ? String(h.pre4Gramos) : '');
     setPre4Organismos(h.pre4Organismos ? String(h.pre4Organismos) : '');
 
-    setFecha5(h.fecha5 || '');
+    setFecha5(cleanDateString(h.fecha5));
     setPre5Kilos(h.pre5Kilos ? String(h.pre5Kilos) : '');
     setPre5Gramos(h.pre5Gramos ? String(h.pre5Gramos) : '');
     setPre5Organismos(h.pre5Organismos ? String(h.pre5Organismos) : '');
 
-    setFechaFinal(h.fechaFinal || '');
+    setFechaFinal(cleanDateString(h.fechaFinal));
     setFinalKilos(h.finalKilos ? String(h.finalKilos) : '');
     setFinalGramos(h.finalGramos ? String(h.finalGramos) : '');
     setFinalOrganismos(h.finalOrganismos ? String(h.finalOrganismos) : '');
@@ -528,7 +528,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                         E{normalizeEstanque(h.estanque)}
                       </td>
                       <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699] whitespace-nowrap">
-                        {h.fecha1 || h.fecha || '-'}
+                        {cleanDateString(h.fecha1) || cleanDateString(h.fecha) || '-'}
                       </td>
 
                       {/* Pre 1 */}

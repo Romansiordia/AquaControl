@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { EvaluationRecord, EvaluationFormData } from '../types';
-import { formatDate } from '../utils';
+import { formatDate, cleanDateString } from '../utils';
 import { FileText, Edit2, Trash2, ChevronDown, ChevronUp, Calendar, MapPin, Building2 } from 'lucide-react';
 
 interface Props {
@@ -37,7 +37,7 @@ const EvaluationList: React.FC<Props> = ({ evaluations, onEdit, onDelete }) => {
 
       {evaluations.map((evaluation) => {
         const isOpen = openId === evaluation.id;
-        const evalDate = evaluation.fecha ? String(evaluation.fecha).split('T')[0] : evaluation.submissionDate ? evaluation.submissionDate.split('T')[0] : '-';
+        const evalDate = cleanDateString(evaluation.fecha) || cleanDateString(evaluation.submissionDate) || '-';
 
         return (
           <div key={evaluation.id} className="bg-[#0B4075] rounded-xl shadow-sm border border-[#125699] overflow-hidden transition-all">
@@ -92,7 +92,7 @@ const EvaluationList: React.FC<Props> = ({ evaluations, onEdit, onDelete }) => {
                           {typeof value === 'boolean'
                             ? value ? 'Sí' : 'No'
                             : typeof value === 'string' && key.toLowerCase().includes('fecha')
-                            ? value.split('T')[0]
+                            ? (cleanDateString(value) || value.split('T')[0])
                             : String(value || '-')}
                         </p>
                       </div>
