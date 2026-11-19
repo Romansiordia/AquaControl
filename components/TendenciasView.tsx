@@ -155,6 +155,8 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
       let sumBiomasaAgua = 0;
       let sumPreKilos = 0;
       let sumBiomasaTotal = 0;
+      let sumOrgSembrados = 0;
+      let sumOrgExtraidos = 0;
 
       pondEntries.forEach(({ record, net }) => {
         sumIncremento += Number(record.incrementoSemanal) || 0;
@@ -165,20 +167,28 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         sumBiomasaAgua += net.biomasaEnAgua > 0 ? net.biomasaEnAgua : Number(record.biomasaTotal) || 0;
         sumPreKilos += net.kilosExtraidos || 0;
         sumBiomasaTotal += net.biomasaTotal > 0 ? net.biomasaTotal : Number(record.biomasaTotal) || 0;
+        sumOrgSembrados += Number(record.densidadInicial) || Number(record.organismosSembrados) || 0;
+        sumOrgExtraidos += net.organismosExtraidos || 0;
       });
+
+      const survAvg = count > 0 ? Number((sumSobrevivencia / count).toFixed(1)) : 0;
+      const pctCosechadoOrg = sumOrgSembrados > 0 ? Number(((sumOrgExtraidos / sumOrgSembrados) * 100).toFixed(1)) : 0;
+      const survTotalOrg = Number((survAvg + pctCosechadoOrg).toFixed(1));
 
       return {
         label: d.fechaLabel,
         fechaRaw: d.fechaRaw,
         incrementoSemanal: count > 0 ? Number((sumIncremento / count).toFixed(2)) : 0,
-        sobrevivencia: count > 0 ? Number((sumSobrevivencia / count).toFixed(1)) : 0,
+        sobrevivencia: survAvg,
         alimentoDia: Math.round(sumAlimentoDia),
         alimentoAcumulado: Math.round(sumAlimentoAcum),
         fca: sumBiomasaTotal > 0 ? Number((sumAlimentoAcum / sumBiomasaTotal).toFixed(2)) : count > 0 ? Number((sumFca / count).toFixed(2)) : 0,
         biomasaAgua: Math.round(sumBiomasaAgua),
         precosechaExtraida: Math.round(sumPreKilos),
         biomasaTotal: Math.round(sumBiomasaTotal),
-        porcentajeCosechado: sumBiomasaTotal > 0 ? Number(((sumPreKilos / sumBiomasaTotal) * 100).toFixed(1)) : 0
+        porcentajeCosechado: sumBiomasaTotal > 0 ? Number(((sumPreKilos / sumBiomasaTotal) * 100).toFixed(1)) : 0,
+        porcentajeCosechadoOrg: pctCosechadoOrg,
+        sobrevivenciaTotalOrg: survTotalOrg
       };
     });
   }, [enrichedRecords]);
@@ -220,20 +230,27 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
       const bioAgua = net.biomasaEnAgua > 0 ? net.biomasaEnAgua : Number(record.biomasaTotal) || 0;
       const preKilos = net.kilosExtraidos || 0;
       const bioTotal = net.biomasaTotal > 0 ? net.biomasaTotal : Number(record.biomasaTotal) || 0;
+      const orgSembrados = Number(record.densidadInicial) || Number(record.organismosSembrados) || 0;
+      const orgExtraidos = net.organismosExtraidos || 0;
+      const survFixed = Number(surv.toFixed(1));
+      const pctCosechadoOrg = orgSembrados > 0 ? Number(((orgExtraidos / orgSembrados) * 100).toFixed(1)) : 0;
+      const survTotalOrg = Number((survFixed + pctCosechadoOrg).toFixed(1));
 
       return {
         label: estLabel,
         estanque: record.estanque,
         granja: record.granja,
         incrementoSemanal: Number(inc.toFixed(2)),
-        sobrevivencia: Number(surv.toFixed(1)),
+        sobrevivencia: survFixed,
         alimentoDia: Math.round(alimDia),
         alimentoAcumulado: Math.round(alimAcum),
         fca: Number(fcaVal.toFixed(2)),
         biomasaAgua: Math.round(bioAgua),
         precosechaExtraida: Math.round(preKilos),
         biomasaTotal: Math.round(bioTotal),
-        porcentajeCosechado: bioTotal > 0 ? Number(((preKilos / bioTotal) * 100).toFixed(1)) : 0
+        porcentajeCosechado: bioTotal > 0 ? Number(((preKilos / bioTotal) * 100).toFixed(1)) : 0,
+        porcentajeCosechadoOrg: pctCosechadoOrg,
+        sobrevivenciaTotalOrg: survTotalOrg
       };
     });
   }, [enrichedRecords]);
@@ -857,6 +874,104 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
 
           <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
               Sin datos de biomasa o pre-cosechas para graficar
+            </div>
+          }
+        </div>
+      </div>
+
+      {/* ========================================================
+           6. NUEVA GRÁFICA COMPARATIVA: SOBREVIVENCIA REAL DEL CICLO
+              (Organismos en Agua + Organismos Extraídos en Raleos)
+          ======================================================== */}
+      <div className="bg-[#0B4075] p-5 rounded-xl border border-purple-500/40 shadow-sm flex flex-col h-[400px]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2 flex-wrap">
+                Sobrevivencia Real del Ciclo (En Agua + Raleos en Organismos)
+                <span className="text-[11px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/40 font-semibold">
+                  Base Unificada: % Organismos Sembrados
+                </span>
+              </h3>
+              <p className="text-xs text-blue-200">
+                Mide los raleos sobre organismos sembrados (sin caída falsa al crecer el camarón) y suma lo vivo en agua + lo ya cosechado (ref. Sinaloa 50% - 60%).
+              </p>
+            </div>
+          </div>
+
+          <span className="text-[10px] bg-purple-950/60 text-purple-200 border border-purple-500/40 px-2.5 py-1 rounded font-semibold">
+            Ref. Sinaloa: 50% - 60%
+          </span>
+        </div>
+
+        <div className="flex-1 min-h-0">
+          {activeChartData.length > 0 ?
+          <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
+                <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#94a3b8', fontSize: 11 }} />
+
+                <YAxis
+                domain={[0, 100]}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                unit="%" />
+
+                <Tooltip
+                contentStyle={{
+                  borderRadius: '8px',
+                  border: '1px solid #125699',
+                  backgroundColor: '#072C52',
+                  color: '#fff',
+                  fontSize: '12px'
+                }}
+                formatter={(val: number, name: string) => [`${formatNumber(val, 1)}%`, name]}
+                labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
+
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                <ReferenceLine y={50} stroke="#c084fc" strokeDasharray="4 4" label={{ value: '50% Sinaloa', fill: '#c084fc', fontSize: 10, position: 'right' }} />
+                <ReferenceLine y={60} stroke="#a855f7" strokeDasharray="4 4" label={{ value: '60% Sinaloa', fill: '#a855f7', fontSize: 10, position: 'right' }} />
+
+                <Line
+                type="monotone"
+                dataKey="sobrevivenciaTotalOrg"
+                name="Sobrevivencia Total Real (Agua + Raleos)"
+                stroke="#a855f7"
+                strokeWidth={3.5}
+                dot={{ fill: '#a855f7', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                activeDot={{ r: 6, fill: '#9333ea' }} />
+
+                <Line
+                type="monotone"
+                dataKey="porcentajeCosechadoOrg"
+                name="% Cosechado / Raleos (Organismos)"
+                stroke="#f97316"
+                strokeWidth={2.5}
+                dot={{ fill: '#f97316', r: 3.5, strokeWidth: 1, stroke: '#ffffff' }}
+                activeDot={{ r: 5, fill: '#ea580c' }} />
+
+                <Line
+                type="monotone"
+                dataKey="sobrevivencia"
+                name="Sobrevivencia en Agua (%)"
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={{ fill: '#10b981', r: 3 }}
+                activeDot={{ r: 5, fill: '#059669' }} />
+              </LineChart>
+            </ResponsiveContainer> :
+
+          <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
+              Sin datos disponibles para graficar
             </div>
           }
         </div>
