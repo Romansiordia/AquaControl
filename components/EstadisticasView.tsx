@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { PondRecord, HarvestRecord } from '../types';
-import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics, getPondExtractions } from '../utils';
 import {
   BarChart,
   Bar,
@@ -310,6 +310,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                 <th className="px-2 py-3 border-r border-[#125699] text-right">P. Act</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">Inc</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">SOB %Agua</th>
+                <th className="px-2 py-3 border-r border-[#125699] text-right text-purple-300 bg-purple-950/20" title="% Sobrevivencia en Pre-cosechas + SOB %Agua (si > 0)">Sobrevivencia Total</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right bg-emerald-950/20 text-emerald-300">Biomasa Agua</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right bg-amber-950/20 text-amber-300">Pre-cosechas</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right text-cyan-300">Biomasa Total</th>
@@ -321,13 +322,29 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
             <tbody className="divide-y divide-[#125699]/60">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-12 text-center text-blue-300">
+                  <td colSpan={15} className="py-12 text-center text-blue-300">
                     No hay registros de estanques disponibles.
                   </td>
                 </tr>
               ) : (
                 records.map((r) => {
                   const net = calculatePondNetMetrics(r, harvests);
+                  const harvestsSummary = getPondExtractions(r.granja, r.estanque, harvests);
+                  const hectareas = Number(r.hectareas) || 0;
+                  let siembraInicial = Number(r.densidadInicial) || Number(r.organismosSembrados) || 0;
+                  if (siembraInicial === 0 && hectareas > 0) {
+                    const orgMt2 = Number(r.orgMt2) || Number(r.camM2Inicial) || 0;
+                    if (orgMt2 > 0) siembraInicial = Math.round(orgMt2 * hectareas * 10000);
+                  }
+                  const orgExtraidos = harvestsSummary.totalOrganismos > 0
+                    ? harvestsSummary.totalOrganismos
+                    : (net.organismosExtraidos || 0);
+                  const pctCosechas = siembraInicial > 0 && orgExtraidos > 0
+                    ? (orgExtraidos / siembraInicial) * 100
+                    : 0;
+                  const sobAgua = Number(r.sobrevivencia) || 0;
+                  const sobrevivenciaTotal = pctCosechas + (sobAgua > 0 ? sobAgua : 0);
+
                   return (
                     <tr key={r.id} className="hover:bg-[#0E4680]/60 transition-colors">
                       <td className="px-3 py-2.5 font-bold text-amber-300 border-r border-[#125699] whitespace-nowrap">
@@ -353,6 +370,9 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                       </td>
                       <td className="px-2 py-2.5 text-right font-semibold text-emerald-400 border-r border-[#125699]">
                         {r.sobrevivencia}%
+                      </td>
+                      <td className="px-2 py-2.5 text-right font-bold text-purple-300 border-r border-[#125699] bg-purple-950/10">
+                        {sobrevivenciaTotal > 0 ? `${sobrevivenciaTotal.toFixed(1)}%` : '-'}
                       </td>
 
                       {/* Biomasa Agua */}
