@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { HarvestRecord, PondRecord } from '../types';
 import { Plus, Save, X, Edit2, Trash2, ChevronLeft, ChevronRight, Scale, BarChart2, Hash, Sparkles, FileSpreadsheet, AlertTriangle, TrendingUp, Layers, Fish } from 'lucide-react';
-import { formatNumber, formatDate, normalizeEstanque, cleanDateString, parseFlexibleNumber } from '../utils';
+import { formatNumber, formatDate, normalizeEstanque, cleanDateString, parseFlexibleNumber, matchPondAndHarvest } from '../utils';
 import { calculateStageOrganismos, parseHarvestWorksheet, normalizeHarvestRecord } from '../utils/harvestUtils';
 import { ResponsiveContainer, BarChart, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell, Legend } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -88,6 +88,33 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       .forEach(r => { if (r.estanque) set.add(normalizeEstanque(r.estanque)); });
     return Array.from(set).sort((a, b) => Number(a) - Number(b));
   }, [records, formGranja]);
+
+  // Lookup Hectáreas y Siembra Inicial desde Control de Producción por Granja + Estanque
+  const getPondStockingInfo = useMemo(() => {
+    const sortedRecords = [...records].sort((a, b) =>
+      (cleanDateString(b.fecha) || '').localeCompare(cleanDateString(a.fecha) || '')
+    );
+    return (granja: string, estanque: string) => {
+      const matches = sortedRecords.filter(r =>
+        matchPondAndHarvest(r.granja, r.estanque, granja, estanque)
+      );
+      if (matches.length === 0) return { hectareas: 0, siembraInicial: 0 };
+      const best =
+        matches.find(
+          r =>
+            (Number(r.hectareas) || 0) > 0 &&
+            (Number(r.densidadInicial) || Number(r.organismosSembrados) || 0) > 0
+        ) || matches[0];
+
+      const hectareas = Number(best.hectareas) || 0;
+      let siembraInicial = Number(best.densidadInicial) || Number(best.organismosSembrados) || 0;
+      if (siembraInicial === 0 && hectareas > 0) {
+        const orgMt2 = Number(best.orgMt2) || Number(best.camM2Inicial) || 0;
+        if (orgMt2 > 0) siembraInicial = Math.round(orgMt2 * hectareas * 10000);
+      }
+      return { hectareas, siembraInicial };
+    };
+  }, [records]);
 
   // Open Form for Create
   const handleOpenCreate = () => {
@@ -204,6 +231,11 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     const totalK = p1k + p2k + p3k + p4k + p5k + fk;
     const totalO = p1o + p2o + p3o + p4o + p5o + fo;
     const avgG = totalK > 0 && totalO > 0 ? parseFloat(((totalK * 1000) / totalO).toFixed(2)) : 0;
+    const { siembraInicial } = getPondStockingInfo(formGranja.trim(), formEstanque.trim());
+    const survTotal =
+      siembraInicial > 0 && totalO > 0
+        ? parseFloat(((totalO / siembraInicial) * 100).toFixed(1))
+        : editingHarvest?.sobrevivenciaFinal;
 
     const baseRecord: HarvestRecord = {
       id: editingHarvest ? editingHarvest.id : `harvest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
@@ -236,7 +268,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
       finalOrganismos: fo || undefined,
       totalKilos: totalK,
       totalOrganismos: totalO,
-      pesoPromedioPrecosechado: avgG
+      pesoPromedioPrecosechado: avgG,
+      sobrevivenciaFinal: survTotal
     };
 
     const normalized = normalizeHarvestRecord(baseRecord) || baseRecord;
@@ -462,16 +495,21 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               <tr>
                 <th className="px-3 py-3 border-r border-[#125699]">Granja</th>
                 <th className="px-3 py-3 border-r border-[#125699]">Est.</th>
+                <th className="px-3 py-3 border-r border-[#125699] text-right">Has.</th>
+                <th className="px-3 py-3 border-r border-[#125699] text-right">Siembra Inicial</th>
                 <th className="px-3 py-3 border-r border-[#125699]">Fecha</th>
                 <th className="px-3 py-3 border-r border-[#125699] bg-amber-950/30 text-amber-300 text-center" colSpan={3}>Pre-Cosecha 1</th>
                 <th className="px-3 py-3 border-r border-[#125699] bg-amber-950/20 text-amber-200 text-center" colSpan={3}>Pre-Cosecha 2</th>
                 <th className="px-3 py-3 border-r border-[#125699] bg-blue-950/30 text-blue-200 text-center" colSpan={3}>Cosecha Final</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-emerald-300 text-right">Total Kg</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-cyan-300 text-right">Total Org</th>
+                <th className="px-3 py-3 border-r border-[#125699] text-emerald-300 text-right">Sobrevivencia Total</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-purple-300 text-right">Prom. g</th>
                 <th className="px-3 py-3 text-center">Acciones</th>
               </tr>
               <tr className="bg-[#062444] text-[10px] text-blue-300 border-b border-[#125699]">
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
                 <th className="px-3 py-1.5 border-r border-[#125699]"></th>
                 <th className="px-3 py-1.5 border-r border-[#125699]"></th>
                 <th className="px-3 py-1.5 border-r border-[#125699]"></th>
@@ -491,13 +529,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 <th className="px-3 py-1.5 border-r border-[#125699]"></th>
                 <th className="px-3 py-1.5 border-r border-[#125699]"></th>
                 <th className="px-3 py-1.5 border-r border-[#125699]"></th>
+                <th className="px-3 py-1.5 border-r border-[#125699]"></th>
                 <th className="px-3 py-1.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#125699]/60">
               {paginatedHarvests.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-blue-300">
+                  <td colSpan={19} className="py-12 text-center text-blue-300">
                     No se encontraron registros de cosechas. Puedes agregar uno nuevo con el botón "+ Registrar Pre-cosecha".
                   </td>
                 </tr>
@@ -515,9 +554,14 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   const fg = Number(h.finalGramos) || 0;
                   const fo = Number(h.finalOrganismos) || 0;
 
-                  const totK = Number(h.totalKilos) || (p1k + p2k + fk);
-                  const totO = Number(h.totalOrganismos) || (p1o + p2o + fo);
+                  const totK = Number(h.totalKilos) || (p1k + p2k + (Number(h.pre3Kilos) || 0) + (Number(h.pre4Kilos) || 0) + (Number(h.pre5Kilos) || 0) + fk);
+                  const totO = Number(h.totalOrganismos) || (p1o + p2o + (Number(h.pre3Organismos) || 0) + (Number(h.pre4Organismos) || 0) + (Number(h.pre5Organismos) || 0) + fo);
                   const avgG = Number(h.pesoPromedioPrecosechado) || (totK > 0 && totO > 0 ? (totK * 1000) / totO : 0);
+
+                  const { hectareas, siembraInicial } = getPondStockingInfo(h.granja, h.estanque);
+                  const sobrevivenciaTotal = siembraInicial > 0 && totO > 0
+                    ? (totO / siembraInicial) * 100
+                    : 0;
 
                   return (
                     <tr key={h.id} className="hover:bg-[#0E4680]/60 transition-colors">
@@ -526,6 +570,12 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       </td>
                       <td className="px-3 py-2.5 font-bold text-amber-300 border-r border-[#125699] whitespace-nowrap">
                         E{normalizeEstanque(h.estanque)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-blue-100 border-r border-[#125699] whitespace-nowrap">
+                        {hectareas > 0 ? formatNumber(hectareas, 2) : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-sky-300 font-medium border-r border-[#125699] whitespace-nowrap">
+                        {siembraInicial > 0 ? formatNumber(siembraInicial, 0) : '-'}
                       </td>
                       <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699] whitespace-nowrap">
                         {cleanDateString(h.fecha1) || cleanDateString(h.fecha) || '-'}
@@ -570,6 +620,9 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       </td>
                       <td className="px-3 py-2.5 text-right font-bold text-cyan-300 border-r border-[#125699] whitespace-nowrap">
                         {formatNumber(totO)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-bold text-emerald-300 border-r border-[#125699] whitespace-nowrap">
+                        {sobrevivenciaTotal > 0 ? `${sobrevivenciaTotal.toFixed(1)}%` : '-'}
                       </td>
                       <td className="px-3 py-2.5 text-right font-bold text-purple-300 border-r border-[#125699] whitespace-nowrap">
                         {avgG > 0 ? `${avgG.toFixed(2)} g` : '-'}
