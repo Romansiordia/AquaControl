@@ -309,12 +309,11 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                 <th className="px-2 py-3 border-r border-[#125699] text-right">P. Ant</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">P. Act</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">Inc</th>
-                <th className="px-2 py-3 border-r border-[#125699] text-right">Sobrv</th>
+                <th className="px-2 py-3 border-r border-[#125699] text-right">SOB %Agua</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right bg-emerald-950/20 text-emerald-300">Biomasa Agua</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right bg-amber-950/20 text-amber-300">Pre-cosechas</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right text-cyan-300">Biomasa Total</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right">Alim. Acum</th>
-                <th className="px-2 py-3 border-r border-[#125699] text-right text-amber-300" title="Alimento / Biomasa en Agua">FCA s/ Pre</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right text-emerald-300 bg-emerald-950/20" title="Alimento / Biomasa Total Producida">FCA Poscosecha</th>
                 <th className="px-3 py-3 text-center">Acción</th>
               </tr>
@@ -322,7 +321,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
             <tbody className="divide-y divide-[#125699]/60">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="py-12 text-center text-blue-300">
+                  <td colSpan={14} className="py-12 text-center text-blue-300">
                     No hay registros de estanques disponibles.
                   </td>
                 </tr>
@@ -378,11 +377,6 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                       {/* Alimento */}
                       <td className="px-3 py-2.5 text-right text-slate-200 border-r border-[#125699]">
                         {formatNumber(Number(r.alimentoAcumulado) || 0)} kg
-                      </td>
-
-                      {/* FCA s/ Pre */}
-                      <td className="px-2 py-2.5 text-right text-amber-300 border-r border-[#125699]">
-                        {net.fcaSinPrecosecha > 0 ? net.fcaSinPrecosecha.toFixed(2) : '-'}
                       </td>
 
                       {/* FCA Poscosecha */}
