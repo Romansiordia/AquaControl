@@ -308,7 +308,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                 <th className="px-2 py-3 border-r border-[#125699] text-right">Días</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">P. Ant</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">P. Act</th>
-                <th className="px-2 py-3 border-r border-[#125699] text-right">Inc</th>
+                <th className="px-2 py-3 border-r border-[#125699] text-right" title="Incremento Semanal Promedio: (P. Act / Días) × 7">ISP</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">SOB %Agua</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right text-purple-300 bg-purple-950/20" title="% Sobrevivencia en Pre-cosechas + SOB %Agua (si > 0)">Sobrevivencia Total</th>
                 <th className="px-3 py-3 border-r border-[#125699] text-right bg-emerald-950/20 text-emerald-300">Biomasa Agua</th>
@@ -344,6 +344,9 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                     : 0;
                   const sobAgua = Number(r.sobrevivencia) || 0;
                   const sobrevivenciaTotal = pctCosechas + (sobAgua > 0 ? sobAgua : 0);
+                  const dias = Number(r.diasCultivo) || 0;
+                  const pesoActual = Number(r.pesoActual) || 0;
+                  const isp = dias > 0 && pesoActual > 0 ? (pesoActual / dias) * 7 : 0;
 
                   return (
                     <tr key={r.id} className="hover:bg-[#0E4680]/60 transition-colors">
@@ -366,7 +369,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                         {r.pesoActual}g
                       </td>
                       <td className="px-2 py-2.5 text-right font-semibold text-cyan-300 border-r border-[#125699]">
-                        +{r.incrementoSemanal}g
+                        {isp > 0 ? `${isp.toFixed(2)}g` : '-'}
                       </td>
                       <td className="px-2 py-2.5 text-right font-semibold text-emerald-400 border-r border-[#125699]">
                         {r.sobrevivencia}%
