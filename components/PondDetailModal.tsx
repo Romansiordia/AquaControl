@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { PondRecord, HarvestRecord } from '../types';
 import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics, cleanDateString } from '../utils';
-import { X, Scale, Fish, Layers, Flame, TrendingUp, Calendar, ShieldCheck, Activity } from 'lucide-react';
+import { X, Scale, Layers, Flame, TrendingUp, Calendar, ShieldCheck, Activity } from 'lucide-react';
+import ShrimpIcon from './ShrimpIcon';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface Props {
@@ -67,7 +68,7 @@ const PondDetailModal: React.FC<Props> = ({ pondId, records, harvests = [], onCl
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699]">
             <p className="text-xs text-emerald-300 font-semibold flex items-center gap-1.5">
-              <Fish className="w-4 h-4 text-emerald-400" />
+              <ShrimpIcon className="w-5 h-5 text-emerald-400" />
               <span>Biomasa en Agua</span>
             </p>
             <p className="text-xl font-black text-white mt-1">

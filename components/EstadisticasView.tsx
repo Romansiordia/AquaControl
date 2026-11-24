@@ -14,7 +14,8 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, Fish, ArrowUpRight } from 'lucide-react';
+import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, ArrowUpRight } from 'lucide-react';
+import ShrimpIcon from './ShrimpIcon';
 
 interface EstadisticasViewProps {
   records: PondRecord[];
@@ -47,11 +48,30 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     let totalAlimentoAcumulado = 0;
     let weightedWeightSum = 0;
     let totalPopulation = 0;
-    let totalSurvSum = 0;
+    let totalSurvTotalSum = 0;
+    let validSurvCount = 0;
+    let totalSobAguaSum = 0;
+    let totalPctCosechasSum = 0;
     let count = 0;
 
     records.forEach(r => {
       const net = calculatePondNetMetrics(r, harvests);
+      const harvestsSummary = getPondExtractions(r.granja, r.estanque, harvests);
+      const hectareas = Number(r.hectareas) || 0;
+      let siembraInicial = Number(r.densidadInicial) || Number(r.organismosSembrados) || 0;
+      if (siembraInicial === 0 && hectareas > 0) {
+        const orgMt2 = Number(r.orgMt2) || Number(r.camM2Inicial) || 0;
+        if (orgMt2 > 0) siembraInicial = Math.round(orgMt2 * hectareas * 10000);
+      }
+      const orgExtraidos = harvestsSummary.totalOrganismos > 0
+        ? harvestsSummary.totalOrganismos
+        : (net.organismosExtraidos || 0);
+      const pctCosechas = siembraInicial > 0 && orgExtraidos > 0
+        ? (orgExtraidos / siembraInicial) * 100
+        : 0;
+      const sobAgua = Number(r.sobrevivencia) || 0;
+      const sobrevivenciaTotal = pctCosechas + (sobAgua > 0 ? sobAgua : 0);
+
       totalBiomasaEnAgua += net.biomasaEnAgua;
       totalKilosExtraidos += net.kilosExtraidos;
       totalBiomasaTotal += net.biomasaTotal;
@@ -60,7 +80,13 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
       const pop = net.poblacionEnAgua || Number(r.densidadActual) || 0;
       totalPopulation += pop;
       weightedWeightSum += (Number(r.pesoActual) || 0) * (net.biomasaEnAgua || 1);
-      totalSurvSum += Number(r.sobrevivencia) || 0;
+
+      if (sobrevivenciaTotal > 0) {
+        totalSurvTotalSum += sobrevivenciaTotal;
+        totalSobAguaSum += sobAgua > 0 ? sobAgua : 0;
+        totalPctCosechasSum += pctCosechas;
+        validSurvCount++;
+      }
       count++;
     });
 
@@ -77,7 +103,9 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
       ? parseFloat((weightedWeightSum / totalBiomasaEnAgua).toFixed(2))
       : (count > 0 ? parseFloat((records.reduce((acc, r) => acc + (Number(r.pesoActual) || 0), 0) / count).toFixed(2)) : 0);
 
-    const avgSurv = count > 0 ? parseFloat((totalSurvSum / count).toFixed(1)) : 0;
+    const avgSurv = validSurvCount > 0 ? parseFloat((totalSurvTotalSum / validSurvCount).toFixed(1)) : 0;
+    const avgSobAgua = validSurvCount > 0 ? parseFloat((totalSobAguaSum / validSurvCount).toFixed(1)) : 0;
+    const avgPctCosechas = validSurvCount > 0 ? parseFloat((totalPctCosechasSum / validSurvCount).toFixed(1)) : 0;
 
     return {
       pondsCount: count,
@@ -90,6 +118,8 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
       fcaAhorro,
       avgPeso,
       avgSurv,
+      avgSobAgua,
+      avgPctCosechas,
       totalPopulation
     };
   }, [records, harvests]);
@@ -103,7 +133,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-blue-300 mb-1">
               <span className="text-xs font-semibold">Biomasa en Agua</span>
-              <Fish className="w-4 h-4 text-emerald-400" />
+              <ShrimpIcon className="w-5 h-5 text-emerald-400" />
             </div>
             <p className="text-xl font-black text-white">
               {formatNumber(summary.totalBiomasaEnAgua)} <span className="text-xs font-normal text-blue-300">kg</span>
@@ -168,16 +198,21 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
             <p className="text-[10px] text-blue-300 mt-1 font-medium">Ponderado activo</p>
           </div>
 
-          {/* Card 6: Sobrevivencia */}
+          {/* Card 6: Sobrevivencia Total */}
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-blue-300 mb-1">
-              <span className="text-xs font-semibold">Sobrevivencia</span>
+              <span className="text-xs font-semibold">Sobrevivencia Total</span>
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
-            <p className="text-xl font-black text-white">
+            <p className="text-xl font-black text-emerald-300">
               {summary.avgSurv > 0 ? `${summary.avgSurv}%` : '-'}
             </p>
-            <p className="text-[10px] text-blue-300 mt-1 font-medium">{summary.pondsCount} estanques</p>
+            <p className="text-[10px] text-blue-300 mt-1 font-medium">
+              {summary.pondsCount === 1 ? '1 estanque' : `${summary.pondsCount} estanques`}
+              {summary.avgSurv > 0 && (summary.avgSobAgua > 0 || summary.avgPctCosechas > 0)
+                ? ` · Agua ${summary.avgSobAgua}% / Cos ${summary.avgPctCosechas}%`
+                : ''}
+            </p>
           </div>
         </div>
       )}
@@ -188,7 +223,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
         <div className="bg-[#093661] p-5 rounded-2xl border border-[#125699] shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Fish className="w-4 h-4 text-cyan-400" />
+              <ShrimpIcon className="w-5 h-5 text-cyan-400" />
               <span>Peso Actual por Estanque (g)</span>
             </h3>
           </div>

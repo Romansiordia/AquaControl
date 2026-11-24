@@ -628,21 +628,22 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         </div>
 
         {/* ========================================================
-             2. GRÁFICO DE LÍNEAS: % DE SOBREVIVENCIA
+             2. GRÁFICO DE LÍNEAS: SOBREVIVENCIA REAL DEL CICLO
+                (En Agua + Raleos en Organismos)
             ======================================================== */}
-        <div className="bg-[#0B4075] p-5 rounded-xl border border-[#125699] shadow-sm flex flex-col h-[360px]">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-[#0B4075] p-5 rounded-xl border border-purple-500/40 shadow-sm flex flex-col h-[360px]">
+          <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <div className="w-7 h-7 rounded bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0">
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">% de Sobrevivencia</h3>
-                <p className="text-[11px] text-blue-200">Evolución de la viabilidad biológica en cultivo (%)</p>
+                <h3 className="text-sm font-bold text-white">Sobrevivencia Real del Ciclo</h3>
+                <p className="text-[11px] text-blue-200">En Agua + Raleos (% Organismos Sembrados)</p>
               </div>
             </div>
-            <span className="text-[10px] bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-semibold">
-              Rango 0 - 100%
+            <span className="text-[10px] bg-purple-950/60 text-purple-200 border border-purple-500/40 px-2 py-0.5 rounded font-semibold whitespace-nowrap">
+              Ref. Sinaloa: 50% - 60%
             </span>
           </div>
 
@@ -656,14 +657,14 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                
+
                   <YAxis
                   domain={[0, 100]}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
                   unit="%" />
-                
+
                   <Tooltip
                   contentStyle={{
                     borderRadius: '8px',
@@ -674,27 +675,39 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
                   }}
                   formatter={(val: number, name: string) => [`${formatNumber(val, 1)}%`, name]}
                   labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
-                
+
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  <ReferenceLine y={70} stroke="#10b981" strokeDasharray="4 4" label={{ value: '70% esperado', fill: '#10b981', fontSize: 10, position: 'right' }} />
-                  <Line
-                  type="monotone"
-                  dataKey="sobrevivencia"
-                  name="Sobrevivencia (%)"
-                  stroke="#10b981"
-                  strokeWidth={3}
-                  dot={{ fill: '#10b981', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                  activeDot={{ r: 6, fill: '#059669' }} />
+                  <ReferenceLine y={50} stroke="#c084fc" strokeDasharray="4 4" label={{ value: '50%', fill: '#c084fc', fontSize: 10, position: 'right' }} />
+                  <ReferenceLine y={60} stroke="#a855f7" strokeDasharray="4 4" label={{ value: '60%', fill: '#a855f7', fontSize: 10, position: 'right' }} />
 
                   <Line
                   type="monotone"
-                  dataKey="porcentajeCosechado"
-                  name="% Cosechado / Raleos"
+                  dataKey="sobrevivenciaTotalOrg"
+                  name="Sobrevivencia Total Real (Agua + Raleos)"
+                  stroke="#a855f7"
+                  strokeWidth={3.5}
+                  dot={{ fill: '#a855f7', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
+                  activeDot={{ r: 6, fill: '#9333ea' }} />
+
+                  <Line
+                  type="monotone"
+                  dataKey="porcentajeCosechadoOrg"
+                  name="% Cosechado / Raleos (Org)"
                   stroke="#f97316"
                   strokeWidth={2.5}
-                  dot={{ fill: '#f97316', r: 3, strokeWidth: 1, stroke: '#ffffff' }}
+                  dot={{ fill: '#f97316', r: 3.5, strokeWidth: 1, stroke: '#ffffff' }}
                   activeDot={{ r: 5, fill: '#ea580c' }} />
-                
+
+                  <Line
+                  type="monotone"
+                  dataKey="sobrevivencia"
+                  name="Sobrevivencia en Agua (%)"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={{ fill: '#10b981', r: 3 }}
+                  activeDot={{ r: 5, fill: '#059669' }} />
+
                 </LineChart>
               </ResponsiveContainer> :
 
@@ -942,104 +955,6 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
 
           <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
               Sin datos de biomasa o pre-cosechas para graficar
-            </div>
-          }
-        </div>
-      </div>
-
-      {/* ========================================================
-           6. NUEVA GRÁFICA COMPARATIVA: SOBREVIVENCIA REAL DEL CICLO
-              (Organismos en Agua + Organismos Extraídos en Raleos)
-          ======================================================== */}
-      <div className="bg-[#0B4075] p-5 rounded-xl border border-purple-500/40 shadow-sm flex flex-col h-[400px]">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2 flex-wrap">
-                Sobrevivencia Real del Ciclo (En Agua + Raleos en Organismos)
-                <span className="text-[11px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/40 font-semibold">
-                  Base Unificada: % Organismos Sembrados
-                </span>
-              </h3>
-              <p className="text-xs text-blue-200">
-                Mide los raleos sobre organismos sembrados (sin caída falsa al crecer el camarón) y suma lo vivo en agua + lo ya cosechado (ref. Sinaloa 50% - 60%).
-              </p>
-            </div>
-          </div>
-
-          <span className="text-[10px] bg-purple-950/60 text-purple-200 border border-purple-500/40 px-2.5 py-1 rounded font-semibold">
-            Ref. Sinaloa: 50% - 60%
-          </span>
-        </div>
-
-        <div className="flex-1 min-h-0">
-          {activeChartData.length > 0 ?
-          <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={activeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#125699" />
-                <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }} />
-
-                <YAxis
-                domain={[0, 100]}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                unit="%" />
-
-                <Tooltip
-                contentStyle={{
-                  borderRadius: '8px',
-                  border: '1px solid #125699',
-                  backgroundColor: '#072C52',
-                  color: '#fff',
-                  fontSize: '12px'
-                }}
-                formatter={(val: number, name: string) => [`${formatNumber(val, 1)}%`, name]}
-                labelFormatter={(label) => `${viewMode === 'temporal' ? 'Fecha' : 'Estanque'}: ${label}`} />
-
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                <ReferenceLine y={50} stroke="#c084fc" strokeDasharray="4 4" label={{ value: '50% Sinaloa', fill: '#c084fc', fontSize: 10, position: 'right' }} />
-                <ReferenceLine y={60} stroke="#a855f7" strokeDasharray="4 4" label={{ value: '60% Sinaloa', fill: '#a855f7', fontSize: 10, position: 'right' }} />
-
-                <Line
-                type="monotone"
-                dataKey="sobrevivenciaTotalOrg"
-                name="Sobrevivencia Total Real (Agua + Raleos)"
-                stroke="#a855f7"
-                strokeWidth={3.5}
-                dot={{ fill: '#a855f7', r: 4, strokeWidth: 1, stroke: '#ffffff' }}
-                activeDot={{ r: 6, fill: '#9333ea' }} />
-
-                <Line
-                type="monotone"
-                dataKey="porcentajeCosechadoOrg"
-                name="% Cosechado / Raleos (Organismos)"
-                stroke="#f97316"
-                strokeWidth={2.5}
-                dot={{ fill: '#f97316', r: 3.5, strokeWidth: 1, stroke: '#ffffff' }}
-                activeDot={{ r: 5, fill: '#ea580c' }} />
-
-                <Line
-                type="monotone"
-                dataKey="sobrevivencia"
-                name="Sobrevivencia en Agua (%)"
-                stroke="#10b981"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-                dot={{ fill: '#10b981', r: 3 }}
-                activeDot={{ r: 5, fill: '#059669' }} />
-              </LineChart>
-            </ResponsiveContainer> :
-
-          <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
-              Sin datos disponibles para graficar
             </div>
           }
         </div>

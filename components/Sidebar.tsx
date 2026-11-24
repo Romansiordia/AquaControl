@@ -1,4 +1,5 @@
 import React from 'react';
+import ShrimpIcon from './ShrimpIcon';
 
 export type View = 'estadisticas' | 'growthCurve' | 'farmEvaluation' | 'evaluationsList' | 'stockingProgram' | 'productionProgram' | 'googleSync' | 'harvests' | 'tendencias';
 
@@ -42,36 +43,10 @@ const Sidebar: React.FC<Props> = ({ activeView, onNavigate, onExportPDF, isExpor
     <aside className="w-64 bg-[#072C52] text-white flex flex-col p-4 border-r border-[#125699]">
       <div className="flex items-center gap-4 px-2 py-4 mb-8">
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-[#1B5CB3] bg-[#072C52] shadow-[0_0_15px_rgba(88,165,255,0.3)] flex-shrink-0 relative overflow-hidden">
-          {/* Neon Shrimp SVG */}
-          <svg className="w-10 h-10 text-[#7DD3FC] drop-shadow-[0_0_5px_rgba(125,211,252,0.8)]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-            {/* Antennae */}
-            <path d="M 65 42 C 85 35 85 15 70 15 C 50 15 25 25 25 25" />
-            <path d="M 75 45 C 95 45 95 5 70 5 C 40 5 15 15 15 15" />
-            
-            {/* Head */}
-            <path d="M 65 42 L 75 45 C 75 45 70 55 55 55 L 50 40" />
-            <circle cx="62" cy="47" r="2.5" fill="currentColor" stroke="none" className="drop-shadow-[0_0_4px_rgba(125,211,252,1)]" />
-
-            {/* Body Back Curve */}
-            <path d="M 50 40 C 30 30 5 45 10 70 C 15 90 35 95 50 85 C 55 80 60 75 60 75" />
-            
-            {/* Inner Belly Curve */}
-            <path d="M 55 55 C 35 55 25 65 25 75 C 25 85 40 90 50 85" />
-            
-            {/* Segments (Shell lines) */}
-            <path d="M 18 50 C 25 55 30 55 35 53" />
-            <path d="M 13 65 C 20 65 25 66 28 64" />
-            <path d="M 20 82 C 25 80 30 78 32 75" />
-            
-            {/* Legs */}
-            <path d="M 35 61 C 38 65 42 70 42 75" />
-            <path d="M 42 58 C 45 62 50 67 50 72" />
-            <path d="M 50 55 C 53 60 58 64 58 68" />
-            
-            {/* Tail fins */}
-            <path d="M 60 75 C 70 75 75 85 70 90 C 65 90 60 85 60 75" />
-            <path d="M 60 75 C 70 70 80 75 75 80 C 70 85 65 80 60 75" />
-          </svg>
+          <ShrimpIcon
+            className="w-10 h-10 text-[#7DD3FC] drop-shadow-[0_0_5px_rgba(125,211,252,0.8)]"
+            strokeWidth={4}
+          />
           {/* Inner Glow */}
           <div className="absolute inset-0 rounded-2xl shadow-[inset_0_0_10px_rgba(88,165,255,0.2)]"></div>
         </div>

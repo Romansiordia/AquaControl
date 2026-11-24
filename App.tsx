@@ -202,7 +202,7 @@ const App: React.FC = () => {
   const uniqueEstanques = useMemo(() => {
     const eSet = new Set<string>();
     records.forEach(r => { if (r.estanque) eSet.add(normalizeEstanque(r.estanque)); });
-    return Array.from(eSet).sort((a, b) => Number(a) - Number(b));
+    return Array.from(eSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
   }, [records]);
 
   // Filtered raw records
@@ -230,7 +230,11 @@ const App: React.FC = () => {
       latestMap.set(key, r);
     });
 
-    return Array.from(latestMap.values());
+    return Array.from(latestMap.values()).sort((a, b) => {
+      const gCmp = (a.granja || '').localeCompare(b.granja || '', undefined, { sensitivity: 'base' });
+      if (gCmp !== 0) return gCmp;
+      return normalizeEstanque(a.estanque).localeCompare(normalizeEstanque(b.estanque), undefined, { numeric: true, sensitivity: 'base' });
+    });
   }, [filteredRawRecords]);
 
   // Chart data
@@ -275,7 +279,9 @@ const App: React.FC = () => {
         }
       });
     });
-    return Array.from(estanques).sort();
+    return Array.from(estanques).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
   }, [historicalChartData]);
 
   const lineColors = ['#3b82f6', '#10b981', '#fb923c', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#eab308'];
