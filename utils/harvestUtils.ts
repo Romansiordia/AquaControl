@@ -130,7 +130,7 @@ export const normalizeHarvestRecord = (row: any): HarvestRecord | null => {
   }
 
   const id = String(getVal('id', 'ID') || `harvest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
-  const fecha = fecha5 || fecha4 || fecha3 || fecha2 || fecha1 || fechaFinal || cleanDateString(getVal('fecha', 'Fecha')) || new Date().toISOString().split('T')[0];
+  const fecha = fechaFinal || fecha5 || fecha4 || fecha3 || fecha2 || fecha1 || cleanDateString(getVal('fecha', 'Fecha')) || new Date().toISOString().split('T')[0];
 
   return {
     id,

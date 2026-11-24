@@ -103,9 +103,21 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
       pondsMap: Map<string, {record: PondRecord;net: any;}>;
     }>();
 
+    const recordsByPond = new Map<string, { dateStr: string; record: PondRecord }[]>();
+    let minSamplingDate = '';
+
     enrichedRecords.forEach(({ record, net }) => {
       let dateStr = cleanDateString(record.fecha) || cleanDateString(record.fechaSiembra);
       if (!dateStr) dateStr = 'Sin Fecha';
+
+      if (dateStr !== 'Sin Fecha') {
+        if (!minSamplingDate || dateStr < minSamplingDate) {
+          minSamplingDate = dateStr;
+        }
+        const pk = `${record.granja || ''}_${normalizeEstanque(record.estanque)}`;
+        if (!recordsByPond.has(pk)) recordsByPond.set(pk, []);
+        recordsByPond.get(pk)!.push({ dateStr, record });
+      }
 
       if (!dateMap.has(dateStr)) {
         let label = dateStr;
@@ -141,6 +153,62 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         }
       }
     });
+
+    // Incorporar fechas exactas de Pre-cosechas y Cosecha Final que no coincidan con un muestreo semanal,
+    // para graficar cada evento en el día exacto en que ocurrió.
+    if (harvests && harvests.length > 0 && minSamplingDate) {
+      recordsByPond.forEach(list => list.sort((a, b) => a.dateStr.localeCompare(b.dateStr)));
+
+      const harvestEventDates = new Set<string>();
+      harvests.forEach(h => {
+        const matchGranja = selectedGranja === 'all' || h.granja?.toLowerCase().trim() === selectedGranja.toLowerCase().trim();
+        const matchEstanque = selectedEstanque === 'all' || normalizeEstanque(h.estanque) === selectedEstanque;
+        if (!matchGranja || !matchEstanque) return;
+
+        [h.fecha1, h.fecha2, h.fecha3, h.fecha4, h.fecha5, h.fechaFinal].forEach(rawD => {
+          const dStr = cleanDateString(rawD);
+          if (dStr && dStr >= minSamplingDate && !dateMap.has(dStr)) {
+            harvestEventDates.add(dStr);
+          }
+        });
+      });
+
+      harvestEventDates.forEach(evDate => {
+        let label = evDate;
+        try {
+          const parts = evDate.split('-').map(Number);
+          if (parts.length === 3) {
+            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+            label = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+          }
+        } catch {
+          label = evDate;
+        }
+
+        const pondsMap = new Map<string, { record: PondRecord; net: any }>();
+        recordsByPond.forEach((pondTimeline, pk) => {
+          let latestPrior: PondRecord | null = null;
+          for (let i = pondTimeline.length - 1; i >= 0; i--) {
+            if (pondTimeline[i].dateStr <= evDate) {
+              latestPrior = pondTimeline[i].record;
+              break;
+            }
+          }
+          if (latestPrior) {
+            const net = calculatePondNetMetrics(latestPrior, harvests, { asOfDate: evDate, isHistorical: true });
+            pondsMap.set(pk, { record: latestPrior, net });
+          }
+        });
+
+        if (pondsMap.size > 0) {
+          dateMap.set(evDate, {
+            fechaRaw: evDate,
+            fechaLabel: label,
+            pondsMap
+          });
+        }
+      });
+    }
 
     return Array.from(dateMap.values()).
     sort((a, b) => a.fechaRaw.localeCompare(b.fechaRaw)).
@@ -191,7 +259,7 @@ export const TendenciasView: React.FC<TendenciasViewProps> = ({
         sobrevivenciaTotalOrg: survTotalOrg
       };
     });
-  }, [enrichedRecords]);
+  }, [enrichedRecords, harvests, selectedGranja, selectedEstanque]);
 
   // 2. DATASET POR ESTANQUE (Último muestreo activo de cada estanque para comparar la curva entre estanques)
   const pondTrendData = useMemo(() => {

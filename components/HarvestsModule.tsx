@@ -29,6 +29,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingHarvest, setEditingHarvest] = useState<HarvestRecord | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const harvestFileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter States
@@ -119,6 +120,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   // Open Form for Create
   const handleOpenCreate = () => {
     setEditingHarvest(null);
+    setFormError(null);
     setFormGranja(uniqueGranjas[0] || '');
     setFormEstanque('');
     setFormFecha(new Date().toISOString().split('T')[0]);
@@ -134,6 +136,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
   // Open Form for Edit
   const handleOpenEdit = (h: HarvestRecord) => {
     setEditingHarvest(h);
+    setFormError(null);
     setFormGranja(h.granja);
     setFormEstanque(normalizeEstanque(h.estanque));
     setFormFecha(cleanDateString(h.fecha) || new Date().toISOString().split('T')[0]);
@@ -199,8 +202,10 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
     if (!formGranja || !formEstanque) {
-      alert('Por favor selecciona Granja y Estanque.');
+      setFormError('Por favor selecciona Granja y Estanque.');
       return;
     }
 
@@ -228,6 +233,39 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     const fg = parseFlexibleNumber(finalGramos);
     const fo = parseFlexibleNumber(finalOrganismos) || calculateStageOrganismos(fk, fg);
 
+    const cFecha1 = cleanDateString(fecha1);
+    const cFecha2 = cleanDateString(fecha2);
+    const cFecha3 = cleanDateString(fecha3);
+    const cFecha4 = cleanDateString(fecha4);
+    const cFecha5 = cleanDateString(fecha5);
+    const cFechaFinal = cleanDateString(fechaFinal);
+    const cFechaGeneral = cleanDateString(formFecha);
+
+    const hasPre1 = p1k > 0 || p1g > 0 || p1o > 0;
+    const hasPre2 = p2k > 0 || p2g > 0 || p2o > 0;
+    const hasPre3 = p3k > 0 || p3g > 0 || p3o > 0;
+    const hasPre4 = p4k > 0 || p4g > 0 || p4o > 0;
+    const hasPre5 = p5k > 0 || p5g > 0 || p5o > 0;
+    const hasFinal = fk > 0 || fg > 0 || fo > 0;
+
+    if (!hasPre1 && !hasPre2 && !hasPre3 && !hasPre4 && !hasPre5 && !hasFinal) {
+      setFormError('Captura al menos una etapa (Pre-Cosecha o Cosecha Final) con sus datos.');
+      return;
+    }
+
+    const missingStageDates: string[] = [];
+    if (hasPre1 && !cFecha1) missingStageDates.push('Pre-Cosecha 1');
+    if (hasPre2 && !cFecha2) missingStageDates.push('Pre-Cosecha 2');
+    if (hasPre3 && !cFecha3) missingStageDates.push('Pre-Cosecha 3');
+    if (hasPre4 && !cFecha4) missingStageDates.push('Pre-Cosecha 4');
+    if (hasPre5 && !cFecha5) missingStageDates.push('Pre-Cosecha 5');
+    if (hasFinal && !cFechaFinal) missingStageDates.push('Cosecha Final');
+
+    if (missingStageDates.length > 0) {
+      setFormError(`Debes capturar la fecha exacta de: ${missingStageDates.join(', ')} para registrar el día exacto y graficarlo correctamente.`);
+      return;
+    }
+
     const totalK = p1k + p2k + p3k + p4k + p5k + fk;
     const totalO = p1o + p2o + p3o + p4o + p5o + fo;
     const avgG = totalK > 0 && totalO > 0 ? parseFloat(((totalK * 1000) / totalO).toFixed(2)) : 0;
@@ -237,32 +275,35 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
         ? parseFloat(((totalO / siembraInicial) * 100).toFixed(1))
         : editingHarvest?.sobrevivenciaFinal;
 
+    const exactMainDate =
+      cFechaFinal || cFecha5 || cFecha4 || cFecha3 || cFecha2 || cFecha1 || cFechaGeneral || new Date().toISOString().split('T')[0];
+
     const baseRecord: HarvestRecord = {
       id: editingHarvest ? editingHarvest.id : `harvest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       granja: formGranja.trim(),
       estanque: formEstanque.trim(),
-      fecha: formFecha,
-      fecha1: fecha1 || undefined,
+      fecha: exactMainDate,
+      fecha1: cFecha1 || undefined,
       pre1Kilos: p1k || undefined,
       pre1Gramos: p1g || undefined,
       pre1Organismos: p1o || undefined,
-      fecha2: fecha2 || undefined,
+      fecha2: cFecha2 || undefined,
       pre2Kilos: p2k || undefined,
       pre2Gramos: p2g || undefined,
       pre2Organismos: p2o || undefined,
-      fecha3: fecha3 || undefined,
+      fecha3: cFecha3 || undefined,
       pre3Kilos: p3k || undefined,
       pre3Gramos: p3g || undefined,
       pre3Organismos: p3o || undefined,
-      fecha4: fecha4 || undefined,
+      fecha4: cFecha4 || undefined,
       pre4Kilos: p4k || undefined,
       pre4Gramos: p4g || undefined,
       pre4Organismos: p4o || undefined,
-      fecha5: fecha5 || undefined,
+      fecha5: cFecha5 || undefined,
       pre5Kilos: p5k || undefined,
       pre5Gramos: p5g || undefined,
       pre5Organismos: p5o || undefined,
-      fechaFinal: fechaFinal || undefined,
+      fechaFinal: cFechaFinal || undefined,
       finalKilos: fk || undefined,
       finalGramos: fg || undefined,
       finalOrganismos: fo || undefined,
@@ -279,6 +320,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
     } else {
       onAddHarvest(normalized);
     }
+    setFormError(null);
     setShowForm(false);
     setEditingHarvest(null);
   };
@@ -563,6 +605,15 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                     ? (totO / siembraInicial) * 100
                     : 0;
 
+                  const f1 = cleanDateString(h.fecha1);
+                  const f2 = cleanDateString(h.fecha2);
+                  const fFinal = cleanDateString(h.fechaFinal);
+                  const stageDateTags = [
+                    f1 ? `Pre 1: ${f1}` : '',
+                    f2 ? `Pre 2: ${f2}` : '',
+                    fFinal ? `Final: ${fFinal}` : '',
+                  ].filter(Boolean);
+
                   return (
                     <tr key={h.id} className="hover:bg-[#0E4680]/60 transition-colors">
                       <td className="px-3 py-2.5 font-bold text-white border-r border-[#125699] whitespace-nowrap">
@@ -578,12 +629,25 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                         {siembraInicial > 0 ? formatNumber(siembraInicial, 0) : '-'}
                       </td>
                       <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699] whitespace-nowrap">
-                        {cleanDateString(h.fecha1) || cleanDateString(h.fecha) || '-'}
+                        {stageDateTags.length > 0 ? (
+                          <div className="flex flex-col gap-0.5 text-[11px] leading-tight">
+                            {stageDateTags.map((tag, idx) => (
+                              <span key={idx}>{tag}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          cleanDateString(h.fecha) || '-'
+                        )}
                       </td>
 
                       {/* Pre 1 */}
                       <td className="px-2 py-2.5 text-right font-medium text-amber-300 border-r border-[#125699]/40 bg-amber-950/10">
-                        {p1k > 0 ? formatNumber(p1k) : '-'}
+                        {p1k > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <span>{formatNumber(p1k)}</span>
+                            {f1 && <span className="text-[10px] text-amber-200/70 font-normal">{f1}</span>}
+                          </div>
+                        ) : '-'}
                       </td>
                       <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]/40 bg-amber-950/10">
                         {p1g > 0 ? `${p1g} g` : '-'}
@@ -594,7 +658,12 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
                       {/* Pre 2 */}
                       <td className="px-2 py-2.5 text-right font-medium text-amber-200 border-r border-[#125699]/40 bg-amber-950/5">
-                        {p2k > 0 ? formatNumber(p2k) : '-'}
+                        {p2k > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <span>{formatNumber(p2k)}</span>
+                            {f2 && <span className="text-[10px] text-amber-200/70 font-normal">{f2}</span>}
+                          </div>
+                        ) : '-'}
                       </td>
                       <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]/40 bg-amber-950/5">
                         {p2g > 0 ? `${p2g} g` : '-'}
@@ -605,7 +674,12 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
 
                       {/* Final */}
                       <td className="px-2 py-2.5 text-right font-medium text-blue-200 border-r border-[#125699]/40 bg-blue-950/10">
-                        {fk > 0 ? formatNumber(fk) : '-'}
+                        {fk > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <span>{formatNumber(fk)}</span>
+                            {fFinal && <span className="text-[10px] text-emerald-300/80 font-normal">{fFinal}</span>}
+                          </div>
+                        ) : '-'}
                       </td>
                       <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]/40 bg-blue-950/10">
                         {fg > 0 ? `${fg} g` : '-'}
@@ -708,6 +782,13 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
             </div>
 
             <form onSubmit={handleSave} className="space-y-6">
+              {formError && (
+                <div className="bg-red-950/70 border border-red-400/60 text-red-100 px-4 py-3 rounded-xl text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-300 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
               {/* General Pond Info */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#093661] p-4 rounded-xl border border-[#125699]">
                 <div>
@@ -717,6 +798,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                     onChange={(e) => {
                       setFormGranja(e.target.value);
                       setFormEstanque('');
+                      setFormError(null);
                     }}
                     required
                     className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
@@ -733,7 +815,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   {availableEstanques.length > 0 ? (
                     <select
                       value={formEstanque}
-                      onChange={(e) => setFormEstanque(e.target.value)}
+                      onChange={(e) => { setFormEstanque(e.target.value); setFormError(null); }}
                       required
                       className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
                     >
@@ -747,7 +829,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       type="text"
                       placeholder="Número de estanque"
                       value={formEstanque}
-                      onChange={(e) => setFormEstanque(e.target.value)}
+                      onChange={(e) => { setFormEstanque(e.target.value); setFormError(null); }}
                       required
                       className="w-full bg-[#0B4075] text-white border border-[#125699] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
                     />
@@ -755,7 +837,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-blue-200 mb-1">Fecha General:</label>
+                  <label className="block text-xs font-semibold text-blue-200 mb-1">Fecha General de Registro:</label>
                   <input
                     type="date"
                     value={formFecha}
@@ -767,6 +849,10 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
               </div>
 
               {/* Stage 1: Pre-cosecha 1 */}
+              {(() => {
+                const hasPre1Data = parseFlexibleNumber(pre1Kilos) > 0 || parseFlexibleNumber(pre1Gramos) > 0 || parseFlexibleNumber(pre1Organismos) > 0;
+                const missingDate1 = hasPre1Data && !cleanDateString(fecha1);
+                return (
               <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] space-y-3">
                 <h4 className="text-sm font-bold text-amber-300 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-amber-400"></span>
@@ -774,12 +860,17 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] text-blue-200 mb-1">Fecha Pre 1:</label>
+                    <label className="block text-[11px] text-blue-200 mb-1">
+                      Fecha Exacta Pre 1:{hasPre1Data && <span className="text-amber-300 font-semibold"> * Obligatoria</span>}
+                    </label>
                     <input
                       type="date"
                       value={fecha1}
-                      onChange={(e) => setFecha1(e.target.value)}
-                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs [color-scheme:dark]"
+                      required={hasPre1Data}
+                      onChange={(e) => { setFecha1(e.target.value); setFormError(null); }}
+                      className={`w-full bg-[#072C52] text-white rounded px-2.5 py-1.5 text-xs [color-scheme:dark] border ${
+                        missingDate1 ? 'border-red-400 ring-1 ring-red-400/60' : 'border-[#125699]'
+                      }`}
                     />
                   </div>
                   <div>
@@ -789,7 +880,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       step="any"
                       placeholder="Ej. 1152"
                       value={pre1Kilos}
-                      onChange={(e) => handlePreKilosOrGramsChange(1, e.target.value, pre1Gramos)}
+                      onChange={(e) => { handlePreKilosOrGramsChange(1, e.target.value, pre1Gramos); setFormError(null); }}
                       className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
                     />
                   </div>
@@ -800,7 +891,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       step="any"
                       placeholder="Ej. 9.06"
                       value={pre1Gramos}
-                      onChange={(e) => handlePreKilosOrGramsChange(1, pre1Kilos, e.target.value)}
+                      onChange={(e) => { handlePreKilosOrGramsChange(1, pre1Kilos, e.target.value); setFormError(null); }}
                       className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
                     />
                   </div>
@@ -809,15 +900,21 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                     <input
                       type="number"
                       value={pre1Organismos}
-                      onChange={(e) => setPre1Organismos(e.target.value)}
+                      onChange={(e) => { setPre1Organismos(e.target.value); setFormError(null); }}
                       placeholder="Cálculo auto"
                       className="w-full bg-[#051E38] text-cyan-300 font-semibold border border-[#125699] rounded px-2.5 py-1.5 text-xs"
                     />
                   </div>
                 </div>
               </div>
+                );
+              })()}
 
               {/* Stage 2: Pre-cosecha 2 */}
+              {(() => {
+                const hasPre2Data = parseFlexibleNumber(pre2Kilos) > 0 || parseFlexibleNumber(pre2Gramos) > 0 || parseFlexibleNumber(pre2Organismos) > 0;
+                const missingDate2 = hasPre2Data && !cleanDateString(fecha2);
+                return (
               <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] space-y-3">
                 <h4 className="text-sm font-bold text-amber-200 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-amber-300"></span>
@@ -825,12 +922,17 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] text-blue-200 mb-1">Fecha Pre 2:</label>
+                    <label className="block text-[11px] text-blue-200 mb-1">
+                      Fecha Exacta Pre 2:{hasPre2Data && <span className="text-amber-300 font-semibold"> * Obligatoria</span>}
+                    </label>
                     <input
                       type="date"
                       value={fecha2}
-                      onChange={(e) => setFecha2(e.target.value)}
-                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs [color-scheme:dark]"
+                      required={hasPre2Data}
+                      onChange={(e) => { setFecha2(e.target.value); setFormError(null); }}
+                      className={`w-full bg-[#072C52] text-white rounded px-2.5 py-1.5 text-xs [color-scheme:dark] border ${
+                        missingDate2 ? 'border-red-400 ring-1 ring-red-400/60' : 'border-[#125699]'
+                      }`}
                     />
                   </div>
                   <div>
@@ -840,7 +942,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       step="any"
                       placeholder="Ej. 1324"
                       value={pre2Kilos}
-                      onChange={(e) => handlePreKilosOrGramsChange(2, e.target.value, pre2Gramos)}
+                      onChange={(e) => { handlePreKilosOrGramsChange(2, e.target.value, pre2Gramos); setFormError(null); }}
                       className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
                     />
                   </div>
@@ -851,7 +953,7 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                       step="any"
                       placeholder="Ej. 12.5"
                       value={pre2Gramos}
-                      onChange={(e) => handlePreKilosOrGramsChange(2, pre2Kilos, e.target.value)}
+                      onChange={(e) => { handlePreKilosOrGramsChange(2, pre2Kilos, e.target.value); setFormError(null); }}
                       className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs"
                     />
                   </div>
@@ -860,15 +962,21 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                     <input
                       type="number"
                       value={pre2Organismos}
-                      onChange={(e) => setPre2Organismos(e.target.value)}
+                      onChange={(e) => { setPre2Organismos(e.target.value); setFormError(null); }}
                       placeholder="Cálculo auto"
                       className="w-full bg-[#051E38] text-cyan-300 font-semibold border border-[#125699] rounded px-2.5 py-1.5 text-xs"
                     />
                   </div>
                 </div>
               </div>
+                );
+              })()}
 
               {/* Stage Final: Cosecha Final */}
+              {(() => {
+                const hasFinalData = parseFlexibleNumber(finalKilos) > 0 || parseFlexibleNumber(finalGramos) > 0 || parseFlexibleNumber(finalOrganismos) > 0;
+                const missingDateFinal = hasFinalData && !cleanDateString(fechaFinal);
+                return (
               <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] space-y-3">
                 <h4 className="text-sm font-bold text-emerald-300 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -876,12 +984,17 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] text-blue-200 mb-1">Fecha Cosecha Final:</label>
+                    <label className="block text-[11px] text-blue-200 mb-1">
+                      Fecha Exacta Cosecha Final:{hasFinalData && <span className="text-emerald-300 font-semibold"> * Obligatoria</span>}
+                    </label>
                     <input
                       type="date"
                       value={fechaFinal}
-                      onChange={(e) => setFechaFinal(e.target.value)}
-                      className="w-full bg-[#072C52] text-white border border-[#125699] rounded px-2.5 py-1.5 text-xs [color-scheme:dark]"
+                      required={hasFinalData}
+                      onChange={(e) => { setFechaFinal(e.target.value); setFormError(null); }}
+                      className={`w-full bg-[#072C52] text-white rounded px-2.5 py-1.5 text-xs [color-scheme:dark] border ${
+                        missingDateFinal ? 'border-red-400 ring-1 ring-red-400/60' : 'border-[#125699]'
+                      }`}
                     />
                   </div>
                   <div>
@@ -918,6 +1031,8 @@ const HarvestsModule: React.FC<HarvestsModuleProps> = ({
                   </div>
                 </div>
               </div>
+                );
+              })()}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#125699]">
