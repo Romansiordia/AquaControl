@@ -348,7 +348,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                   const dias = Number(r.diasCultivo) || 0;
                   const pesoActual = Number(r.pesoActual) || 0;
                   const isp = dias > 0 && pesoActual > 0 ? (pesoActual / dias) * 7 : 0;
-                  const biomasaPorHa = hectareas > 0 && net.biomasaTotal > 0 ? net.biomasaTotal / hectareas : 0;
+                  const biomasaPorHa = hectareas > 0 && net.biomasaTotal > 0 ? Math.round(net.biomasaTotal / hectareas) : 0;
 
                   return (
                     <tr key={r.id} className="hover:bg-[#0E4680]/60 transition-colors">
