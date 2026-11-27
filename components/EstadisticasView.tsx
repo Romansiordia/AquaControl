@@ -14,7 +14,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, ArrowUpRight, BarChart2 } from 'lucide-react';
+import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, ArrowUpRight, BarChart2, Activity } from 'lucide-react';
 import ShrimpIcon from './ShrimpIcon';
 
 interface EstadisticasViewProps {
@@ -55,6 +55,8 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     let validSurvCount = 0;
     let totalSobAguaSum = 0;
     let totalPctCosechasSum = 0;
+    let totalIspSum = 0;
+    let validIspCount = 0;
     let count = 0;
 
     records.forEach(r => {
@@ -77,6 +79,9 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
       const biomasaPorHa = hectareas > 0 && net.biomasaTotal > 0
         ? Math.round(net.biomasaTotal / hectareas)
         : 0;
+      const dias = Number(r.diasCultivo) || 0;
+      const pesoActual = Number(r.pesoActual) || 0;
+      const isp = dias > 0 && pesoActual > 0 ? (pesoActual / dias) * 7 : 0;
 
       totalBiomasaEnAgua += net.biomasaEnAgua;
       totalKilosExtraidos += net.kilosExtraidos;
@@ -85,6 +90,10 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
       if (biomasaPorHa > 0) {
         totalBiomasaHaSum += biomasaPorHa;
         validBiomasaHaCount++;
+      }
+      if (isp > 0) {
+        totalIspSum += isp;
+        validIspCount++;
       }
       totalAlimentoAcumulado += (Number(r.alimentoAcumulado) || 0);
 
@@ -118,6 +127,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     const avgSobAgua = validSurvCount > 0 ? parseFloat((totalSobAguaSum / validSurvCount).toFixed(1)) : 0;
     const avgPctCosechas = validSurvCount > 0 ? parseFloat((totalPctCosechasSum / validSurvCount).toFixed(1)) : 0;
     const avgBiomasaHa = validBiomasaHaCount > 0 ? Math.round(totalBiomasaHaSum / validBiomasaHaCount) : 0;
+    const avgIsp = validIspCount > 0 ? parseFloat((totalIspSum / validIspCount).toFixed(2)) : 0;
 
     return {
       pondsCount: count,
@@ -127,6 +137,8 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
       totalHectareas,
       avgBiomasaHa,
       validBiomasaHaCount,
+      avgIsp,
+      validIspCount,
       totalAlimentoAcumulado,
       fcaSinPrecosecha,
       fcaPoscosecha,
@@ -143,7 +155,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     <div className="space-y-8">
       {/* KPI Cards */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Card 1: Biomasa en Agua */}
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-blue-300 mb-1">
@@ -221,7 +233,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
             </p>
           </div>
 
-          {/* Card 5: Peso Promedio */}
+          {/* Card 6: Peso Promedio */}
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-blue-300 mb-1">
               <span className="text-xs font-semibold">Peso Promedio</span>
@@ -233,7 +245,27 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
             <p className="text-[10px] text-blue-300 mt-1 font-medium">Ponderado activo</p>
           </div>
 
-          {/* Card 6: Sobrevivencia Total */}
+          {/* Card 7: ISP */}
+          <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between" title="Incremento Semanal Promedio: (Peso ACT / Días) × 7">
+            <div className="flex items-center justify-between text-cyan-300 mb-1">
+              <span className="text-xs font-semibold">ISP</span>
+              <Activity className="w-4 h-4 text-cyan-400" />
+            </div>
+            <p className="text-xl font-black text-cyan-300">
+              {summary.avgIsp > 0 ? (
+                <>
+                  {summary.avgIsp.toFixed(2)} <span className="text-xs font-normal text-cyan-200">g/sem</span>
+                </>
+              ) : '-'}
+            </p>
+            <p className="text-[10px] text-blue-300 mt-1 font-medium">
+              {summary.validIspCount === 1
+                ? 'Incremento semanal'
+                : `Prom. tabla (${summary.validIspCount} est.)`}
+            </p>
+          </div>
+
+          {/* Card 8: Sobrevivencia Total */}
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-blue-300 mb-1">
               <span className="text-xs font-semibold">Sobrevivencia Total</span>
