@@ -14,7 +14,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, ArrowUpRight } from 'lucide-react';
+import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, ArrowUpRight, BarChart2 } from 'lucide-react';
 import ShrimpIcon from './ShrimpIcon';
 
 interface EstadisticasViewProps {
@@ -45,6 +45,9 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     let totalBiomasaEnAgua = 0;
     let totalKilosExtraidos = 0;
     let totalBiomasaTotal = 0;
+    let totalHectareas = 0;
+    let totalBiomasaHaSum = 0;
+    let validBiomasaHaCount = 0;
     let totalAlimentoAcumulado = 0;
     let weightedWeightSum = 0;
     let totalPopulation = 0;
@@ -71,10 +74,18 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
         : 0;
       const sobAgua = Number(r.sobrevivencia) || 0;
       const sobrevivenciaTotal = pctCosechas + (sobAgua > 0 ? sobAgua : 0);
+      const biomasaPorHa = hectareas > 0 && net.biomasaTotal > 0
+        ? Math.round(net.biomasaTotal / hectareas)
+        : 0;
 
       totalBiomasaEnAgua += net.biomasaEnAgua;
       totalKilosExtraidos += net.kilosExtraidos;
       totalBiomasaTotal += net.biomasaTotal;
+      totalHectareas += hectareas;
+      if (biomasaPorHa > 0) {
+        totalBiomasaHaSum += biomasaPorHa;
+        validBiomasaHaCount++;
+      }
       totalAlimentoAcumulado += (Number(r.alimentoAcumulado) || 0);
 
       const pop = net.poblacionEnAgua || Number(r.densidadActual) || 0;
@@ -106,12 +117,16 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     const avgSurv = validSurvCount > 0 ? parseFloat((totalSurvTotalSum / validSurvCount).toFixed(1)) : 0;
     const avgSobAgua = validSurvCount > 0 ? parseFloat((totalSobAguaSum / validSurvCount).toFixed(1)) : 0;
     const avgPctCosechas = validSurvCount > 0 ? parseFloat((totalPctCosechasSum / validSurvCount).toFixed(1)) : 0;
+    const avgBiomasaHa = validBiomasaHaCount > 0 ? Math.round(totalBiomasaHaSum / validBiomasaHaCount) : 0;
 
     return {
       pondsCount: count,
       totalBiomasaEnAgua,
       totalKilosExtraidos,
       totalBiomasaTotal,
+      totalHectareas,
+      avgBiomasaHa,
+      validBiomasaHaCount,
       totalAlimentoAcumulado,
       fcaSinPrecosecha,
       fcaPoscosecha,
@@ -128,7 +143,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     <div className="space-y-8">
       {/* KPI Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3.5">
           {/* Card 1: Biomasa en Agua */}
           <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-blue-300 mb-1">
@@ -163,6 +178,26 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
               {formatNumber(summary.totalBiomasaTotal)} <span className="text-xs font-normal text-cyan-200">kg</span>
             </p>
             <p className="text-[10px] text-blue-300 mt-1 font-medium">Agua + Cosechado</p>
+          </div>
+
+          {/* Card 4: Biomasa/HA */}
+          <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-sky-300 mb-1">
+              <span className="text-xs font-semibold">Biomasa / HA</span>
+              <BarChart2 className="w-4 h-4 text-sky-400" />
+            </div>
+            <p className="text-xl font-black text-sky-300">
+              {summary.avgBiomasaHa > 0 ? (
+                <>
+                  {formatNumber(summary.avgBiomasaHa, 0)} <span className="text-xs font-normal text-sky-200">kg/ha</span>
+                </>
+              ) : '-'}
+            </p>
+            <p className="text-[10px] text-blue-300 mt-1 font-medium">
+              {summary.validBiomasaHaCount === 1
+                ? `${formatNumber(summary.totalHectareas, 2)} ha`
+                : `Prom. tabla (${formatNumber(summary.totalHectareas, 1)} ha)`}
+            </p>
           </div>
 
           {/* Card 4: FCA Ajustado vs Sin Precosecha */}
