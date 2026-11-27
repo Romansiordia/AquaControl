@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PondRecord, HarvestRecord } from '../types';
-import { formatNumber, formatDate, normalizeEstanque, calculatePondNetMetrics, getPondExtractions } from '../utils';
+import { formatNumber, normalizeEstanque, calculatePondNetMetrics, getPondExtractions } from '../utils';
 import {
   BarChart,
   Bar,
@@ -14,7 +14,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, ArrowUpRight, BarChart2, Activity } from 'lucide-react';
+import { Scale, TrendingUp, ShieldCheck, Flame, Layers, Eye, BarChart2, Activity, Award, Package, FlaskConical } from 'lucide-react';
 import ShrimpIcon from './ShrimpIcon';
 
 interface EstadisticasViewProps {
@@ -38,6 +38,8 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
   harvests,
   onSelectPond,
 }) => {
+  const [activeTab, setActiveTab] = useState<'estanques' | 'comparativa'>('estanques');
+
   // Global Executive Summary incorporating Pre-cosechas
   const summary = useMemo(() => {
     if (!records || records.length === 0) return null;
@@ -151,8 +153,298 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
     };
   }, [records, harvests]);
 
+  const comparativaData = useMemo(() => {
+    if (!records || records.length === 0) {
+      return {
+        byAlimento: [],
+        byLaboratorio: [],
+        byCombinacion: [],
+        bestFcaAlimento: null,
+        bestIspAlimento: null,
+        bestSurvLab: null,
+        bestCombo: null,
+      };
+    }
+
+    const distinctGranjas = new Set(records.map(r => (r.granja || '').trim()).filter(Boolean));
+    const showGranjaPrefix = distinctGranjas.size > 1;
+
+    interface GroupAcc {
+      key: string;
+      alimento: string;
+      laboratorio: string;
+      pondLabels: string[];
+      pondsCount: number;
+      totalHectareas: number;
+      totalBiomasaAgua: number;
+      totalKilosExtraidos: number;
+      totalBiomasaTotal: number;
+      totalAlimentoAcum: number;
+      pesoSum: number;
+      pesoCount: number;
+      diasSum: number;
+      diasCount: number;
+      ispSum: number;
+      ispCount: number;
+      survSum: number;
+      survCount: number;
+    }
+
+    const createAcc = (key: string, alimento = '', laboratorio = ''): GroupAcc => ({
+      key,
+      alimento,
+      laboratorio,
+      pondLabels: [],
+      pondsCount: 0,
+      totalHectareas: 0,
+      totalBiomasaAgua: 0,
+      totalKilosExtraidos: 0,
+      totalBiomasaTotal: 0,
+      totalAlimentoAcum: 0,
+      pesoSum: 0,
+      pesoCount: 0,
+      diasSum: 0,
+      diasCount: 0,
+      ispSum: 0,
+      ispCount: 0,
+      survSum: 0,
+      survCount: 0,
+    });
+
+    const addRecordToAcc = (
+      acc: GroupAcc,
+      pondLabel: string,
+      hectareas: number,
+      biomasaAgua: number,
+      kilosExtraidos: number,
+      biomasaTotal: number,
+      alimentoAcum: number,
+      pesoActual: number,
+      dias: number,
+      isp: number,
+      sobrevivenciaTotal: number
+    ) => {
+      if (!acc.pondLabels.includes(pondLabel)) {
+        acc.pondLabels.push(pondLabel);
+      }
+      acc.pondsCount += 1;
+      acc.totalHectareas += hectareas;
+      acc.totalBiomasaAgua += biomasaAgua;
+      acc.totalKilosExtraidos += kilosExtraidos;
+      acc.totalBiomasaTotal += biomasaTotal;
+      acc.totalAlimentoAcum += alimentoAcum;
+      if (pesoActual > 0) {
+        acc.pesoSum += pesoActual;
+        acc.pesoCount += 1;
+      }
+      if (dias > 0) {
+        acc.diasSum += dias;
+        acc.diasCount += 1;
+      }
+      if (isp > 0) {
+        acc.ispSum += isp;
+        acc.ispCount += 1;
+      }
+      if (sobrevivenciaTotal > 0) {
+        acc.survSum += sobrevivenciaTotal;
+        acc.survCount += 1;
+      }
+    };
+
+    const alimentoMap = new Map<string, GroupAcc>();
+    const labMap = new Map<string, GroupAcc>();
+    const comboMap = new Map<string, GroupAcc>();
+
+    records.forEach((r) => {
+      const net = calculatePondNetMetrics(r, harvests);
+      const harvestsSummary = getPondExtractions(r.granja, r.estanque, harvests);
+      const hectareas = Number(r.hectareas) || 0;
+      let siembraInicial = Number(r.densidadInicial) || Number(r.organismosSembrados) || 0;
+      if (siembraInicial === 0 && hectareas > 0) {
+        const orgMt2 = Number(r.orgMt2) || Number(r.camM2Inicial) || 0;
+        if (orgMt2 > 0) siembraInicial = Math.round(orgMt2 * hectareas * 10000);
+      }
+      const orgExtraidos = harvestsSummary.totalOrganismos > 0
+        ? harvestsSummary.totalOrganismos
+        : (net.organismosExtraidos || 0);
+      const pctCosechas = siembraInicial > 0 && orgExtraidos > 0
+        ? (orgExtraidos / siembraInicial) * 100
+        : 0;
+      const sobAgua = Number(r.sobrevivencia) || 0;
+      const sobrevivenciaTotal = pctCosechas + (sobAgua > 0 ? sobAgua : 0);
+      const dias = Number(r.diasCultivo) || 0;
+      const pesoActual = Number(r.pesoActual) || 0;
+      const isp = dias > 0 && pesoActual > 0 ? (pesoActual / dias) * 7 : 0;
+      const alimentoAcum = Number(r.alimentoAcumulado) || 0;
+
+      const alimentoName = (r.alimento || '').trim() || 'Sin especificar';
+      const labName = (r.laboratorio || '').trim() || 'Sin especificar';
+      const comboKey = `${alimentoName}|||${labName}`;
+      const estCode = `E${normalizeEstanque(r.estanque)}`;
+      const pondLabel = showGranjaPrefix && r.granja ? `${r.granja} ${estCode}` : estCode;
+
+      if (!alimentoMap.has(alimentoName)) {
+        alimentoMap.set(alimentoName, createAcc(alimentoName, alimentoName, ''));
+      }
+      addRecordToAcc(
+        alimentoMap.get(alimentoName)!,
+        pondLabel,
+        hectareas,
+        net.biomasaEnAgua,
+        net.kilosExtraidos,
+        net.biomasaTotal,
+        alimentoAcum,
+        pesoActual,
+        dias,
+        isp,
+        sobrevivenciaTotal
+      );
+
+      if (!labMap.has(labName)) {
+        labMap.set(labName, createAcc(labName, '', labName));
+      }
+      addRecordToAcc(
+        labMap.get(labName)!,
+        pondLabel,
+        hectareas,
+        net.biomasaEnAgua,
+        net.kilosExtraidos,
+        net.biomasaTotal,
+        alimentoAcum,
+        pesoActual,
+        dias,
+        isp,
+        sobrevivenciaTotal
+      );
+
+      if (!comboMap.has(comboKey)) {
+        comboMap.set(comboKey, createAcc(comboKey, alimentoName, labName));
+      }
+      addRecordToAcc(
+        comboMap.get(comboKey)!,
+        pondLabel,
+        hectareas,
+        net.biomasaEnAgua,
+        net.kilosExtraidos,
+        net.biomasaTotal,
+        alimentoAcum,
+        pesoActual,
+        dias,
+        isp,
+        sobrevivenciaTotal
+      );
+    });
+
+    const finalize = (map: Map<string, GroupAcc>) =>
+      Array.from(map.values())
+        .map((acc) => {
+          const avgBiomasaHa =
+            acc.totalHectareas > 0 && acc.totalBiomasaTotal > 0
+              ? Math.round(acc.totalBiomasaTotal / acc.totalHectareas)
+              : 0;
+          const fcaAjustado =
+            acc.totalBiomasaTotal > 0 && acc.totalAlimentoAcum > 0
+              ? parseFloat((acc.totalAlimentoAcum / acc.totalBiomasaTotal).toFixed(2))
+              : 0;
+          const avgPeso =
+            acc.pesoCount > 0 ? parseFloat((acc.pesoSum / acc.pesoCount).toFixed(2)) : 0;
+          const avgDias =
+            acc.diasCount > 0 ? Math.round(acc.diasSum / acc.diasCount) : 0;
+          const avgIsp =
+            acc.ispCount > 0 ? parseFloat((acc.ispSum / acc.ispCount).toFixed(2)) : 0;
+          const avgSurv =
+            acc.survCount > 0 ? parseFloat((acc.survSum / acc.survCount).toFixed(1)) : 0;
+
+          return {
+            ...acc,
+            estanquesText: acc.pondLabels.join(', '),
+            avgBiomasaHa,
+            fcaAjustado,
+            avgPeso,
+            avgDias,
+            avgIsp,
+            avgSurv,
+          };
+        })
+        .sort((a, b) => b.avgBiomasaHa - a.avgBiomasaHa);
+
+    const byAlimento = finalize(alimentoMap);
+    const byLaboratorio = finalize(labMap);
+    const byCombinacion = finalize(comboMap);
+
+    const validFcaAlimentos = byAlimento.filter(a => a.fcaAjustado > 0);
+    const bestFcaAlimento = validFcaAlimentos.length > 0
+      ? [...validFcaAlimentos].sort((a, b) => a.fcaAjustado - b.fcaAjustado)[0]
+      : null;
+
+    const validIspAlimentos = byAlimento.filter(a => a.avgIsp > 0);
+    const bestIspAlimento = validIspAlimentos.length > 0
+      ? [...validIspAlimentos].sort((a, b) => b.avgIsp - a.avgIsp)[0]
+      : null;
+
+    const validSurvLabs = byLaboratorio.filter(l => l.avgSurv > 0);
+    const bestSurvLab = validSurvLabs.length > 0
+      ? [...validSurvLabs].sort((a, b) => b.avgSurv - a.avgSurv)[0]
+      : null;
+
+    const bestCombo = byCombinacion.length > 0 ? byCombinacion[0] : null;
+
+    return {
+      byAlimento,
+      byLaboratorio,
+      byCombinacion,
+      bestFcaAlimento,
+      bestIspAlimento,
+      bestSurvLab,
+      bestCombo,
+    };
+  }, [records, harvests]);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Sub-navigation Tabs inside Análisis Estadístico */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#093661] p-2 rounded-xl border border-[#125699]">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('estanques')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${
+              activeTab === 'estanques'
+                ? 'bg-[#125699] text-white shadow-md border border-blue-400/40'
+                : 'text-blue-200 hover:bg-[#0B4075] hover:text-white'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4 text-cyan-400" />
+            <span>Vista por Estanques</span>
+            <span className="px-1.5 py-0.5 rounded bg-[#062444] text-[10px] text-blue-200">
+              {records.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('comparativa')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${
+              activeTab === 'comparativa'
+                ? 'bg-[#125699] text-white shadow-md border border-amber-400/40'
+                : 'text-blue-200 hover:bg-[#0B4075] hover:text-white'
+            }`}
+          >
+            <Award className="w-4 h-4 text-amber-400" />
+            <span>Comparativa Alimento y Larva</span>
+            <span className="px-1.5 py-0.5 rounded bg-[#062444] text-[10px] text-amber-300">
+              {comparativaData.byAlimento.length} Alim · {comparativaData.byLaboratorio.length} Lab
+            </span>
+          </button>
+        </div>
+
+        <span className="text-[11px] text-blue-300 px-2 hidden md:inline">
+          Calculado sobre los {records.length} estanque(s) filtrados
+        </span>
+      </div>
+
+      {activeTab === 'estanques' && (
+        <div className="space-y-8">
       {/* KPI Cards */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -406,6 +698,8 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
               <tr>
                 <th className="px-3 py-3 border-r border-[#125699]">Est.</th>
                 <th className="px-3 py-3 border-r border-[#125699]">Granja</th>
+                <th className="px-3 py-3 border-r border-[#125699]">Alimento</th>
+                <th className="px-3 py-3 border-r border-[#125699]">Laboratorio</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">Has</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">Días</th>
                 <th className="px-2 py-3 border-r border-[#125699] text-right">Peso ANT</th>
@@ -425,7 +719,7 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
             <tbody className="divide-y divide-[#125699]/60">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="py-12 text-center text-blue-300">
+                  <td colSpan={18} className="py-12 text-center text-blue-300">
                     No hay registros de estanques disponibles.
                   </td>
                 </tr>
@@ -459,6 +753,12 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
                       </td>
                       <td className="px-3 py-2.5 font-semibold text-white border-r border-[#125699] whitespace-nowrap">
                         {r.granja}
+                      </td>
+                      <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699] whitespace-nowrap">
+                        {r.alimento || '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-cyan-200 border-r border-[#125699] whitespace-nowrap">
+                        {r.laboratorio || '-'}
                       </td>
                       <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]">
                         {r.hectareas}
@@ -535,6 +835,361 @@ const EstadisticasView: React.FC<EstadisticasViewProps> = ({
           </table>
         </div>
       </div>
+        </div>
+      )}
+
+      {activeTab === 'comparativa' && (
+        <div className="space-y-8">
+          {records.length === 0 ? (
+            <div className="bg-[#0B4075] p-12 rounded-xl border border-[#125699] text-center text-blue-300 text-sm">
+              No hay datos disponibles con los filtros actuales para comparar alimento y laboratorio.
+            </div>
+          ) : (
+            <>
+              {/* 4 Highlight Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-emerald-300 mb-1">
+                    <span className="text-xs font-semibold">Mejor FCA (Alimento)</span>
+                    <Flame className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <p className="text-base font-black text-white truncate" title={comparativaData.bestFcaAlimento?.alimento}>
+                    {comparativaData.bestFcaAlimento ? comparativaData.bestFcaAlimento.alimento : '-'}
+                  </p>
+                  <p className="text-[11px] text-emerald-300 mt-1 font-medium">
+                    {comparativaData.bestFcaAlimento
+                      ? `FCA ${comparativaData.bestFcaAlimento.fcaAjustado.toFixed(2)} · ${formatNumber(comparativaData.bestFcaAlimento.avgBiomasaHa, 0)} kg/ha`
+                      : 'Sin datos suficientes'}
+                  </p>
+                </div>
+
+                <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-cyan-300 mb-1">
+                    <span className="text-xs font-semibold">Mayor ISP (Alimento)</span>
+                    <Activity className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <p className="text-base font-black text-white truncate" title={comparativaData.bestIspAlimento?.alimento}>
+                    {comparativaData.bestIspAlimento ? comparativaData.bestIspAlimento.alimento : '-'}
+                  </p>
+                  <p className="text-[11px] text-cyan-300 mt-1 font-medium">
+                    {comparativaData.bestIspAlimento
+                      ? `${comparativaData.bestIspAlimento.avgIsp.toFixed(2)} g/sem · Peso ${comparativaData.bestIspAlimento.avgPeso} g`
+                      : 'Sin datos suficientes'}
+                  </p>
+                </div>
+
+                <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-purple-300 mb-1">
+                    <span className="text-xs font-semibold">Mayor Sobrevivencia (Larva)</span>
+                    <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <p className="text-base font-black text-white truncate" title={comparativaData.bestSurvLab?.laboratorio}>
+                    {comparativaData.bestSurvLab ? comparativaData.bestSurvLab.laboratorio : '-'}
+                  </p>
+                  <p className="text-[11px] text-purple-300 mt-1 font-medium">
+                    {comparativaData.bestSurvLab
+                      ? `SOB ${comparativaData.bestSurvLab.avgSurv}% · ${comparativaData.bestSurvLab.pondsCount} est.`
+                      : 'Sin datos suficientes'}
+                  </p>
+                </div>
+
+                <div className="bg-[#0B4075] p-4 rounded-xl border border-[#125699] shadow-sm flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-amber-300 mb-1">
+                    <span className="text-xs font-semibold">Mejor Biomasa / HA (Cruce)</span>
+                    <Award className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <p
+                    className="text-sm font-black text-white truncate"
+                    title={
+                      comparativaData.bestCombo
+                        ? `${comparativaData.bestCombo.alimento} × ${comparativaData.bestCombo.laboratorio}`
+                        : ''
+                    }
+                  >
+                    {comparativaData.bestCombo
+                      ? `${comparativaData.bestCombo.alimento} × ${comparativaData.bestCombo.laboratorio}`
+                      : '-'}
+                  </p>
+                  <p className="text-[11px] text-amber-300 mt-1 font-medium">
+                    {comparativaData.bestCombo
+                      ? `${formatNumber(comparativaData.bestCombo.avgBiomasaHa, 0)} kg/ha · FCA ${comparativaData.bestCombo.fcaAjustado > 0 ? comparativaData.bestCombo.fcaAjustado.toFixed(2) : '-'}`
+                      : 'Sin datos suficientes'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Comparison Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Chart: Por Alimento */}
+                <div className="bg-[#093661] p-5 rounded-2xl border border-[#125699] shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Package className="w-4 h-4 text-amber-400" />
+                      <span>Rendimiento por Alimento (Biomasa/HA vs FCA)</span>
+                    </h3>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparativaData.byAlimento} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#125699" opacity={0.5} />
+                        <XAxis dataKey="alimento" stroke="#93c5fd" fontSize={11} angle={-15} textAnchor="end" interval={0} />
+                        <YAxis yAxisId="left" stroke="#38bdf8" fontSize={11} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={11} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#072C52', borderColor: '#1B5CB3', borderRadius: '8px', color: '#fff' }}
+                          formatter={(val: any, name: string) =>
+                            name.includes('FCA') ? [Number(val).toFixed(2), name] : [`${formatNumber(Number(val), 0)} kg/ha`, name]
+                          }
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', color: '#93c5fd' }} />
+                        <Bar yAxisId="left" dataKey="avgBiomasaHa" name="Biomasa/HA (kg/ha)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="right" dataKey="fcaAjustado" name="FCA Ajustado" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Chart: Por Laboratorio */}
+                <div className="bg-[#093661] p-5 rounded-2xl border border-[#125699] shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <FlaskConical className="w-4 h-4 text-cyan-400" />
+                      <span>Desempeño por Laboratorio (Biomasa/HA vs SOB Total)</span>
+                    </h3>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparativaData.byLaboratorio} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#125699" opacity={0.5} />
+                        <XAxis dataKey="laboratorio" stroke="#93c5fd" fontSize={11} angle={-15} textAnchor="end" interval={0} />
+                        <YAxis yAxisId="left" stroke="#38bdf8" fontSize={11} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#c084fc" fontSize={11} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#072C52', borderColor: '#1B5CB3', borderRadius: '8px', color: '#fff' }}
+                          formatter={(val: any, name: string) =>
+                            name.includes('SOB') ? [`${val}%`, name] : [`${formatNumber(Number(val), 0)} kg/ha`, name]
+                          }
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', color: '#93c5fd' }} />
+                        <Bar yAxisId="left" dataKey="avgBiomasaHa" name="Biomasa/HA (kg/ha)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="right" dataKey="avgSurv" name="SOB Total (%)" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table 1: Concentrado por Alimento */}
+              <div className="bg-[#0B4075] rounded-xl border border-[#125699] overflow-hidden shadow-lg">
+                <div className="p-4 bg-[#072C52] border-b border-[#125699] flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Package className="w-4 h-4 text-amber-400" />
+                    <span>Concentrado por Alimento</span>
+                  </h3>
+                  <span className="text-xs text-blue-300">
+                    {comparativaData.byAlimento.length} alimento(s)
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#062444] text-blue-100 uppercase tracking-wider font-bold border-b border-[#125699]">
+                      <tr>
+                        <th className="px-3 py-3 border-r border-[#125699]">Alimento</th>
+                        <th className="px-3 py-3 border-r border-[#125699]">Estanques</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Has</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Días Prom.</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Peso ACT</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">ISP</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right text-purple-300 bg-purple-950/20">SOB TOTAL</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right bg-sky-950/20 text-sky-300">Biomasa/HA</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right text-cyan-300">Biomasa Total</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right">Alim. Acum</th>
+                        <th className="px-2 py-3 text-right text-emerald-300 bg-emerald-950/20">FCA Ajustado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#125699]/60">
+                      {comparativaData.byAlimento.map((row) => (
+                        <tr key={row.key} className="hover:bg-[#0E4680]/60 transition-colors">
+                          <td className="px-3 py-2.5 font-bold text-amber-300 border-r border-[#125699] whitespace-nowrap">
+                            {row.alimento}
+                          </td>
+                          <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699]">
+                            <span className="font-semibold text-white mr-1">({row.pondsCount})</span>
+                            <span className="text-[11px]">{row.estanquesText}</span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]">
+                            {formatNumber(row.totalHectareas, 2)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]">
+                            {row.avgDias > 0 ? row.avgDias : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold text-white border-r border-[#125699]">
+                            {row.avgPeso > 0 ? `${row.avgPeso}g` : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-semibold text-cyan-300 border-r border-[#125699]">
+                            {row.avgIsp > 0 ? `${row.avgIsp.toFixed(2)}g` : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold text-purple-300 border-r border-[#125699] bg-purple-950/10">
+                            {row.avgSurv > 0 ? `${row.avgSurv.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-bold text-sky-300 border-r border-[#125699] bg-sky-950/10 whitespace-nowrap">
+                            {row.avgBiomasaHa > 0 ? `${formatNumber(row.avgBiomasaHa, 0)} kg/ha` : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-black text-cyan-300 border-r border-[#125699] whitespace-nowrap">
+                            {formatNumber(row.totalBiomasaTotal)} kg
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-slate-200 border-r border-[#125699] whitespace-nowrap">
+                            {formatNumber(row.totalAlimentoAcum)} kg
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-black text-emerald-400 bg-emerald-950/10">
+                            {row.fcaAjustado > 0 ? row.fcaAjustado.toFixed(2) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Table 2: Concentrado por Laboratorio (Larva) */}
+              <div className="bg-[#0B4075] rounded-xl border border-[#125699] overflow-hidden shadow-lg">
+                <div className="p-4 bg-[#072C52] border-b border-[#125699] flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <FlaskConical className="w-4 h-4 text-cyan-400" />
+                    <span>Concentrado por Laboratorio (Larva)</span>
+                  </h3>
+                  <span className="text-xs text-blue-300">
+                    {comparativaData.byLaboratorio.length} laboratorio(s)
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#062444] text-blue-100 uppercase tracking-wider font-bold border-b border-[#125699]">
+                      <tr>
+                        <th className="px-3 py-3 border-r border-[#125699]">Laboratorio</th>
+                        <th className="px-3 py-3 border-r border-[#125699]">Estanques</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Has</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Días Prom.</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Peso ACT</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">ISP</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right text-purple-300 bg-purple-950/20">SOB TOTAL</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right bg-sky-950/20 text-sky-300">Biomasa/HA</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right text-cyan-300">Biomasa Total</th>
+                        <th className="px-2 py-3 text-right text-emerald-300 bg-emerald-950/20">FCA Ajustado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#125699]/60">
+                      {comparativaData.byLaboratorio.map((row) => (
+                        <tr key={row.key} className="hover:bg-[#0E4680]/60 transition-colors">
+                          <td className="px-3 py-2.5 font-bold text-cyan-300 border-r border-[#125699] whitespace-nowrap">
+                            {row.laboratorio}
+                          </td>
+                          <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699]">
+                            <span className="font-semibold text-white mr-1">({row.pondsCount})</span>
+                            <span className="text-[11px]">{row.estanquesText}</span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]">
+                            {formatNumber(row.totalHectareas, 2)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]">
+                            {row.avgDias > 0 ? row.avgDias : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold text-white border-r border-[#125699]">
+                            {row.avgPeso > 0 ? `${row.avgPeso}g` : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-semibold text-cyan-300 border-r border-[#125699]">
+                            {row.avgIsp > 0 ? `${row.avgIsp.toFixed(2)}g` : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold text-purple-300 border-r border-[#125699] bg-purple-950/10">
+                            {row.avgSurv > 0 ? `${row.avgSurv.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-bold text-sky-300 border-r border-[#125699] bg-sky-950/10 whitespace-nowrap">
+                            {row.avgBiomasaHa > 0 ? `${formatNumber(row.avgBiomasaHa, 0)} kg/ha` : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-black text-cyan-300 border-r border-[#125699] whitespace-nowrap">
+                            {formatNumber(row.totalBiomasaTotal)} kg
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-black text-emerald-400 bg-emerald-950/10">
+                            {row.fcaAjustado > 0 ? row.fcaAjustado.toFixed(2) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Table 3: Cruce Alimento × Laboratorio */}
+              <div className="bg-[#0B4075] rounded-xl border border-[#125699] overflow-hidden shadow-lg">
+                <div className="p-4 bg-[#072C52] border-b border-[#125699] flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Award className="w-4 h-4 text-emerald-400" />
+                    <span>Cruce Alimento × Laboratorio (Larva)</span>
+                  </h3>
+                  <span className="text-xs text-blue-300">
+                    {comparativaData.byCombinacion.length} combinación(es)
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#062444] text-blue-100 uppercase tracking-wider font-bold border-b border-[#125699]">
+                      <tr>
+                        <th className="px-3 py-3 border-r border-[#125699]">Alimento</th>
+                        <th className="px-3 py-3 border-r border-[#125699]">Laboratorio</th>
+                        <th className="px-3 py-3 border-r border-[#125699]">Estanques</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Has</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">Peso ACT</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right">ISP</th>
+                        <th className="px-2 py-3 border-r border-[#125699] text-right text-purple-300 bg-purple-950/20">SOB TOTAL</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right bg-sky-950/20 text-sky-300">Biomasa/HA</th>
+                        <th className="px-3 py-3 border-r border-[#125699] text-right text-cyan-300">Biomasa Total</th>
+                        <th className="px-2 py-3 text-right text-emerald-300 bg-emerald-950/20">FCA Ajustado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#125699]/60">
+                      {comparativaData.byCombinacion.map((row) => (
+                        <tr key={row.key} className="hover:bg-[#0E4680]/60 transition-colors">
+                          <td className="px-3 py-2.5 font-bold text-amber-300 border-r border-[#125699] whitespace-nowrap">
+                            {row.alimento}
+                          </td>
+                          <td className="px-3 py-2.5 font-bold text-cyan-300 border-r border-[#125699] whitespace-nowrap">
+                            {row.laboratorio}
+                          </td>
+                          <td className="px-3 py-2.5 text-blue-200 border-r border-[#125699]">
+                            <span className="font-semibold text-white mr-1">({row.pondsCount})</span>
+                            <span className="text-[11px]">{row.estanquesText}</span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-slate-300 border-r border-[#125699]">
+                            {formatNumber(row.totalHectareas, 2)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold text-white border-r border-[#125699]">
+                            {row.avgPeso > 0 ? `${row.avgPeso}g` : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-semibold text-cyan-300 border-r border-[#125699]">
+                            {row.avgIsp > 0 ? `${row.avgIsp.toFixed(2)}g` : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold text-purple-300 border-r border-[#125699] bg-purple-950/10">
+                            {row.avgSurv > 0 ? `${row.avgSurv.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-bold text-sky-300 border-r border-[#125699] bg-sky-950/10 whitespace-nowrap">
+                            {row.avgBiomasaHa > 0 ? `${formatNumber(row.avgBiomasaHa, 0)} kg/ha` : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-black text-cyan-300 border-r border-[#125699] whitespace-nowrap">
+                            {formatNumber(row.totalBiomasaTotal)} kg
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-black text-emerald-400 bg-emerald-950/10">
+                            {row.fcaAjustado > 0 ? row.fcaAjustado.toFixed(2) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

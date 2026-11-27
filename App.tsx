@@ -175,10 +175,12 @@ const App: React.FC = () => {
 
   // Filters state
   const [filters, setFilters] = useState<FilterState>({
+    fechaDesde: '',
+    fechaHasta: '',
     granja: '',
-    alimento: '',
-    laboratorio: '',
-    estanque: ''
+    alimentos: [],
+    laboratorios: [],
+    estanques: []
   });
 
   const uniqueGranjas = useMemo(() => {
@@ -187,32 +189,44 @@ const App: React.FC = () => {
     return Array.from(gSet).sort();
   }, [records]);
 
+  const recordsInSelectedGranja = useMemo(() => {
+    if (!filters.granja) return records;
+    const gTarget = filters.granja.toLowerCase().trim();
+    return records.filter(r => r.granja?.toLowerCase().trim() === gTarget);
+  }, [records, filters.granja]);
+
   const uniqueAlimentos = useMemo(() => {
     const aSet = new Set<string>();
-    records.forEach(r => { if (r.alimento) aSet.add(r.alimento); });
+    recordsInSelectedGranja.forEach(r => { if (r.alimento) aSet.add(r.alimento); });
     return Array.from(aSet).sort();
-  }, [records]);
+  }, [recordsInSelectedGranja]);
 
   const uniqueLaboratorios = useMemo(() => {
     const lSet = new Set<string>();
-    records.forEach(r => { if (r.laboratorio) lSet.add(r.laboratorio); });
+    recordsInSelectedGranja.forEach(r => { if (r.laboratorio) lSet.add(r.laboratorio); });
     return Array.from(lSet).sort();
-  }, [records]);
+  }, [recordsInSelectedGranja]);
 
   const uniqueEstanques = useMemo(() => {
     const eSet = new Set<string>();
-    records.forEach(r => { if (r.estanque) eSet.add(normalizeEstanque(r.estanque)); });
+    recordsInSelectedGranja.forEach(r => { if (r.estanque) eSet.add(normalizeEstanque(r.estanque)); });
     return Array.from(eSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-  }, [records]);
+  }, [recordsInSelectedGranja]);
 
   // Filtered raw records
   const filteredRawRecords = useMemo(() => {
     return records.filter(record => {
       const matchGranja = !filters.granja || record.granja?.toLowerCase().trim() === filters.granja.toLowerCase().trim();
-      const matchAlimento = !filters.alimento || record.alimento === filters.alimento;
-      const matchLab = !filters.laboratorio || record.laboratorio === filters.laboratorio;
-      const matchEstanque = !filters.estanque || normalizeEstanque(record.estanque) === normalizeEstanque(filters.estanque);
-      return matchGranja && matchAlimento && matchLab && matchEstanque;
+      const matchAlimento = filters.alimentos.length === 0 || filters.alimentos.includes(record.alimento);
+      const matchLab = filters.laboratorios.length === 0 || filters.laboratorios.includes(record.laboratorio);
+      const normEst = normalizeEstanque(record.estanque);
+      const matchEstanque =
+        filters.estanques.length === 0 ||
+        filters.estanques.some(e => normalizeEstanque(e) === normEst);
+      const recDate = cleanDateString(record.fecha);
+      const matchDesde = !filters.fechaDesde || (recDate && recDate >= filters.fechaDesde);
+      const matchHasta = !filters.fechaHasta || (recDate && recDate <= filters.fechaHasta);
+      return matchGranja && matchAlimento && matchLab && matchEstanque && matchDesde && matchHasta;
     });
   }, [records, filters]);
 
